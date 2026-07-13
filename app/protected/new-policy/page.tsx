@@ -141,15 +141,25 @@ async function NewPolicyContent() {
           title="Term"
         >
           <Field label="Effective Date">
-            <input className={fieldClass} type="date" />
+            <input
+              className={fieldClass}
+              inputMode="numeric"
+              pattern="\\d{2}/\\d{2}/\\d{4}"
+              placeholder="dd/mm/yyyy"
+            />
           </Field>
 
           <Field label="Expiry Date">
-            <input className={fieldClass} type="date" />
+            <input
+              className={fieldClass}
+              inputMode="numeric"
+              pattern="\\d{2}/\\d{2}/\\d{4}"
+              placeholder="dd/mm/yyyy"
+            />
           </Field>
 
           <Field label="Sum Assured">
-            <input className={fieldClass} inputMode="decimal" placeholder="RM" />
+            <MoneyInput placeholder="0.00" />
           </Field>
         </FormSection>
 
@@ -159,11 +169,11 @@ async function NewPolicyContent() {
           title="Premium & Commission"
         >
           <Field label="Gross Premium">
-            <input className={fieldClass} inputMode="decimal" placeholder="RM" />
+            <MoneyInput placeholder="0.00" />
           </Field>
 
           <Field label="Net Premium">
-            <input className={fieldClass} inputMode="decimal" placeholder="RM" />
+            <MoneyInput placeholder="0.00" />
           </Field>
 
           <Field label="Split Pattern">
@@ -242,6 +252,23 @@ function PageShell({ children }: { children: React.ReactNode }) {
 
 const fieldClass =
   "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
+
+function MoneyInput({ placeholder }: { placeholder: string }) {
+  return (
+    <div className="flex h-10 overflow-hidden rounded-lg border border-slate-200 bg-white transition focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100">
+      <span className="flex items-center border-r border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-500">
+        RM
+      </span>
+      <input
+        className="min-w-0 flex-1 px-3 text-sm text-slate-950 outline-none placeholder:text-slate-400"
+        inputMode="decimal"
+        pattern="[0-9]+([.][0-9]{1,2})?"
+        placeholder={placeholder}
+        type="text"
+      />
+    </div>
+  );
+}
 
 function FormSection({
   children,
