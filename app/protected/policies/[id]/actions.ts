@@ -77,6 +77,50 @@ export async function markCommissionsPaid(formData: FormData) {
   revalidatePath(`/protected/policies/${policyTermId}`);
 }
 
+export async function deletePolicy(formData: FormData) {
+  const policyTermId = textValue(formData, "policy_term_id");
+  const confirmation = textValue(formData, "delete_confirmation");
+  const { supabase, userId } = await requireUser();
+
+  if (confirmation !== "DELETE") {
+    throw new Error("Type DELETE to confirm policy deletion.");
+  }
+
+  const { data: policyTerm, error: lookupError } = await supabase
+    .from("policy_terms")
+    .select("id, policy_series_id, policy_number, insured_name_snapshot")
+    .eq("id", policyTermId)
+    .single();
+  if (lookupError) throw lookupError;
+
+  await logActivity(
+    supabase,
+    userId,
+    policyTermId,
+    "delete",
+    `Deleted policy ${policyTerm.policy_number || policyTerm.insured_name_snapshot || policyTermId}.`,
+  );
+
+  const { error: deleteError } = await supabase
+    .from("policy_terms")
+    .delete()
+    .eq("id", policyTermId);
+  if (deleteError) throw deleteError;
+
+  const { count, error: countError } = await supabase
+    .from("policy_terms")
+    .select("id", { count: "exact", head: true })
+    .eq("policy_series_id", policyTerm.policy_series_id);
+  if (countError) throw countError;
+
+  if (count === 0) {
+    await supabase.from("policy_series").delete().eq("id", policyTerm.policy_series_id);
+  }
+
+  revalidatePath("/protected");
+  redirect("/protected");
+}
+
 export async function startRenewal(formData: FormData) {
   const policyTermId = textValue(formData, "policy_term_id");
   const { supabase, userId } = await requireUser();

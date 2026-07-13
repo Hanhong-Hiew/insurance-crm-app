@@ -1,11 +1,11 @@
-import { ArrowLeft, CalendarPlus, CheckCircle2, FileText, PenLine } from "lucide-react";
+import { ArrowLeft, CalendarPlus, CheckCircle2, FileText, PenLine, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { createClient } from "@/lib/supabase/server";
 
-import { markCommissionsPaid, markPremiumPaid, startRenewal } from "./actions";
+import { deletePolicy, markCommissionsPaid, markPremiumPaid, startRenewal } from "./actions";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -130,7 +130,12 @@ async function PolicyRecordContent({ params }: PageProps) {
                   {clean(record.insurance_type)}
                 </p>
                 <h1 className="mt-1 text-2xl font-semibold text-slate-950">
-                  {clean(record.client_name)}
+                  <Link
+                    className="hover:text-sky-700"
+                    href={`/protected/clients/${record.client_id}`}
+                  >
+                    {clean(record.client_name)}
+                  </Link>
                 </h1>
                 <p className="mt-1 text-sm text-slate-500">
                   {clean(record.vehicle_no || record.primary_risk_label || record.policy_number)}
@@ -283,6 +288,21 @@ function ActionCard({ policyTermId }: { policyTermId: string }) {
           <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
             <CheckCircle2 className="h-4 w-4" />
             Mark Commission Paid
+          </button>
+        </form>
+        <form action={deletePolicy} className="rounded-lg border border-red-200 bg-red-50 p-3">
+          <input name="policy_term_id" type="hidden" value={policyTermId} />
+          <label className="grid gap-2 text-xs font-medium text-red-900">
+            Type DELETE to remove wrong policy row
+            <input
+              className="h-9 rounded-md border border-red-200 bg-white px-3 text-sm text-red-950 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+              name="delete_confirmation"
+              placeholder="DELETE"
+            />
+          </label>
+          <button className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700">
+            <Trash2 className="h-4 w-4" />
+            Delete Policy
           </button>
         </form>
       </div>

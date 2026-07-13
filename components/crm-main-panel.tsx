@@ -8,6 +8,7 @@ import {
   ReceiptText,
   Search,
   Settings,
+  Users,
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
@@ -194,6 +195,13 @@ export function CrmMainPanel({
             </h1>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-medium text-sky-700 shadow-sm"
+              href="/protected/clients"
+            >
+              <Users className="h-4 w-4" />
+              Clients
+            </Link>
             <Link
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-medium text-sky-700 shadow-sm"
               href="/protected/settings"
