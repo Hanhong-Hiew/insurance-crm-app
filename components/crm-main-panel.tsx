@@ -10,6 +10,7 @@ import {
   Settings,
   WalletCards,
 } from "lucide-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 
 type PolicyRecord = {
@@ -190,14 +191,20 @@ export function CrmMainPanel({
             </h1>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 text-sm font-medium">
+            <Link
+              className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 text-sm font-medium"
+              href="/protected/settings"
+            >
               <Settings className="h-4 w-4" />
               Settings
-            </button>
-            <button className="inline-flex h-9 items-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-medium text-white">
+            </Link>
+            <Link
+              className="inline-flex h-9 items-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-medium text-white"
+              href="/protected/new-policy"
+            >
               <FileText className="h-4 w-4" />
               New Policy
-            </button>
+            </Link>
           </div>
         </div>
       </header>
