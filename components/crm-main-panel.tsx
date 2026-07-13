@@ -179,11 +179,11 @@ export function CrmMainPanel({
   ];
 
   return (
-    <div className="min-h-screen bg-zinc-50 text-zinc-950">
-      <header className="border-b border-zinc-200 bg-white">
+    <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
+      <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs font-medium uppercase text-zinc-500">
+            <p className="text-xs font-medium uppercase text-sky-700">
               Insurance CRM
             </p>
             <h1 className="text-2xl font-semibold tracking-normal">
@@ -192,14 +192,14 @@ export function CrmMainPanel({
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
-              className="inline-flex h-9 items-center gap-2 rounded-md border border-zinc-300 bg-white px-3 text-sm font-medium"
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-medium text-sky-700 shadow-sm"
               href="/protected/settings"
             >
               <Settings className="h-4 w-4" />
               Settings
             </Link>
             <Link
-              className="inline-flex h-9 items-center gap-2 rounded-md bg-zinc-950 px-3 text-sm font-medium text-white"
+              className="inline-flex h-9 items-center gap-2 rounded-lg bg-sky-600 px-3 text-sm font-medium text-white shadow-sm"
               href="/protected/new-policy"
             >
               <FileText className="h-4 w-4" />
@@ -211,7 +211,7 @@ export function CrmMainPanel({
 
       <main className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-5">
         {errors.length > 0 ? (
-          <div className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             {errors.join(" ")}
           </div>
         ) : null}
@@ -219,10 +219,10 @@ export function CrmMainPanel({
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {metrics.map(([label, value]) => (
             <div
-              className="rounded-md border border-zinc-200 bg-white p-4"
+              className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm"
               key={label}
             >
-              <p className="text-xs font-medium uppercase text-zinc-500">
+              <p className="text-xs font-medium uppercase text-slate-500">
                 {label}
               </p>
               <p className="mt-2 text-2xl font-semibold">{value}</p>
@@ -231,8 +231,8 @@ export function CrmMainPanel({
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[360px_1fr]">
-          <aside className="rounded-md border border-zinc-200 bg-white p-4">
-            <p className="text-xs font-medium uppercase text-zinc-500">
+          <aside className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm">
+            <p className="text-xs font-medium uppercase text-emerald-700">
               Preview
             </p>
             {selected ? (
@@ -242,7 +242,7 @@ export function CrmMainPanel({
                     <h2 className="text-xl font-semibold">
                       {clean(selected.client_name)}
                     </h2>
-                    <p className="text-sm text-zinc-500">
+                    <p className="text-sm text-slate-500">
                       {clean(selected.insurance_type)} commission
                     </p>
                   </div>
@@ -263,7 +263,7 @@ export function CrmMainPanel({
                     <h2 className="text-xl font-semibold">
                       {clean(selected.client_name)}
                     </h2>
-                    <p className="text-sm text-zinc-500">
+                    <p className="text-sm text-slate-500">
                       {clean(selected.insurance_type)} / {riskLabel(selected)}
                     </p>
                   </div>
@@ -286,12 +286,12 @@ export function CrmMainPanel({
                 </div>
               )
             ) : (
-              <p className="mt-4 text-sm text-zinc-500">No records yet.</p>
+              <p className="mt-4 text-sm text-slate-500">No records yet.</p>
             )}
           </aside>
 
-          <section className="min-w-0 rounded-md border border-zinc-200 bg-white">
-            <div className="flex flex-col gap-3 border-b border-zinc-200 p-3 lg:flex-row lg:items-center lg:justify-between">
+          <section className="min-w-0 rounded-xl border border-slate-200 bg-white/95 shadow-sm">
+            <div className="flex flex-col gap-3 border-b border-slate-100 p-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap gap-2">
                 {viewOptions.map((option) => {
                   const Icon = option.icon;
@@ -299,8 +299,8 @@ export function CrmMainPanel({
                     <button
                       className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium ${
                         view === option.id
-                          ? "bg-zinc-950 text-white"
-                          : "border border-zinc-300 bg-white text-zinc-700"
+                          ? "bg-emerald-600 text-white"
+                          : "border border-slate-200 bg-white text-slate-700"
                       }`}
                       key={option.id}
                       onClick={() => setView(option.id)}
@@ -313,9 +313,9 @@ export function CrmMainPanel({
                 })}
               </div>
               <label className="relative block min-w-0 lg:w-72">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
-                  className="h-9 w-full rounded-md border border-zinc-300 bg-white pl-9 pr-3 text-sm outline-none focus:border-zinc-600"
+                  className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search client, vehicle, policy"
                   value={query}
