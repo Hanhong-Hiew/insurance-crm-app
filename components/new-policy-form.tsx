@@ -21,7 +21,7 @@ type NewPolicyFormProps = {
 };
 
 const fieldClass =
-  "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
+  "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
 
 function optionLabel(row: OptionRow) {
   return row.name || row.client_name || row.insurer_name || row.code || "-";
@@ -38,11 +38,11 @@ function MoneyInput({
 }) {
   return (
     <div className="flex h-10 overflow-hidden rounded-lg border border-slate-200 bg-white transition focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100">
-      <span className="flex items-center border-r border-slate-200 bg-slate-50 px-3 text-sm font-medium text-slate-500">
+      <span className="flex items-center border-r border-sky-100 bg-sky-50 px-3 text-sm font-semibold text-sky-700">
         RM
       </span>
       <input
-        className="min-w-0 flex-1 px-3 text-sm text-slate-950 outline-none placeholder:text-slate-400"
+        className="min-w-0 flex-1 bg-white px-3 text-sm text-slate-700 outline-none placeholder:text-slate-400"
         inputMode="decimal"
         name={name}
         pattern="[0-9]+([.][0-9]{1,2})?"
@@ -244,8 +244,8 @@ function FormSection({
 }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white/95 shadow-sm">
-      <div className="border-b border-slate-100 px-4 py-3">
-        <h2 className="font-semibold text-slate-950">{title}</h2>
+      <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
+        <h2 className="font-semibold text-slate-800">{title}</h2>
         <p className="text-xs text-slate-500">{description}</p>
       </div>
       <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">

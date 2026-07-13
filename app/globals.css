@@ -4,6 +4,7 @@
 
 @layer base {
   :root {
+    color-scheme: light;
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
     --card: 0 0% 100%;
@@ -65,5 +66,13 @@
   body {
     @apply bg-background text-foreground;
     font-family: Arial, Helvetica, sans-serif;
+  }
+  input,
+  select,
+  textarea,
+  option {
+    color-scheme: light;
+    background-color: white;
+    color: rgb(30 41 59);
   }
 }
