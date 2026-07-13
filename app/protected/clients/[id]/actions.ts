@@ -1,9 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+
+export type UpdateClientState = {
+  error?: string;
+  success?: string;
+};
 
 function textValue(formData: FormData, key: string) {
   const value = formData.get(key);
@@ -15,44 +19,53 @@ function optionalText(formData: FormData, key: string) {
   return value || null;
 }
 
-export async function updateClient(formData: FormData) {
+export async function updateClient(
+  _previousState: UpdateClientState,
+  formData: FormData,
+): Promise<UpdateClientState> {
   const clientId = textValue(formData, "client_id");
   const clientName = textValue(formData, "client_name");
   const supabase = await createClient();
   const { data: userData, error: userError } = await supabase.auth.getClaims();
 
   if (userError || !userData?.claims) {
-    throw new Error("You must be logged in.");
+    return { error: "You must be logged in." };
   }
 
   if (!clientName) {
-    throw new Error("Client name is required.");
+    return { error: "Client name is required." };
   }
 
-  const { error } = await supabase
-    .from("clients")
-    .update({
-      client_code: optionalText(formData, "client_code"),
-      client_name: clientName,
-      client_type: textValue(formData, "client_type") || "individual",
-      phone: optionalText(formData, "phone"),
-      email: optionalText(formData, "email"),
-      address: optionalText(formData, "address"),
-      notes: optionalText(formData, "notes"),
-    })
-    .eq("id", clientId);
-  if (error) throw error;
+  try {
+    const { error } = await supabase
+      .from("clients")
+      .update({
+        client_code: optionalText(formData, "client_code"),
+        client_name: clientName,
+        client_type: textValue(formData, "client_type") || "individual",
+        phone: optionalText(formData, "phone"),
+        email: optionalText(formData, "email"),
+        address: optionalText(formData, "address"),
+        notes: optionalText(formData, "notes"),
+      })
+      .eq("id", clientId);
+    if (error) throw error;
 
-  await supabase.from("activity_logs").insert({
-    record_type: "client",
-    record_id: clientId,
-    action: "update",
-    message: `Updated client ${clientName}.`,
-    created_by: userData.claims.sub,
-  });
+    await supabase.from("activity_logs").insert({
+      record_type: "client",
+      record_id: clientId,
+      action: "update",
+      message: `Updated client ${clientName}.`,
+      created_by: userData.claims.sub,
+    });
 
-  revalidatePath("/protected");
-  revalidatePath("/protected/clients");
-  revalidatePath(`/protected/clients/${clientId}`);
-  redirect(`/protected/clients/${clientId}`);
+    revalidatePath("/protected");
+    revalidatePath("/protected/clients");
+    revalidatePath(`/protected/clients/${clientId}`);
+    return { success: "Client saved." };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Client could not be saved.",
+    };
+  }
 }

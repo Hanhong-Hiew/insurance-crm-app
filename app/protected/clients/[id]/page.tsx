@@ -1,18 +1,14 @@
-import { ArrowLeft, FileText, Save } from "lucide-react";
+import { ArrowLeft, FileText } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
+import { ClientDetailForm } from "@/components/client-detail-form";
 import { createClient } from "@/lib/supabase/server";
-
-import { updateClient } from "./actions";
 
 type PageProps = {
   params: Promise<{ id: string }>;
 };
-
-const fieldClass =
-  "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
 
 function clean(value: unknown) {
   if (value === null || value === undefined || value === "") return "-";
@@ -86,56 +82,7 @@ async function ClientDetailContent({ params }: PageProps) {
               This is the master client record used by linked policies.
             </p>
           </div>
-          <form action={updateClient} className="grid gap-4 p-4">
-            <input name="client_id" type="hidden" value={id} />
-            <Field label="Client Name">
-              <input
-                className={fieldClass}
-                defaultValue={client.client_name ?? ""}
-                name="client_name"
-                required
-              />
-            </Field>
-            <Field label="Client Code">
-              <input
-                className={fieldClass}
-                defaultValue={client.client_code ?? ""}
-                name="client_code"
-                placeholder="Optional"
-              />
-            </Field>
-            <Field label="Client Type">
-              <select className={fieldClass} defaultValue={client.client_type ?? "individual"} name="client_type">
-                <option value="individual">Individual</option>
-                <option value="company">Company</option>
-                <option value="other">Other</option>
-              </select>
-            </Field>
-            <Field label="Phone">
-              <input className={fieldClass} defaultValue={client.phone ?? ""} name="phone" />
-            </Field>
-            <Field label="Email">
-              <input className={fieldClass} defaultValue={client.email ?? ""} name="email" type="email" />
-            </Field>
-            <Field label="Address">
-              <textarea
-                className={`${fieldClass} min-h-24 py-2`}
-                defaultValue={client.address ?? ""}
-                name="address"
-              />
-            </Field>
-            <Field label="Notes">
-              <textarea
-                className={`${fieldClass} min-h-24 py-2`}
-                defaultValue={client.notes ?? ""}
-                name="notes"
-              />
-            </Field>
-            <button className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">
-              <Save className="h-4 w-4" />
-              Save Client
-            </button>
-          </form>
+          <ClientDetailForm client={client} />
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -193,21 +140,6 @@ async function ClientDetailContent({ params }: PageProps) {
         </section>
       </div>
     </PageShell>
-  );
-}
-
-function Field({
-  children,
-  label,
-}: {
-  children: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <label className="grid gap-2 text-sm font-medium text-slate-700">
-      {label}
-      {children}
-    </label>
   );
 }
 

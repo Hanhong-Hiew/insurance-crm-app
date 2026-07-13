@@ -79,6 +79,7 @@ async function PolicyRecordContent({ params }: PageProps) {
     commissionsResult,
     documentsResult,
     tasksResult,
+    termNotesResult,
   ] = await Promise.all([
     supabase.from("main_policy_view").select("*").eq("policy_term_id", id).maybeSingle(),
     supabase
@@ -105,6 +106,7 @@ async function PolicyRecordContent({ params }: PageProps) {
       .select("id, task_type, title, due_date, status")
       .eq("policy_term_id", id)
       .order("due_date", { ascending: true }),
+    supabase.from("policy_terms").select("notes").eq("id", id).maybeSingle(),
   ]);
 
   if (recordResult.error) throw recordResult.error;
@@ -164,6 +166,7 @@ async function PolicyRecordContent({ params }: PageProps) {
               ["Sum Assured", money(record.primary_sum_assured)],
               ["Gross Premium", money(record.gross_premium)],
               ["Net Premium", money(record.net_premium)],
+              ["Notes", clean(termNotesResult.data?.notes)],
             ]}
             title="Policy Term"
           />

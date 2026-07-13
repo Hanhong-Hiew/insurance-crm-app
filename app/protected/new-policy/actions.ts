@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 export type SavePolicyState = {
   error?: string;
   success?: string;
+  warning?: string;
 };
 
 type SplitRule = {
@@ -118,7 +119,12 @@ export async function savePolicy(
     return { error: "You must be logged in to save a policy." };
   }
 
+  let createdPolicySeriesId: string | null = null;
+  let createdPolicyTermId: string | null = null;
+  let createdClientId: string | null = null;
+
   try {
+    const warnings: string[] = [];
     const clientName = textValue(formData, "client_name");
     const insuranceTypeId = textValue(formData, "insurance_type_id");
     const insurerId = textValue(formData, "insurer_id");
@@ -179,6 +185,7 @@ export async function savePolicy(
         .single();
       if (clientError) throw clientError;
       clientId = createdClient.id as string;
+      createdClientId = clientId;
     }
 
     const { data: policySeries, error: seriesError } = await supabase
@@ -193,6 +200,7 @@ export async function savePolicy(
       .select("id")
       .single();
     if (seriesError) throw seriesError;
+    createdPolicySeriesId = policySeries.id as string;
 
     const { data: rateSetting, error: rateError } = await supabase
       .from("commission_rate_settings")
@@ -234,6 +242,7 @@ export async function savePolicy(
       .select("id")
       .single();
     if (termError) throw termError;
+    createdPolicyTermId = policyTerm.id as string;
 
     if (primarySumAssured !== null) {
       const { error: valueError } = await supabase
@@ -357,52 +366,60 @@ export async function savePolicy(
     }
 
     if (splitPatternId && grossPremium !== null && netCommissionPercent !== null) {
-      const { data: rules, error: rulesError } = await supabase
-        .from("commission_split_rules")
-        .select("payee_id, rule_type, share_percent, fixed_percent, subtract_percent")
-        .eq("split_pattern_id", splitPatternId)
-        .order("sort_order", { ascending: true });
-      if (rulesError) throw rulesError;
+      try {
+        const { data: rules, error: rulesError } = await supabase
+          .from("commission_split_rules")
+          .select("payee_id, rule_type, share_percent, fixed_percent, subtract_percent")
+          .eq("split_pattern_id", splitPatternId)
+          .order("sort_order", { ascending: true });
+        if (rulesError) throw rulesError;
 
-      const splitRules = (rules ?? []) as SplitRule[];
-      const equalRuleCount =
-        splitRules.filter((rule) => rule.rule_type === "equal_net_share").length || 1;
-      const netPercent = percentNumber(netCommissionPercent);
+        const splitRules = (rules ?? []) as SplitRule[];
+        const equalRuleCount =
+          splitRules.filter((rule) => rule.rule_type === "equal_net_share").length || 1;
+        const netPercent = percentNumber(netCommissionPercent);
 
-      const commissions = splitRules.map((rule) => {
-        let calculationPercent = 0;
+        const commissions = splitRules.map((rule) => {
+          let calculationPercent = 0;
 
-        if (rule.rule_type === "net_commission_share") {
-          calculationPercent = netPercent * percentNumber(rule.share_percent);
-        } else if (rule.rule_type === "fixed_percent_of_gross") {
-          calculationPercent = percentNumber(rule.fixed_percent);
-        } else if (rule.rule_type === "remaining_net_after_fixed_percent") {
-          calculationPercent = Math.max(
-            netPercent - percentNumber(rule.subtract_percent),
-            0,
-          );
-        } else if (rule.rule_type === "equal_net_share") {
-          calculationPercent = netPercent / equalRuleCount;
+          if (rule.rule_type === "net_commission_share") {
+            calculationPercent = netPercent * percentNumber(rule.share_percent);
+          } else if (rule.rule_type === "fixed_percent_of_gross") {
+            calculationPercent = percentNumber(rule.fixed_percent);
+          } else if (rule.rule_type === "remaining_net_after_fixed_percent") {
+            calculationPercent = Math.max(
+              netPercent - percentNumber(rule.subtract_percent),
+              0,
+            );
+          } else if (rule.rule_type === "equal_net_share") {
+            calculationPercent = netPercent / equalRuleCount;
+          }
+
+          const amount = Math.round(grossPremium * calculationPercent * 100) / 100;
+
+          return {
+            policy_term_id: policyTerm.id,
+            payee_id: rule.payee_id,
+            split_pattern_id: splitPatternId,
+            calculation_percent: calculationPercent,
+            amount,
+            unpaid_amount: amount,
+            status: "unpaid",
+          };
+        });
+
+        if (commissions.length) {
+          const { error: commissionError } = await supabase
+            .from("commissions")
+            .insert(commissions);
+          if (commissionError) throw commissionError;
         }
-
-        const amount = Math.round(grossPremium * calculationPercent * 100) / 100;
-
-        return {
-          policy_term_id: policyTerm.id,
-          payee_id: rule.payee_id,
-          split_pattern_id: splitPatternId,
-          calculation_percent: calculationPercent,
-          amount,
-          unpaid_amount: amount,
-          status: "unpaid",
-        };
-      });
-
-      if (commissions.length) {
-        const { error: commissionError } = await supabase
-          .from("commissions")
-          .insert(commissions);
-        if (commissionError) throw commissionError;
+      } catch (commissionError) {
+        warnings.push(
+          `Policy saved, but commission rows were not created: ${
+            commissionError instanceof Error ? commissionError.message : "commission error"
+          }`,
+        );
       }
     }
 
@@ -417,8 +434,23 @@ export async function savePolicy(
     revalidatePath("/protected");
     revalidatePath("/protected/new-policy");
 
-    return { success: "Policy saved." };
+    return {
+      success: "Policy saved.",
+      warning: warnings.length ? warnings.join(" ") : undefined,
+    };
   } catch (error) {
+    if (createdPolicyTermId) {
+      await supabase.from("policy_terms").delete().eq("id", createdPolicyTermId);
+    }
+
+    if (createdPolicySeriesId) {
+      await supabase.from("policy_series").delete().eq("id", createdPolicySeriesId);
+    }
+
+    if (createdClientId) {
+      await supabase.from("clients").delete().eq("id", createdClientId);
+    }
+
     return {
       error: error instanceof Error ? error.message : "Policy could not be saved.",
     };
