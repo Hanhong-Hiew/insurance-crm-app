@@ -33,6 +33,9 @@ type PolicyRecord = {
   policy_status: string | null;
   renewal_status: string | null;
   vehicle_no: string | null;
+  make_model?: string | null;
+  year_of_manufacture?: number | string | null;
+  engine_cc?: number | string | null;
   motor_type: string | null;
   ncd: number | string | null;
 };
@@ -256,6 +259,12 @@ export function CrmMainPanel({
                       ["Expiry", formatDate(selected.expiry_date)],
                     ]}
                   />
+                  <Link
+                    className="inline-flex h-9 items-center justify-center rounded-lg bg-sky-600 px-3 text-sm font-semibold text-white shadow-sm"
+                    href={`/protected/policies/${selected.policy_term_id}`}
+                  >
+                    Open Record
+                  </Link>
                 </div>
               ) : (
                 <div className="mt-4 space-y-4">
@@ -279,10 +288,19 @@ export function CrmMainPanel({
                       ["Premium", clean(selected.premium_status)],
                       ["Stage", clean(selected.term_stage)],
                       ["Renewal", clean(selected.renewal_status)],
+                      ["Make / Model", clean(selected.make_model)],
+                      ["Year", clean(selected.year_of_manufacture)],
+                      ["Engine CC", clean(selected.engine_cc)],
                       ["Motor Type", clean(selected.motor_type)],
                       ["NCD", percent(selected.ncd)],
                     ]}
                   />
+                  <Link
+                    className="inline-flex h-9 items-center justify-center rounded-lg bg-sky-600 px-3 text-sm font-semibold text-white shadow-sm"
+                    href={`/protected/policies/${selected.policy_term_id}`}
+                  >
+                    Open Record
+                  </Link>
                 </div>
               )
             ) : (
@@ -373,6 +391,7 @@ function PolicyTable({
         <tr>
           <th className="px-3 py-3 font-medium">Client</th>
           <th className="px-3 py-3 font-medium">Risk</th>
+          <th className="px-3 py-3 font-medium">Vehicle</th>
           <th className="px-3 py-3 font-medium">Type</th>
           <th className="px-3 py-3 font-medium">Policy No</th>
           <th className="px-3 py-3 font-medium">Insurer</th>
@@ -381,6 +400,7 @@ function PolicyTable({
           <th className="px-3 py-3 font-medium">Gross</th>
           <th className="px-3 py-3 font-medium">Premium</th>
           <th className="px-3 py-3 font-medium">Renewal</th>
+          <th className="px-3 py-3 font-medium">Open</th>
         </tr>
       </thead>
       <tbody>
@@ -396,7 +416,9 @@ function PolicyTable({
               }`}
               key={row.policy_term_id}
               onClick={() => setSelected(row)}
-              onDoubleClick={() => setSelected(row)}
+              onDoubleClick={() => {
+                window.location.href = `/protected/policies/${row.policy_term_id}`;
+              }}
             >
               <td className="px-3 py-3 font-medium">{clean(row.client_name)}</td>
               <td className="px-3 py-3">
@@ -404,6 +426,11 @@ function PolicyTable({
                   {row.vehicle_no ? <Car className="h-4 w-4 text-zinc-500" /> : null}
                   {riskLabel(row)}
                 </span>
+              </td>
+              <td className="px-3 py-3">
+                {row.make_model || row.year_of_manufacture
+                  ? `${clean(row.make_model)} / ${clean(row.year_of_manufacture)}`
+                  : "-"}
               </td>
               <td className="px-3 py-3">{clean(row.insurance_type)}</td>
               <td className="px-3 py-3">{clean(row.policy_number)}</td>
@@ -413,11 +440,20 @@ function PolicyTable({
               <td className="px-3 py-3">{money(row.gross_premium)}</td>
               <td className="px-3 py-3">{clean(row.premium_status)}</td>
               <td className="px-3 py-3">{clean(row.renewal_status)}</td>
+              <td className="px-3 py-3">
+                <Link
+                  className="font-medium text-sky-700 hover:text-sky-900"
+                  href={`/protected/policies/${row.policy_term_id}`}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  Open
+                </Link>
+              </td>
             </tr>
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-zinc-500" colSpan={10}>
+            <td className="px-3 py-8 text-center text-zinc-500" colSpan={12}>
               No matching records.
             </td>
           </tr>
@@ -448,6 +484,7 @@ function CommissionTable({
           <th className="px-3 py-3 font-medium">Amount</th>
           <th className="px-3 py-3 font-medium">Unpaid</th>
           <th className="px-3 py-3 font-medium">Status</th>
+          <th className="px-3 py-3 font-medium">Open</th>
         </tr>
       </thead>
       <tbody>
@@ -463,7 +500,9 @@ function CommissionTable({
               }`}
               key={row.commission_id}
               onClick={() => setSelected(row)}
-              onDoubleClick={() => setSelected(row)}
+              onDoubleClick={() => {
+                window.location.href = `/protected/policies/${row.policy_term_id}`;
+              }}
             >
               <td className="px-3 py-3 font-medium">{clean(row.client_name)}</td>
               <td className="px-3 py-3">{clean(row.insurance_type)}</td>
@@ -473,11 +512,20 @@ function CommissionTable({
               <td className="px-3 py-3">{money(row.amount)}</td>
               <td className="px-3 py-3">{money(row.unpaid_amount)}</td>
               <td className="px-3 py-3">{clean(row.status)}</td>
+              <td className="px-3 py-3">
+                <Link
+                  className="font-medium text-sky-700 hover:text-sky-900"
+                  href={`/protected/policies/${row.policy_term_id}`}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  Open
+                </Link>
+              </td>
             </tr>
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-zinc-500" colSpan={8}>
+            <td className="px-3 py-8 text-center text-zinc-500" colSpan={9}>
               No matching commission records.
             </td>
           </tr>

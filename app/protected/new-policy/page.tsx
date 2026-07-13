@@ -39,7 +39,7 @@ async function NewPolicyContent() {
         .limit(100),
       supabase
         .from("insurance_types")
-        .select("id, name")
+        .select("id, code, name")
         .eq("active", true)
         .order("name", { ascending: true }),
       supabase

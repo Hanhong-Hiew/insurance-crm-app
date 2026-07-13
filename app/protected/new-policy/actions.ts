@@ -41,6 +41,30 @@ function moneyValue(formData: FormData, key: string) {
   return value;
 }
 
+function integerValue(formData: FormData, key: string) {
+  const raw = textValue(formData, key).replace(/,/g, "");
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`${key.replaceAll("_", " ")} must be a valid whole number.`);
+  }
+  return value;
+}
+
+function ncdValue(formData: FormData, key: string) {
+  const raw = textValue(formData, key).replace("%", "");
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${key.replaceAll("_", " ")} must be a valid percentage.`);
+  }
+  const normalized = value > 1 ? value / 100 : value;
+  if (normalized > 1) {
+    throw new Error(`${key.replaceAll("_", " ")} cannot be more than 100%.`);
+  }
+  return normalized;
+}
+
 function percentNumber(value: string | number | null | undefined) {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -75,6 +99,14 @@ function normalizeVehicleNo(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
 }
 
+function cleanInsuranceCode(value: string | null | undefined) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function isFireLikeInsurance(code: string) {
+  return code === "fire" || code === "home_insurance" || code === "industrial_all_risk";
+}
+
 export async function savePolicy(
   _previousState: SavePolicyState,
   formData: FormData,
@@ -98,6 +130,7 @@ export async function savePolicy(
     const primarySumAssured = moneyValue(formData, "primary_sum_assured");
     const grossPremium = moneyValue(formData, "gross_premium");
     const netPremium = moneyValue(formData, "net_premium");
+    const termStage = textValue(formData, "term_stage") === "quotation" ? "quotation" : "policy";
     const notes = optionalText(formData, "notes");
 
     if (!clientName) return { error: "Client name is required." };
@@ -115,6 +148,17 @@ export async function savePolicy(
       .eq("id", insuranceTypeId)
       .single();
     if (insuranceTypeError) throw insuranceTypeError;
+
+    const insuranceCode = cleanInsuranceCode(insuranceType.code as string | null);
+    const vehicleNo = textValue(formData, "vehicle_no");
+    const resolvedRiskLabel =
+      insuranceCode === "motor"
+        ? vehicleNo
+        : riskLabel || policyNumber || clientName;
+
+    if (insuranceCode === "motor" && !vehicleNo) {
+      return { error: "Vehicle number is required for motor policies." };
+    }
 
     const { data: existingClient, error: existingClientError } = await supabase
       .from("clients")
@@ -137,14 +181,13 @@ export async function savePolicy(
       clientId = createdClient.id as string;
     }
 
-    const seriesRiskLabel = riskLabel || policyNumber || clientName;
     const { data: policySeries, error: seriesError } = await supabase
       .from("policy_series")
       .insert({
         client_id: clientId,
         insurance_type_id: insuranceTypeId,
         series_name: `${clientName} - ${insuranceType.name ?? "Policy"}`,
-        primary_risk_label: seriesRiskLabel,
+        primary_risk_label: resolvedRiskLabel,
         status: "active",
       })
       .select("id")
@@ -181,10 +224,10 @@ export async function savePolicy(
         gross_commission_percent: grossCommissionPercent,
         net_commission_percent: netCommissionPercent,
         premium_status: "unpaid",
-        term_stage: "policy",
-        quotation_status: null,
-        policy_status: "active",
-        renewal_status: "not_started",
+        term_stage: termStage,
+        quotation_status: termStage === "quotation" ? "draft" : null,
+        policy_status: termStage === "policy" ? "active" : null,
+        renewal_status: termStage === "quotation" ? "quoting" : "not_started",
         insured_name_snapshot: clientName,
         notes,
       })
@@ -204,28 +247,48 @@ export async function savePolicy(
       if (valueError) throw valueError;
     }
 
-    if (insuranceType.code === "motor" && riskLabel) {
-      const normalized = normalizeVehicleNo(riskLabel);
+    if (insuranceCode === "motor") {
+      const normalized = normalizeVehicleNo(vehicleNo);
       if (normalized) {
         const { data: existingVehicle, error: vehicleLookupError } = await supabase
           .from("vehicles")
-          .select("id")
+          .select("id, make_model, year_of_manufacture, engine_cc, engine_no, chassis_no")
           .eq("vehicle_no_normalized", normalized)
           .maybeSingle();
         if (vehicleLookupError) throw vehicleLookupError;
+
+        const stableVehicleFields = {
+          make_model: optionalText(formData, "make_model"),
+          year_of_manufacture: integerValue(formData, "year_of_manufacture"),
+          engine_cc: integerValue(formData, "engine_cc"),
+          engine_no: optionalText(formData, "engine_no"),
+          chassis_no: optionalText(formData, "chassis_no"),
+        };
 
         let vehicleId = existingVehicle?.id as string | undefined;
         if (!vehicleId) {
           const { data: createdVehicle, error: vehicleError } = await supabase
             .from("vehicles")
             .insert({
-              vehicle_no: riskLabel.toUpperCase(),
+              vehicle_no: vehicleNo.toUpperCase(),
               vehicle_no_normalized: normalized,
+              ...stableVehicleFields,
             })
             .select("id")
             .single();
           if (vehicleError) throw vehicleError;
           vehicleId = createdVehicle.id as string;
+        } else {
+          const vehicleUpdate = Object.fromEntries(
+            Object.entries(stableVehicleFields).filter(([, value]) => value !== null),
+          );
+          if (Object.keys(vehicleUpdate).length) {
+            const { error: vehicleUpdateError } = await supabase
+              .from("vehicles")
+              .update(vehicleUpdate)
+              .eq("id", vehicleId);
+            if (vehicleUpdateError) throw vehicleUpdateError;
+          }
         }
 
         const { error: motorError } = await supabase
@@ -233,10 +296,64 @@ export async function savePolicy(
           .insert({
             policy_term_id: policyTerm.id,
             vehicle_id: vehicleId,
-            vehicle_no_snapshot: riskLabel.toUpperCase(),
+            motor_type: optionalText(formData, "motor_type"),
+            vehicle_no_snapshot: vehicleNo.toUpperCase(),
+            ncd: ncdValue(formData, "ncd"),
+            extra_coverage: optionalText(formData, "extra_coverage"),
+            bdm: moneyValue(formData, "bdm"),
+            btm: moneyValue(formData, "btm"),
+            motor_description: optionalText(formData, "motor_description"),
           });
         if (motorError) throw motorError;
       }
+    } else if (isFireLikeInsurance(insuranceCode)) {
+      const { error: fireError } = await supabase
+        .from("fire_policy_details")
+        .insert({
+          policy_term_id: policyTerm.id,
+          property_address: optionalText(formData, "property_address"),
+          risk_location: optionalText(formData, "risk_location"),
+          building_sum_insured: moneyValue(formData, "building_sum_insured"),
+          contents_sum_insured: moneyValue(formData, "contents_sum_insured"),
+          stock_sum_insured: moneyValue(formData, "stock_sum_insured"),
+          occupation: optionalText(formData, "occupation"),
+          construction_type: optionalText(formData, "construction_type"),
+        });
+      if (fireError) throw fireError;
+    } else if (insuranceCode === "marine_insurance") {
+      const { error: marineError } = await supabase
+        .from("marine_policy_details")
+        .insert({
+          policy_term_id: policyTerm.id,
+          marine_type: optionalText(formData, "marine_type"),
+          voyage_from: optionalText(formData, "voyage_from"),
+          voyage_to: optionalText(formData, "voyage_to"),
+          goods_description: optionalText(formData, "goods_description"),
+          sum_insured: moneyValue(formData, "marine_sum_insured"),
+        });
+      if (marineError) throw marineError;
+    } else if (insuranceCode === "travel") {
+      const { error: travelError } = await supabase
+        .from("travel_policy_details")
+        .insert({
+          policy_term_id: policyTerm.id,
+          destination: optionalText(formData, "destination"),
+          travel_start_date: parseDate(formData, "travel_start_date"),
+          travel_end_date: parseDate(formData, "travel_end_date"),
+          pax: integerValue(formData, "pax"),
+          plan_name: optionalText(formData, "plan_name"),
+        });
+      if (travelError) throw travelError;
+    } else {
+      const { error: genericError } = await supabase
+        .from("generic_policy_details")
+        .insert({
+          policy_term_id: policyTerm.id,
+          detail_type: optionalText(formData, "generic_detail_type"),
+          description: optionalText(formData, "generic_description") || resolvedRiskLabel,
+          sum_insured: moneyValue(formData, "generic_sum_insured"),
+        });
+      if (genericError) throw genericError;
     }
 
     if (splitPatternId && grossPremium !== null && netCommissionPercent !== null) {

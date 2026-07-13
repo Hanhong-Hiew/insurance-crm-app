@@ -151,12 +151,12 @@ function PageShell({
   title: string;
 }) {
   return (
-    <main className="min-h-screen bg-zinc-50 text-zinc-950">
-      <header className="border-b border-zinc-200 bg-white">
+    <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
+      <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
           <div>
             <Link
-              className="mb-2 inline-flex items-center gap-2 text-sm text-zinc-600"
+              className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
               href="/protected"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -186,13 +186,13 @@ function TableCard({
   title: string;
 }) {
   return (
-    <section className="rounded-md border border-zinc-200 bg-white">
-      <div className="border-b border-zinc-200 px-4 py-3">
-        <h2 className="font-semibold">{title}</h2>
+    <section className="rounded-xl border border-slate-200 bg-white/95 shadow-sm">
+      <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
+        <h2 className="font-semibold text-slate-800">{title}</h2>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
-          <thead className="bg-zinc-50 text-xs uppercase text-zinc-500">
+          <thead className="bg-white text-xs uppercase text-slate-500">
             <tr>
               {columns.map((column) => (
                 <th className="px-3 py-3 font-medium" key={column}>
@@ -204,7 +204,7 @@ function TableCard({
           <tbody>
             {rows.length ? (
               rows.map((row, rowIndex) => (
-                <tr className="border-t border-zinc-100" key={rowIndex}>
+                <tr className="border-t border-slate-100" key={rowIndex}>
                   {row.map((cell, cellIndex) => (
                     <td className="px-3 py-3" key={`${rowIndex}-${cellIndex}`}>
                       {cell}
