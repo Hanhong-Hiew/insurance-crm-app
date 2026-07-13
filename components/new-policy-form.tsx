@@ -161,9 +161,9 @@ export function NewPolicyForm({
             className={fieldClass}
             inputMode="numeric"
             name="effective_date"
-            pattern="\\d{2}/\\d{2}/\\d{4}"
             placeholder="dd/mm/yyyy"
             required
+            type="text"
           />
         </Field>
 
@@ -172,9 +172,9 @@ export function NewPolicyForm({
             className={fieldClass}
             inputMode="numeric"
             name="expiry_date"
-            pattern="\\d{2}/\\d{2}/\\d{4}"
             placeholder="dd/mm/yyyy"
             required
+            type="text"
           />
         </Field>
 

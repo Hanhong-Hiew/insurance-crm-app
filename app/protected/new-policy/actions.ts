@@ -50,12 +50,14 @@ function parseDate(formData: FormData, key: string) {
   const raw = textValue(formData, key);
   if (!raw) return null;
 
-  const match = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const match = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
   if (!match) {
-    throw new Error(`${key} must use dd/mm/yyyy format.`);
+    throw new Error(`${key.replaceAll("_", " ")} must use dd/mm/yyyy format.`);
   }
 
-  const [, day, month, year] = match;
+  const [, rawDay, rawMonth, year] = match;
+  const day = rawDay.padStart(2, "0");
+  const month = rawMonth.padStart(2, "0");
   const date = new Date(`${year}-${month}-${day}T00:00:00Z`);
   if (
     Number.isNaN(date.getTime()) ||
@@ -63,7 +65,7 @@ function parseDate(formData: FormData, key: string) {
     date.getUTCMonth() + 1 !== Number(month) ||
     date.getUTCFullYear() !== Number(year)
   ) {
-    throw new Error(`${key} is not a valid date.`);
+    throw new Error(`${key.replaceAll("_", " ")} is not a valid date.`);
   }
 
   return `${year}-${month}-${day}`;
