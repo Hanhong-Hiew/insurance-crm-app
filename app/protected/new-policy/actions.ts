@@ -427,35 +427,51 @@ export async function savePolicy(
         if (!splitRules.length) {
           throw new Error("Selected split pattern has no commission rules.");
         }
+        const hasNetPremiumFixedRule = splitRules.some(
+          (rule) => rule.rule_type === "fixed_percent_of_gross",
+        );
+        if (hasNetPremiumFixedRule && netPremium === null) {
+          throw new Error("Net premium is required for this split pattern.");
+        }
         const equalRuleCount =
           splitRules.filter((rule) => rule.rule_type === "equal_net_share").length || 1;
         const netPercent = percentNumber(netCommissionPercent);
+        const totalNetCommissionAmount = grossPremium * netPercent;
+        const fixedNetPremiumAmount = splitRules
+          .filter((rule) => rule.rule_type === "fixed_percent_of_gross")
+          .reduce(
+            (total, rule) =>
+              total + (netPremium ?? 0) * percentNumber(rule.fixed_percent),
+            0,
+          );
 
         const commissions = splitRules.map((rule) => {
           let calculationPercent = 0;
+          let amount = 0;
 
           if (rule.rule_type === "net_commission_share") {
             calculationPercent = netPercent * percentNumber(rule.share_percent);
+            amount = grossPremium * calculationPercent;
           } else if (rule.rule_type === "fixed_percent_of_gross") {
             calculationPercent = percentNumber(rule.fixed_percent);
+            amount = (netPremium ?? 0) * calculationPercent;
           } else if (rule.rule_type === "remaining_net_after_fixed_percent") {
-            calculationPercent = Math.max(
-              netPercent - percentNumber(rule.subtract_percent),
-              0,
-            );
+            amount = Math.max(totalNetCommissionAmount - fixedNetPremiumAmount, 0);
+            calculationPercent = grossPremium ? amount / grossPremium : 0;
           } else if (rule.rule_type === "equal_net_share") {
             calculationPercent = netPercent / equalRuleCount;
+            amount = grossPremium * calculationPercent;
           }
 
-          const amount = Math.round(grossPremium * calculationPercent * 100) / 100;
+          const roundedAmount = Math.round(amount * 100) / 100;
 
           return {
             policy_term_id: policyTerm.id,
             payee_id: rule.payee_id,
             split_pattern_id: splitPatternId,
             calculation_percent: calculationPercent,
-            amount,
-            unpaid_amount: amount,
+            amount: roundedAmount,
+            unpaid_amount: roundedAmount,
             status: "unpaid",
           };
         });

@@ -45,7 +45,11 @@ async function EditPolicyContent({ params }: PageProps) {
   }
 
   const [termResult, insurersResult, splitsResult] = await Promise.all([
-    supabase.from("policy_terms").select("*").eq("id", id).maybeSingle(),
+    supabase
+      .from("policy_terms")
+      .select("*, insurance_types(code, name)")
+      .eq("id", id)
+      .maybeSingle(),
     supabase
       .from("insurers")
       .select("id, insurer_name")
@@ -62,6 +66,24 @@ async function EditPolicyContent({ params }: PageProps) {
   if (!termResult.data) notFound();
 
   const term = termResult.data;
+  const insuranceType = Array.isArray(term.insurance_types)
+    ? term.insurance_types[0]
+    : term.insurance_types;
+  const isEquipmentPolicy =
+    insuranceType?.code === "equipment_insurance" ||
+    insuranceType?.code === "equipment_all_risk";
+  const equipmentResult = isEquipmentPolicy
+    ? await supabase
+        .from("generic_policy_details")
+        .select("description, sum_insured, details_json")
+        .eq("policy_term_id", id)
+        .maybeSingle()
+    : null;
+  const equipmentDetail = equipmentResult?.data ?? null;
+  const equipmentJson =
+    equipmentDetail?.details_json && typeof equipmentDetail.details_json === "object"
+      ? (equipmentDetail.details_json as Record<string, unknown>)
+      : {};
 
   return (
     <PageShell policyTermId={id}>
@@ -195,6 +217,77 @@ async function EditPolicyContent({ params }: PageProps) {
             </div>
           </div>
         </section>
+
+        {isEquipmentPolicy ? (
+          <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
+              <h2 className="font-semibold text-slate-800">Equipment Details</h2>
+              <p className="text-xs text-slate-500">
+                These details are saved on the equipment risk record.
+              </p>
+            </div>
+            <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+              <Field label="Vehicle No">
+                <input
+                  className={`${fieldClass} uppercase`}
+                  defaultValue={String(equipmentJson.vehicle_no ?? "")}
+                  name="equipment_vehicle_no"
+                  placeholder="Optional vehicle no"
+                />
+              </Field>
+              <Field label="Equipment Description">
+                <input
+                  className={fieldClass}
+                  defaultValue={equipmentDetail?.description ?? ""}
+                  name="equipment_description"
+                  placeholder="Equipment description"
+                />
+              </Field>
+              <Field label="Make / Model">
+                <input
+                  className={fieldClass}
+                  defaultValue={String(equipmentJson.make_model ?? "")}
+                  name="equipment_make_model"
+                  placeholder="Make or model"
+                />
+              </Field>
+              <Field label="Year">
+                <input
+                  className={fieldClass}
+                  defaultValue={String(equipmentJson.year ?? "")}
+                  inputMode="numeric"
+                  name="equipment_year"
+                  placeholder="2022"
+                />
+              </Field>
+              <Field label="Engine No">
+                <input
+                  className={fieldClass}
+                  defaultValue={String(equipmentJson.engine_no ?? "")}
+                  name="equipment_engine_no"
+                  placeholder="Engine number"
+                />
+              </Field>
+              <Field label="Chassis No">
+                <input
+                  className={fieldClass}
+                  defaultValue={String(equipmentJson.chassis_no ?? "")}
+                  name="equipment_chassis_no"
+                  placeholder="Chassis number"
+                />
+              </Field>
+              <Field label="Equipment Sum Insured">
+                <input
+                  className={fieldClass}
+                  defaultValue={decimal(equipmentDetail?.sum_insured)}
+                  inputMode="decimal"
+                  name="equipment_sum_insured"
+                  placeholder="0.00"
+                />
+              </Field>
+            </div>
+          </section>
+        ) : null}
 
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
           <button className="inline-flex h-10 items-center gap-2 rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700">

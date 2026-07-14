@@ -66,6 +66,10 @@ function percentNumber(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function isEquipmentLikeInsurance(code: string | null | undefined) {
+  return code === "equipment_insurance" || code === "equipment_all_risk";
+}
+
 export async function updatePolicy(formData: FormData) {
   const policyTermId = textValue(formData, "policy_term_id");
   const supabase = await createClient();
@@ -83,6 +87,7 @@ export async function updatePolicy(formData: FormData) {
 
   const splitPatternId = optionalText(formData, "split_pattern_id");
   const grossPremium = moneyValue(formData, "gross_premium");
+  const netPremium = moneyValue(formData, "net_premium");
   const primarySumAssured = moneyValue(formData, "primary_sum_assured");
 
   const { error: updateError } = await supabase
@@ -95,7 +100,7 @@ export async function updatePolicy(formData: FormData) {
       expiry_date: expiryDate,
       primary_sum_assured: primarySumAssured,
       gross_premium: grossPremium,
-      net_premium: moneyValue(formData, "net_premium"),
+      net_premium: netPremium,
       premium_status: textValue(formData, "premium_status"),
       term_stage: termStage,
       quotation_status: termStage === "quotation" ? textValue(formData, "quotation_status") : null,
@@ -105,6 +110,67 @@ export async function updatePolicy(formData: FormData) {
     })
     .eq("id", policyTermId);
   if (updateError) throw updateError;
+
+  const { data: termWithType, error: termLookupError } = await supabase
+    .from("policy_terms")
+    .select("policy_series_id, insurance_types(code, name)")
+    .eq("id", policyTermId)
+    .single();
+  if (termLookupError) throw termLookupError;
+
+  const insuranceType = Array.isArray(termWithType.insurance_types)
+    ? termWithType.insurance_types[0]
+    : termWithType.insurance_types;
+  if (isEquipmentLikeInsurance(insuranceType?.code)) {
+    const equipmentVehicleNo = optionalText(formData, "equipment_vehicle_no");
+    const equipmentDescription = optionalText(formData, "equipment_description");
+    const equipmentSumInsured = moneyValue(formData, "equipment_sum_insured");
+    const detailsJson = {
+      vehicle_no: equipmentVehicleNo ? equipmentVehicleNo.toUpperCase() : null,
+      make_model: optionalText(formData, "equipment_make_model"),
+      year: optionalText(formData, "equipment_year"),
+      engine_no: optionalText(formData, "equipment_engine_no"),
+      chassis_no: optionalText(formData, "equipment_chassis_no"),
+    };
+
+    const { data: existingEquipment, error: equipmentLookupError } = await supabase
+      .from("generic_policy_details")
+      .select("id")
+      .eq("policy_term_id", policyTermId)
+      .maybeSingle();
+    if (equipmentLookupError) throw equipmentLookupError;
+
+    if (existingEquipment?.id) {
+      const { error: equipmentUpdateError } = await supabase
+        .from("generic_policy_details")
+        .update({
+          detail_type: insuranceType?.name ?? "Equipment Insurance",
+          description: equipmentDescription,
+          sum_insured: equipmentSumInsured,
+          details_json: detailsJson,
+        })
+        .eq("id", existingEquipment.id);
+      if (equipmentUpdateError) throw equipmentUpdateError;
+    } else {
+      const { error: equipmentInsertError } = await supabase
+        .from("generic_policy_details")
+        .insert({
+          policy_term_id: policyTermId,
+          detail_type: insuranceType?.name ?? "Equipment Insurance",
+          description: equipmentDescription,
+          sum_insured: equipmentSumInsured,
+          details_json: detailsJson,
+        });
+      if (equipmentInsertError) throw equipmentInsertError;
+    }
+
+    if (equipmentVehicleNo) {
+      await supabase
+        .from("policy_series")
+        .update({ primary_risk_label: equipmentVehicleNo.toUpperCase() })
+        .eq("id", termWithType.policy_series_id);
+    }
+  }
 
   await supabase
     .from("policy_term_values")
@@ -121,7 +187,13 @@ export async function updatePolicy(formData: FormData) {
     if (valueError) throw valueError;
   }
 
-  await recalculateCommissions(supabase, policyTermId, splitPatternId, grossPremium);
+  await recalculateCommissions(
+    supabase,
+    policyTermId,
+    splitPatternId,
+    grossPremium,
+    netPremium,
+  );
 
   await supabase.from("activity_logs").insert({
     record_type: "policy_term",
@@ -141,8 +213,8 @@ async function recalculateCommissions(
   policyTermId: string,
   splitPatternId: string | null,
   grossPremium: number | null,
+  netPremium: number | null,
 ) {
-  await supabase.from("commissions").delete().eq("policy_term_id", policyTermId);
   if (!splitPatternId || grossPremium === null) return;
 
   const { data: term, error: termError } = await supabase
@@ -162,29 +234,51 @@ async function recalculateCommissions(
   if (rulesError) throw rulesError;
 
   const splitRules = (rules ?? []) as SplitRule[];
+  const hasNetPremiumFixedRule = splitRules.some(
+    (rule) => rule.rule_type === "fixed_percent_of_gross",
+  );
+  if (hasNetPremiumFixedRule && netPremium === null) {
+    throw new Error("Net premium is required for this split pattern.");
+  }
+
+  await supabase.from("commissions").delete().eq("policy_term_id", policyTermId);
+
   const equalRuleCount =
     splitRules.filter((rule) => rule.rule_type === "equal_net_share").length || 1;
+  const totalNetCommissionAmount = grossPremium * netPercent;
+  const fixedNetPremiumAmount = splitRules
+    .filter((rule) => rule.rule_type === "fixed_percent_of_gross")
+    .reduce(
+      (total, rule) => total + (netPremium ?? 0) * percentNumber(rule.fixed_percent),
+      0,
+    );
 
   const commissions = splitRules.map((rule) => {
     let calculationPercent = 0;
+    let amount = 0;
+
     if (rule.rule_type === "net_commission_share") {
       calculationPercent = netPercent * percentNumber(rule.share_percent);
+      amount = grossPremium * calculationPercent;
     } else if (rule.rule_type === "fixed_percent_of_gross") {
       calculationPercent = percentNumber(rule.fixed_percent);
+      amount = (netPremium ?? 0) * calculationPercent;
     } else if (rule.rule_type === "remaining_net_after_fixed_percent") {
-      calculationPercent = Math.max(netPercent - percentNumber(rule.subtract_percent), 0);
+      amount = Math.max(totalNetCommissionAmount - fixedNetPremiumAmount, 0);
+      calculationPercent = grossPremium ? amount / grossPremium : 0;
     } else if (rule.rule_type === "equal_net_share") {
       calculationPercent = netPercent / equalRuleCount;
+      amount = grossPremium * calculationPercent;
     }
 
-    const amount = Math.round(grossPremium * calculationPercent * 100) / 100;
+    const roundedAmount = Math.round(amount * 100) / 100;
     return {
       policy_term_id: policyTermId,
       payee_id: rule.payee_id,
       split_pattern_id: splitPatternId,
       calculation_percent: calculationPercent,
-      amount,
-      unpaid_amount: amount,
+      amount: roundedAmount,
+      unpaid_amount: roundedAmount,
       status: "unpaid",
     };
   });
