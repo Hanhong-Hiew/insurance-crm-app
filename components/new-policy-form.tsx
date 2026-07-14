@@ -522,6 +522,9 @@ function EquipmentRiskSection() {
       icon={<Wrench className="h-5 w-5" />}
       title="Equipment Risk"
     >
+      <Field label="Vehicle No">
+        <input className={`${fieldClass} uppercase`} name="equipment_vehicle_no" placeholder="Optional vehicle no" />
+      </Field>
       <Field label="Equipment Description">
         <input className={fieldClass} name="generic_description" placeholder="Equipment description" />
       </Field>

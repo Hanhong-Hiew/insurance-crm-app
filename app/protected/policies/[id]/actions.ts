@@ -51,13 +51,27 @@ export async function markPremiumPaid(formData: FormData) {
   const policyTermId = textValue(formData, "policy_term_id");
   const { supabase, userId } = await requireUser();
 
+  const { data: policyTerm, error: lookupError } = await supabase
+    .from("policy_terms")
+    .select("premium_status")
+    .eq("id", policyTermId)
+    .single();
+  if (lookupError) throw lookupError;
+
+  const nextStatus = policyTerm.premium_status === "paid" ? "unpaid" : "paid";
   const { error } = await supabase
     .from("policy_terms")
-    .update({ premium_status: "paid" })
+    .update({ premium_status: nextStatus })
     .eq("id", policyTermId);
   if (error) throw error;
 
-  await logActivity(supabase, userId, policyTermId, "premium_paid", "Marked premium as paid.");
+  await logActivity(
+    supabase,
+    userId,
+    policyTermId,
+    "premium_status_toggle",
+    `Marked premium as ${nextStatus}.`,
+  );
   revalidatePath("/protected");
   revalidatePath(`/protected/policies/${policyTermId}`);
 }
@@ -66,17 +80,52 @@ export async function markCommissionsPaid(formData: FormData) {
   const policyTermId = textValue(formData, "policy_term_id");
   const { supabase, userId } = await requireUser();
 
+  const { data: commissionRows, error: lookupError } = await supabase
+    .from("commissions")
+    .select("id, amount, status")
+    .eq("policy_term_id", policyTermId);
+  if (lookupError) throw lookupError;
+
+  const allPaid =
+    (commissionRows ?? []).length > 0 &&
+    (commissionRows ?? []).every((commission) => commission.status === "paid");
+  const nextStatus = allPaid ? "unpaid" : "paid";
+  const paidDate = nextStatus === "paid" ? new Date().toISOString().slice(0, 10) : null;
+
+  if (nextStatus === "paid") {
   const { error } = await supabase
     .from("commissions")
     .update({
       status: "paid",
       unpaid_amount: 0,
-      paid_date: new Date().toISOString().slice(0, 10),
+      paid_date: paidDate,
     })
     .eq("policy_term_id", policyTermId);
   if (error) throw error;
+  } else {
+    const updates = await Promise.all(
+      (commissionRows ?? []).map((commission) =>
+        supabase
+          .from("commissions")
+          .update({
+            status: "unpaid",
+            unpaid_amount: commission.amount,
+            paid_date: null,
+          })
+          .eq("id", commission.id),
+      ),
+    );
+    const updateError = updates.find((result) => result.error)?.error;
+    if (updateError) throw updateError;
+  }
 
-  await logActivity(supabase, userId, policyTermId, "commission_paid", "Marked commissions as paid.");
+  await logActivity(
+    supabase,
+    userId,
+    policyTermId,
+    "commission_status_toggle",
+    `Marked commissions as ${nextStatus}.`,
+  );
   revalidatePath("/protected");
   revalidatePath(`/protected/policies/${policyTermId}`);
 }
@@ -214,7 +263,7 @@ export async function startRenewal(formData: FormData) {
 
   revalidatePath("/protected");
   revalidatePath(`/protected/policies/${policyTermId}`);
-  redirect(`/protected/policies/${renewalTerm.id}`);
+  redirect(`/protected/policies/${renewalTerm.id}/edit`);
 }
 
 async function copyTypeSpecificDetails(
@@ -222,11 +271,24 @@ async function copyTypeSpecificDetails(
   previousPolicyTermId: string,
   renewalPolicyTermId: string,
 ) {
-  const { data: motor } = await supabase
+  let motorResult = await supabase
     .from("motor_policy_details")
-    .select("vehicle_id, motor_type, vehicle_no_snapshot, ncd, extra_coverage, bdm, btm, motor_description, notes")
+    .select("vehicle_id, motor_type, type_of_cover, vehicle_no_snapshot, ncd, extra_coverage, bdm, btm, motor_description, notes")
     .eq("policy_term_id", previousPolicyTermId)
     .maybeSingle();
+  if (
+    motorResult.error &&
+    (motorResult.error.message.includes("type_of_cover") ||
+      motorResult.error.message.includes("schema cache"))
+  ) {
+    motorResult = await supabase
+      .from("motor_policy_details")
+      .select("vehicle_id, motor_type, vehicle_no_snapshot, ncd, extra_coverage, bdm, btm, motor_description, notes")
+      .eq("policy_term_id", previousPolicyTermId)
+      .maybeSingle();
+  }
+  if (motorResult.error) throw motorResult.error;
+  const motor = motorResult.data;
   if (motor) {
     const { error } = await supabase.from("motor_policy_details").insert({
       ...motor,

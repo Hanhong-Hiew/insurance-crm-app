@@ -145,19 +145,31 @@ function riskLabel(record: PolicyRecord) {
   return record.primary_risk_label || record.vehicle_no || record.policy_number || "-";
 }
 
+function vehicleNo(record: PolicyRecord) {
+  const type = riskType(record).toLowerCase();
+  if (type === "motor" || type === "equipment") {
+    return record.vehicle_no || record.primary_risk_label || "-";
+  }
+  return record.vehicle_no || "-";
+}
+
+function shortRiskType(value: string) {
+  return value.replace(/\s+risk$/i, "");
+}
+
 function riskType(record: PolicyRecord) {
-  if (record.risk_type) return record.risk_type;
-  if (record.vehicle_no || record.insurance_type_code === "motor") return "Motor Risk";
-  if (record.insurance_type_code === "fire") return "Fire Risk";
-  if (record.insurance_type_code === "marine_insurance") return "Marine Risk";
-  if (record.insurance_type_code === "travel") return "Travel Risk";
+  if (record.risk_type) return shortRiskType(record.risk_type);
+  if (record.vehicle_no || record.insurance_type_code === "motor") return "Motor";
+  if (record.insurance_type_code === "fire") return "Fire";
+  if (record.insurance_type_code === "marine_insurance") return "Marine";
+  if (record.insurance_type_code === "travel") return "Travel";
   if (
     record.insurance_type_code === "equipment_insurance" ||
     record.insurance_type_code === "equipment_all_risk"
   ) {
-    return "Equipment Risk";
+    return "Equipment";
   }
-  return record.insurance_type ? `${record.insurance_type} Risk` : "Policy Risk";
+  return record.insurance_type ? shortRiskType(record.insurance_type) : "Policy";
 }
 
 function RiskIcon({ record }: { record: PolicyRecord }) {
@@ -345,8 +357,8 @@ export function CrmMainPanel({
                   </div>
                   <PreviewGrid
                     rows={[
-                      ["Risk Type", riskType(selected)],
                       ["Policy No", clean(selected.policy_number)],
+                      ["Vehicle No", vehicleNo(selected)],
                       ["Insurer", clean(selected.insurer_name)],
                       ["Effective", formatDate(selected.effective_date)],
                       ["Expiry", formatDate(selected.expiry_date)],
@@ -441,12 +453,17 @@ export function CrmMainPanel({
 }
 
 function PreviewGrid({ rows }: { rows: Array<[string, string]> }) {
+  const visibleRows = rows.filter(([, value]) => value !== "-");
+
   return (
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-      {rows.map(([label, value]) => (
-        <div key={label}>
-          <dt className="text-xs font-medium uppercase text-zinc-500">{label}</dt>
-          <dd className="mt-1 font-medium text-zinc-900">{value}</dd>
+    <dl className="grid gap-2 text-sm">
+      {visibleRows.map(([label, value]) => (
+        <div
+          className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
+          key={label}
+        >
+          <dt className="text-[11px] font-semibold uppercase text-slate-500">{label}</dt>
+          <dd className="mt-1 font-semibold text-slate-950">{value}</dd>
         </div>
       ))}
     </dl>
@@ -468,7 +485,7 @@ function PolicyTable({
         <tr>
           <th className="px-3 py-3 font-medium">Client</th>
           <th className="px-3 py-3 font-medium">Risk Type</th>
-          <th className="px-3 py-3 font-medium">Vehicle</th>
+          <th className="px-3 py-3 font-medium">Vehicle No</th>
           <th className="px-3 py-3 font-medium">Type</th>
           <th className="px-3 py-3 font-medium">Policy No</th>
           <th className="px-3 py-3 font-medium">Insurer</th>
@@ -504,11 +521,7 @@ function PolicyTable({
                   {riskType(row)}
                 </span>
               </td>
-              <td className="px-3 py-3">
-                {row.vehicle_no || row.make_model || row.year_of_manufacture
-                  ? `${clean(row.vehicle_no)} / ${clean(row.make_model)} / ${clean(row.year_of_manufacture)}`
-                  : "-"}
-              </td>
+              <td className="px-3 py-3">{vehicleNo(row)}</td>
               <td className="px-3 py-3">{clean(row.insurance_type)}</td>
               <td className="px-3 py-3">{clean(row.policy_number)}</td>
               <td className="px-3 py-3">{clean(row.insurer_name)}</td>

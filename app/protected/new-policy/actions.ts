@@ -167,9 +167,13 @@ export async function savePolicy(
 
     const insuranceCode = cleanInsuranceCode(insuranceType.code as string | null);
     const vehicleNo = textValue(formData, "vehicle_no");
+    const equipmentVehicleNo = textValue(formData, "equipment_vehicle_no");
+    const isEquipmentPolicy = isEquipmentLikeInsurance(insuranceCode);
     const resolvedRiskLabel =
       insuranceCode === "motor"
         ? vehicleNo
+        : isEquipmentPolicy
+          ? equipmentVehicleNo || riskLabel || policyNumber || clientName
         : riskLabel || policyNumber || clientName;
 
     if (insuranceCode === "motor" && !vehicleNo) {
@@ -368,8 +372,9 @@ export async function savePolicy(
           sum_insured: moneyValue(formData, "marine_sum_insured"),
         });
       if (marineError) throw marineError;
-    } else if (isEquipmentLikeInsurance(insuranceCode)) {
+    } else if (isEquipmentPolicy) {
       const detailsJson = {
+        vehicle_no: equipmentVehicleNo ? equipmentVehicleNo.toUpperCase() : null,
         make_model: optionalText(formData, "equipment_make_model"),
         year: optionalText(formData, "equipment_year"),
         engine_no: optionalText(formData, "equipment_engine_no"),

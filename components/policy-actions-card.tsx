@@ -33,14 +33,14 @@ export function PolicyActionsCard({ policyTermId }: { policyTermId: string }) {
           <input name="policy_term_id" type="hidden" value={policyTermId} />
           <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50">
             <CheckCircle2 className="h-4 w-4" />
-            Mark Premium Paid
+            Toggle Premium Paid
           </button>
         </form>
         <form action={markCommissionsPaid}>
           <input name="policy_term_id" type="hidden" value={policyTermId} />
           <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
             <CheckCircle2 className="h-4 w-4" />
-            Mark Commission Paid
+            Toggle Commission Paid
           </button>
         </form>
         <form action={deleteAction} className="rounded-lg border border-red-200 bg-red-50 p-3">
