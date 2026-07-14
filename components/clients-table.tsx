@@ -1,8 +1,15 @@
 "use client";
 
-import { Search, Users } from "lucide-react";
+import { Plus, Search, Trash2, Users } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
+import { useFormStatus } from "react-dom";
+
+import {
+  createClientRecord,
+  deleteClientRecord,
+  type ClientActionState,
+} from "@/app/protected/clients/actions";
 
 export type ClientTableRow = {
   id: string;
@@ -24,6 +31,14 @@ function clean(value: string | number | null | undefined) {
 
 export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
   const [query, setQuery] = useState("");
+  const [createState, createAction] = useActionState<ClientActionState, FormData>(
+    createClientRecord,
+    {},
+  );
+  const [deleteState, deleteAction] = useActionState<ClientActionState, FormData>(
+    deleteClientRecord,
+    {},
+  );
 
   const filteredClients = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -60,8 +75,58 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
         </label>
       </div>
 
+      <div className="grid gap-3 border-b border-slate-100 p-4">
+        {createState.error || deleteState.error ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            {createState.error || deleteState.error}
+          </div>
+        ) : null}
+        {createState.success || deleteState.success ? (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+            {createState.success || deleteState.success}
+          </div>
+        ) : null}
+
+        <form
+          action={createAction}
+          className="grid gap-3 rounded-xl border border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1.4fr_1fr_0.9fr_1fr_1fr_auto]"
+        >
+          <input
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            name="client_name"
+            placeholder="Client name"
+            required
+          />
+          <input
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            name="business_registration_no"
+            placeholder="Reg no"
+          />
+          <select
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            name="client_type"
+          >
+            <option value="individual">Individual</option>
+            <option value="company">Company</option>
+            <option value="other">Other</option>
+          </select>
+          <input
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            name="phone"
+            placeholder="Phone"
+          />
+          <input
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            name="email"
+            placeholder="Email"
+            type="email"
+          />
+          <CreateClientButton />
+        </form>
+      </div>
+
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1040px] text-left text-sm">
+        <table className="w-full min-w-[1120px] text-left text-sm">
           <thead className="border-b border-slate-100 bg-white text-xs uppercase text-slate-500">
             <tr>
               <th className="px-3 py-3 font-medium">Client</th>
@@ -72,6 +137,7 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
               <th className="px-3 py-3 font-medium">Address</th>
               <th className="px-3 py-3 font-medium">Policies</th>
               <th className="px-3 py-3 font-medium">Open</th>
+              <th className="px-3 py-3 font-medium">Delete</th>
             </tr>
           </thead>
           <tbody>
@@ -100,11 +166,25 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
                       Open
                     </Link>
                   </td>
+                  <td className="px-3 py-3">
+                    <form action={deleteAction}>
+                      <input name="client_id" type="hidden" value={client.id} />
+                      <input
+                        name="client_name"
+                        type="hidden"
+                        value={client.client_name ?? ""}
+                      />
+                      <DeleteClientButton
+                        clientName={client.client_name ?? "this client"}
+                        disabled={client.policy_count > 0}
+                      />
+                    </form>
+                  </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td className="px-3 py-8 text-center text-slate-500" colSpan={8}>
+                <td className="px-3 py-8 text-center text-slate-500" colSpan={9}>
                   No matching clients.
                 </td>
               </tr>
@@ -113,5 +193,46 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
         </table>
       </div>
     </section>
+  );
+}
+
+function CreateClientButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-sky-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+      disabled={pending}
+      type="submit"
+    >
+      <Plus className="h-4 w-4" />
+      {pending ? "Adding..." : "Add"}
+    </button>
+  );
+}
+
+function DeleteClientButton({
+  clientName,
+  disabled,
+}: {
+  clientName: string;
+  disabled: boolean;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-red-100 bg-white text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+      disabled={disabled || pending}
+      onClick={(event) => {
+        if (!window.confirm(`Delete ${clientName}? This cannot be undone.`)) {
+          event.preventDefault();
+        }
+      }}
+      title={disabled ? "Clients with linked policies cannot be deleted" : "Delete client"}
+      type="submit"
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
   );
 }

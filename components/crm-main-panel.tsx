@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  ArrowDown,
+  ArrowUp,
   BadgeDollarSign,
   CalendarDays,
   Car,
@@ -78,6 +80,15 @@ type DashboardSummary = {
 };
 
 type ViewMode = "all" | "renewals" | "premium" | "commission" | "commissions";
+type SortDirection = "asc" | "desc";
+type MetricSort = "default" | "label" | "value";
+type RecordSort =
+  | "expiry_month"
+  | "effective_month"
+  | "risk_type"
+  | "client"
+  | "value"
+  | "status";
 
 type CrmMainPanelProps = {
   summary: DashboardSummary | null;
@@ -99,6 +110,21 @@ const viewOptions: Array<{
   { id: "premium", label: "Unpaid Premium", icon: ReceiptText },
   { id: "commission", label: "Unpaid Commission", icon: WalletCards },
   { id: "commissions", label: "Commissions", icon: BadgeDollarSign },
+];
+
+const metricSortOptions: Array<{ value: MetricSort; label: string }> = [
+  { value: "default", label: "Default" },
+  { value: "label", label: "Name" },
+  { value: "value", label: "Value" },
+];
+
+const recordSortOptions: Array<{ value: RecordSort; label: string }> = [
+  { value: "expiry_month", label: "Expiry Month" },
+  { value: "effective_month", label: "Effective Month" },
+  { value: "risk_type", label: "Risk Type" },
+  { value: "client", label: "Client" },
+  { value: "value", label: "Value" },
+  { value: "status", label: "Status" },
 ];
 
 function toNumber(value: number | string | null | undefined) {
@@ -143,6 +169,22 @@ function count(value: number | string | null | undefined) {
   return toNumber(value).toLocaleString("en-MY");
 }
 
+function compareValues(a: string | number, b: string | number) {
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a).localeCompare(String(b), "en", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
+function sortMultiplier(direction: SortDirection) {
+  return direction === "asc" ? 1 : -1;
+}
+
+function monthKey(value: string | null | undefined) {
+  return value ? value.slice(0, 7) : "";
+}
+
 function riskLabel(record: PolicyRecord) {
   return record.primary_risk_label || record.vehicle_no || record.policy_number || "-";
 }
@@ -183,6 +225,32 @@ function RiskIcon({ record }: { record: PolicyRecord }) {
   return <ShieldCheck className={className} />;
 }
 
+function isCommissionRecord(
+  record: PolicyRecord | CommissionRecord,
+): record is CommissionRecord {
+  return "commission_id" in record;
+}
+
+function recordSortValue(record: PolicyRecord | CommissionRecord, sort: RecordSort) {
+  if (sort === "expiry_month") return monthKey(record.expiry_date);
+  if (sort === "effective_month") return monthKey(record.effective_date);
+  if (sort === "client") return clean(record.client_name);
+
+  if (isCommissionRecord(record)) {
+    if (sort === "risk_type") return clean(record.insurance_type);
+    if (sort === "value") return toNumber(record.amount);
+    if (sort === "status") return clean(record.status);
+    return "";
+  }
+
+  if (sort === "risk_type") return riskType(record);
+  if (sort === "value") return toNumber(record.gross_premium);
+  if (sort === "status") {
+    return clean(record.premium_status || record.policy_status || record.renewal_status);
+  }
+  return "";
+}
+
 export function CrmMainPanel({
   commissions,
   summary,
@@ -195,6 +263,10 @@ export function CrmMainPanel({
   const [view, setView] = useState<ViewMode>("all");
   const [query, setQuery] = useState("");
   const [hideDashboardValues, setHideDashboardValues] = useState(false);
+  const [metricSort, setMetricSort] = useState<MetricSort>("default");
+  const [metricSortDirection, setMetricSortDirection] = useState<SortDirection>("asc");
+  const [recordSort, setRecordSort] = useState<RecordSort>("expiry_month");
+  const [recordSortDirection, setRecordSortDirection] = useState<SortDirection>("asc");
   const [selected, setSelected] = useState<PolicyRecord | CommissionRecord | null>(
     policies[0] || renewals[0] || unpaidPremium[0] || unpaidCommission[0] || null,
   );
@@ -223,6 +295,17 @@ export function CrmMainPanel({
     );
   }, [commissions, policies, query, renewals, unpaidCommission, unpaidPremium, view]);
 
+  const sortedRows = useMemo(() => {
+    const multiplier = sortMultiplier(recordSortDirection);
+    return [...activeRows].sort((a, b) => {
+      const result = compareValues(
+        recordSortValue(a, recordSort),
+        recordSortValue(b, recordSort),
+      );
+      return result * multiplier;
+    });
+  }, [activeRows, recordSort, recordSortDirection]);
+
   const commissionSummary = useMemo(() => {
     const totals = new Map<string, { amount: number; unpaid: number; count: number }>();
     for (const row of commissions) {
@@ -236,16 +319,95 @@ export function CrmMainPanel({
     return [...totals.entries()].sort((a, b) => b[1].amount - a[1].amount);
   }, [commissions]);
 
-  const metrics: Array<[string, string, React.ReactNode, string]> = [
-    ["Active Policies", count(summary?.active_policy_count), <FileText className="h-5 w-5" key="policies" />, "text-sky-700 bg-sky-50"],
-    ["Clients", count(summary?.client_count), <Users className="h-5 w-5" key="clients" />, "text-emerald-700 bg-emerald-50"],
-    ["Renewals 60 Days", count(summary?.renewals_due_60_days), <CalendarDays className="h-5 w-5" key="renewals" />, "text-amber-700 bg-amber-50"],
-    ["Gross Premium", money(summary?.active_gross_premium_total), <CircleDollarSign className="h-5 w-5" key="gross" />, "text-violet-700 bg-violet-50"],
-    ["Unpaid Premium", money(summary?.unpaid_premium_total), <ReceiptText className="h-5 w-5" key="premium" />, "text-red-700 bg-red-50"],
-    ["Unpaid Commission", money(summary?.unpaid_commission_total), <WalletCards className="h-5 w-5" key="commission" />, "text-orange-700 bg-orange-50"],
-    ["Documents", count(summary?.document_attention_count), <FileText className="h-5 w-5" key="documents" />, "text-slate-700 bg-slate-50"],
-    ["Tasks Due", count(summary?.tasks_due_today_count), <ClipboardList className="h-5 w-5" key="tasks" />, "text-cyan-700 bg-cyan-50"],
-  ];
+  const metrics = useMemo<Array<{
+    label: string;
+    value: string;
+    numericValue: number;
+    icon: React.ReactNode;
+    colorClass: string;
+    order: number;
+  }>>(
+    () => [
+      {
+        label: "Active Policies",
+        value: count(summary?.active_policy_count),
+        numericValue: toNumber(summary?.active_policy_count),
+        icon: <FileText className="h-5 w-5" />,
+        colorClass: "text-sky-700 bg-sky-50",
+        order: 1,
+      },
+      {
+        label: "Clients",
+        value: count(summary?.client_count),
+        numericValue: toNumber(summary?.client_count),
+        icon: <Users className="h-5 w-5" />,
+        colorClass: "text-emerald-700 bg-emerald-50",
+        order: 2,
+      },
+      {
+        label: "Renewals 60 Days",
+        value: count(summary?.renewals_due_60_days),
+        numericValue: toNumber(summary?.renewals_due_60_days),
+        icon: <CalendarDays className="h-5 w-5" />,
+        colorClass: "text-amber-700 bg-amber-50",
+        order: 3,
+      },
+      {
+        label: "Gross Premium",
+        value: money(summary?.active_gross_premium_total),
+        numericValue: toNumber(summary?.active_gross_premium_total),
+        icon: <CircleDollarSign className="h-5 w-5" />,
+        colorClass: "text-violet-700 bg-violet-50",
+        order: 4,
+      },
+      {
+        label: "Unpaid Premium",
+        value: money(summary?.unpaid_premium_total),
+        numericValue: toNumber(summary?.unpaid_premium_total),
+        icon: <ReceiptText className="h-5 w-5" />,
+        colorClass: "text-red-700 bg-red-50",
+        order: 5,
+      },
+      {
+        label: "Unpaid Commission",
+        value: money(summary?.unpaid_commission_total),
+        numericValue: toNumber(summary?.unpaid_commission_total),
+        icon: <WalletCards className="h-5 w-5" />,
+        colorClass: "text-orange-700 bg-orange-50",
+        order: 6,
+      },
+      {
+        label: "Documents",
+        value: count(summary?.document_attention_count),
+        numericValue: toNumber(summary?.document_attention_count),
+        icon: <FileText className="h-5 w-5" />,
+        colorClass: "text-slate-700 bg-slate-50",
+        order: 7,
+      },
+      {
+        label: "Tasks Due",
+        value: count(summary?.tasks_due_today_count),
+        numericValue: toNumber(summary?.tasks_due_today_count),
+        icon: <ClipboardList className="h-5 w-5" />,
+        colorClass: "text-cyan-700 bg-cyan-50",
+        order: 8,
+      },
+    ],
+    [summary],
+  );
+
+  const sortedMetrics = useMemo(() => {
+    const multiplier = sortMultiplier(metricSortDirection);
+    return [...metrics].sort((a, b) => {
+      const result =
+        metricSort === "label"
+          ? compareValues(a.label, b.label)
+          : metricSort === "value"
+            ? compareValues(a.numericValue, b.numericValue)
+            : compareValues(a.order, b.order);
+      return result * multiplier;
+    });
+  }, [metricSort, metricSortDirection, metrics]);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
@@ -255,8 +417,22 @@ export function CrmMainPanel({
             <p className="text-xs font-medium uppercase text-sky-700">
               Insurance CRM
             </p>
-            <h1 className="text-2xl font-semibold tracking-normal">
-              Operations Dashboard
+            <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-normal">
+              <span>Operations Dashboard</span>
+              <button
+                aria-label={
+                  hideDashboardValues ? "Show dashboard values" : "Hide dashboard values"
+                }
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-sky-200 bg-white text-sky-700 shadow-sm transition hover:bg-sky-50"
+                onClick={() => setHideDashboardValues((current) => !current)}
+                type="button"
+              >
+                {hideDashboardValues ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+              </button>
             </h1>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -292,24 +468,43 @@ export function CrmMainPanel({
           </div>
         ) : null}
 
-        <div className="flex justify-end">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <label className="text-xs font-medium uppercase text-slate-500">
+            Cards
+          </label>
+          <select
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            onChange={(event) => setMetricSort(event.target.value as MetricSort)}
+            value={metricSort}
+          >
+            {metricSortOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
           <button
-            aria-label={hideDashboardValues ? "Show dashboard values" : "Hide dashboard values"}
-            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-            onClick={() => setHideDashboardValues((current) => !current)}
+            aria-label={
+              metricSortDirection === "asc"
+                ? "Sort dashboard cards descending"
+                : "Sort dashboard cards ascending"
+            }
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+            onClick={() =>
+              setMetricSortDirection((current) => (current === "asc" ? "desc" : "asc"))
+            }
             type="button"
           >
-            {hideDashboardValues ? (
-              <EyeOff className="h-4 w-4" />
+            {metricSortDirection === "asc" ? (
+              <ArrowUp className="h-4 w-4" />
             ) : (
-              <Eye className="h-4 w-4" />
+              <ArrowDown className="h-4 w-4" />
             )}
-            {hideDashboardValues ? "Hidden" : "Visible"}
           </button>
         </div>
 
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {metrics.map(([label, value, icon, colorClass]) => (
+          {sortedMetrics.map(({ colorClass, icon, label, value }) => (
             <div
               className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm"
               key={label}
@@ -431,21 +626,59 @@ export function CrmMainPanel({
                   );
                 })}
               </div>
-              <label className="relative block min-w-0 lg:w-72">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search client, vehicle, policy"
-                  value={query}
-                />
-              </label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="flex items-center gap-2">
+                  <label className="text-xs font-medium uppercase text-slate-500">
+                    Sort
+                  </label>
+                  <select
+                    className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                    onChange={(event) => setRecordSort(event.target.value as RecordSort)}
+                    value={recordSort}
+                  >
+                    {recordSortOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    aria-label={
+                      recordSortDirection === "asc"
+                        ? "Sort records descending"
+                        : "Sort records ascending"
+                    }
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+                    onClick={() =>
+                      setRecordSortDirection((current) =>
+                        current === "asc" ? "desc" : "asc",
+                      )
+                    }
+                    type="button"
+                  >
+                    {recordSortDirection === "asc" ? (
+                      <ArrowUp className="h-4 w-4" />
+                    ) : (
+                      <ArrowDown className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+                <label className="relative block min-w-0 sm:w-72">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Search client, vehicle, policy"
+                    value={query}
+                  />
+                </label>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
               {view === "commission" ? (
                 <CommissionTable
-                  rows={activeRows as CommissionRecord[]}
+                  rows={sortedRows as CommissionRecord[]}
                   selected={selected}
                   setSelected={setSelected}
                 />
@@ -453,14 +686,14 @@ export function CrmMainPanel({
                 <div>
                   <CommissionSummary rows={commissionSummary} />
                   <CommissionTable
-                    rows={activeRows as CommissionRecord[]}
+                    rows={sortedRows as CommissionRecord[]}
                     selected={selected}
                     setSelected={setSelected}
                   />
                 </div>
               ) : (
                 <PolicyTable
-                  rows={activeRows as PolicyRecord[]}
+                  rows={sortedRows as PolicyRecord[]}
                   selected={selected}
                   setSelected={setSelected}
                 />
