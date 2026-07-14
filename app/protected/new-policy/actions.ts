@@ -217,6 +217,7 @@ export async function savePolicy(
     }
 
     let clientId = existingClient?.id as string | undefined;
+    const existingClientRegistrationNo = existingClient?.business_registration_no ?? null;
     if (!clientId) {
       const { data: createdClient, error: clientError } = await supabase
         .from("clients")
@@ -232,7 +233,7 @@ export async function savePolicy(
       createdClientId = clientId;
     } else if (
       businessRegistrationNo &&
-      existingClient.business_registration_no !== businessRegistrationNo
+      existingClientRegistrationNo !== businessRegistrationNo
     ) {
       const { error: clientUpdateError } = await supabase
         .from("clients")
