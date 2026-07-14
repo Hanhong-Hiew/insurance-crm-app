@@ -58,7 +58,7 @@ async function EditPolicyContent({ params }: PageProps) {
   const equipmentResult = isEquipmentPolicy
     ? await supabase
         .from("generic_policy_details")
-        .select("description, sum_insured, details_json")
+        .select("description, details_json")
         .eq("policy_term_id", id)
         .maybeSingle()
     : null;

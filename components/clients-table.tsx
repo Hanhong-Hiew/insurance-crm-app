@@ -8,6 +8,7 @@ export type ClientTableRow = {
   id: string;
   client_code: string | null;
   client_name: string | null;
+  business_registration_no: string | null;
   client_type: string | null;
   phone: string | null;
   email: string | null;
@@ -45,7 +46,7 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
             Clients
           </h1>
           <p className="text-xs text-slate-500">
-            Master list for names, phone numbers, email, address, notes, and linked policies.
+            Master list for names, registration numbers, contacts, and linked policies.
           </p>
         </div>
         <label className="relative block w-full md:w-80">
@@ -53,17 +54,18 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
           <input
             className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search client, phone, email"
+            placeholder="Search client, reg no, phone, email"
             value={query}
           />
         </label>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[920px] text-left text-sm">
+        <table className="w-full min-w-[1040px] text-left text-sm">
           <thead className="border-b border-slate-100 bg-white text-xs uppercase text-slate-500">
             <tr>
               <th className="px-3 py-3 font-medium">Client</th>
+              <th className="px-3 py-3 font-medium">Reg No</th>
               <th className="px-3 py-3 font-medium">Type</th>
               <th className="px-3 py-3 font-medium">Phone</th>
               <th className="px-3 py-3 font-medium">Email</th>
@@ -84,6 +86,7 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
                       {clean(client.client_code)}
                     </p>
                   </td>
+                  <td className="px-3 py-3">{clean(client.business_registration_no)}</td>
                   <td className="px-3 py-3">{clean(client.client_type)}</td>
                   <td className="px-3 py-3">{clean(client.phone)}</td>
                   <td className="px-3 py-3">{clean(client.email)}</td>
@@ -101,7 +104,7 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
               ))
             ) : (
               <tr>
-                <td className="px-3 py-8 text-center text-slate-500" colSpan={7}>
+                <td className="px-3 py-8 text-center text-slate-500" colSpan={8}>
                   No matching clients.
                 </td>
               </tr>

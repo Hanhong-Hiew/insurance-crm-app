@@ -19,6 +19,17 @@ function optionalText(formData: FormData, key: string) {
   return value || null;
 }
 
+function readableError(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const parts = [record.message, record.details, record.hint, record.code]
+      .filter((value): value is string => typeof value === "string" && value.length > 0);
+    if (parts.length) return parts.join(" ");
+  }
+  return fallback;
+}
+
 export async function updateClient(
   _previousState: UpdateClientState,
   formData: FormData,
@@ -42,6 +53,7 @@ export async function updateClient(
       .update({
         client_code: optionalText(formData, "client_code"),
         client_name: clientName,
+        business_registration_no: optionalText(formData, "business_registration_no"),
         client_type: textValue(formData, "client_type") || "individual",
         phone: optionalText(formData, "phone"),
         email: optionalText(formData, "email"),
@@ -65,7 +77,7 @@ export async function updateClient(
     return { success: "Client saved." };
   } catch (error) {
     return {
-      error: error instanceof Error ? error.message : "Client could not be saved.",
+      error: readableError(error, "Client could not be saved."),
     };
   }
 }

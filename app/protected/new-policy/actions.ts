@@ -33,11 +33,14 @@ function optionalText(formData: FormData, key: string) {
 }
 
 function moneyValue(formData: FormData, key: string) {
-  const raw = textValue(formData, key).replace(/,/g, "");
+  const raw = textValue(formData, key)
+    .replace(/rm/gi, "")
+    .replace(/,/g, "")
+    .replace(/\s/g, "");
   if (!raw) return null;
   const value = Number(raw);
   if (!Number.isFinite(value) || value < 0) {
-    throw new Error(`${key} must be a valid positive number.`);
+    throw new Error(`${key.replaceAll("_", " ")} must be a valid positive number.`);
   }
   return value;
 }
@@ -118,6 +121,17 @@ function isEquipmentLikeInsurance(code: string) {
   return code === "equipment_insurance" || code === "equipment_all_risk";
 }
 
+function readableError(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const parts = [record.message, record.details, record.hint, record.code]
+      .filter((value): value is string => typeof value === "string" && value.length > 0);
+    if (parts.length) return parts.join(" ");
+  }
+  return fallback;
+}
+
 export async function savePolicy(
   _previousState: SavePolicyState,
   formData: FormData,
@@ -136,6 +150,7 @@ export async function savePolicy(
   try {
     const warnings: string[] = [];
     const clientName = textValue(formData, "client_name");
+    const businessRegistrationNo = optionalText(formData, "business_registration_no");
     const insuranceTypeId = textValue(formData, "insurance_type_id");
     const insurerId = textValue(formData, "insurer_id");
     const splitPatternId = optionalText(formData, "split_pattern_id");
@@ -180,12 +195,26 @@ export async function savePolicy(
       return { error: "Vehicle number is required for motor policies." };
     }
 
-    const { data: existingClient, error: existingClientError } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("client_name", clientName)
-      .maybeSingle();
-    if (existingClientError) throw existingClientError;
+    let existingClient: { id: string; business_registration_no: string | null } | null = null;
+    if (businessRegistrationNo) {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, business_registration_no")
+        .eq("business_registration_no", businessRegistrationNo)
+        .maybeSingle();
+      if (error) throw error;
+      existingClient = data;
+    }
+
+    if (!existingClient) {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, business_registration_no")
+        .eq("client_name", clientName)
+        .maybeSingle();
+      if (error) throw error;
+      existingClient = data;
+    }
 
     let clientId = existingClient?.id as string | undefined;
     if (!clientId) {
@@ -193,6 +222,7 @@ export async function savePolicy(
         .from("clients")
         .insert({
           client_name: clientName,
+          business_registration_no: businessRegistrationNo,
           client_type: "individual",
         })
         .select("id")
@@ -200,6 +230,15 @@ export async function savePolicy(
       if (clientError) throw clientError;
       clientId = createdClient.id as string;
       createdClientId = clientId;
+    } else if (
+      businessRegistrationNo &&
+      existingClient.business_registration_no !== businessRegistrationNo
+    ) {
+      const { error: clientUpdateError } = await supabase
+        .from("clients")
+        .update({ business_registration_no: businessRegistrationNo })
+        .eq("id", clientId);
+      if (clientUpdateError) throw clientUpdateError;
     }
 
     const { data: policySeries, error: seriesError } = await supabase
@@ -386,7 +425,6 @@ export async function savePolicy(
           policy_term_id: policyTerm.id,
           detail_type: insuranceType.name ?? "Equipment Insurance",
           description: optionalText(formData, "generic_description") || resolvedRiskLabel,
-          sum_insured: moneyValue(formData, "generic_sum_insured"),
           details_json: detailsJson,
         });
       if (equipmentError) throw equipmentError;
@@ -520,7 +558,7 @@ export async function savePolicy(
     }
 
     return {
-      error: error instanceof Error ? error.message : "Policy could not be saved.",
+      error: readableError(error, "Policy could not be saved."),
     };
   }
 }

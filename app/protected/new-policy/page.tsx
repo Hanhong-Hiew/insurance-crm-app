@@ -10,6 +10,7 @@ type OptionRow = {
   id: string;
   name?: string | null;
   client_name?: string | null;
+  business_registration_no?: string | null;
   insurer_name?: string | null;
   code?: string | null;
 };
@@ -34,7 +35,7 @@ async function NewPolicyContent() {
     await Promise.all([
       supabase
         .from("clients")
-        .select("id, client_name")
+        .select("id, client_name, business_registration_no")
         .order("client_name", { ascending: true })
         .limit(100),
       supabase

@@ -13,6 +13,7 @@ type ClientFormRecord = {
   id: string;
   client_code: string | null;
   client_name: string | null;
+  business_registration_no: string | null;
   client_type: string | null;
   phone: string | null;
   email: string | null;
@@ -57,6 +58,14 @@ export function ClientDetailForm({ client }: { client: ClientFormRecord }) {
           defaultValue={client.client_code ?? ""}
           name="client_code"
           placeholder="Optional"
+        />
+      </Field>
+      <Field label="Business Registration No">
+        <input
+          className={fieldClass}
+          defaultValue={client.business_registration_no ?? ""}
+          name="business_registration_no"
+          placeholder="Optional for companies"
         />
       </Field>
       <Field label="Client Type">

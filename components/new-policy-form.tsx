@@ -19,6 +19,7 @@ type OptionRow = {
   id: string;
   name?: string | null;
   client_name?: string | null;
+  business_registration_no?: string | null;
   insurer_name?: string | null;
   code?: string | null;
 };
@@ -35,6 +36,10 @@ const fieldClass =
 
 function optionLabel(row: OptionRow) {
   return row.name || row.client_name || row.insurer_name || row.code || "-";
+}
+
+function clientSearchText(row: OptionRow) {
+  return `${row.client_name ?? ""} ${row.business_registration_no ?? ""}`.toLowerCase();
 }
 
 function typeCode(value: string | null | undefined) {
@@ -213,6 +218,9 @@ export function NewPolicyForm({
     savePolicy,
     {},
   );
+  const [clientName, setClientName] = useState("");
+  const [businessRegistrationNo, setBusinessRegistrationNo] = useState("");
+  const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState("");
   const [effectiveDate, setEffectiveDate] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
@@ -230,6 +238,13 @@ export function NewPolicyForm({
   const isTravel = selectedCode === "travel";
   const showGenericRisk =
     selectedCode && !isMotor && !isFire && !isEquipment && !isMarine && !isTravel;
+  const clientSuggestions = useMemo(() => {
+    const q = clientName.trim().toLowerCase();
+    if (!q) return clients.slice(0, 8);
+    return clients
+      .filter((client) => clientSearchText(client).includes(q))
+      .slice(0, 8);
+  }, [clientName, clients]);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -256,18 +271,57 @@ export function NewPolicyForm({
         title="Client"
       >
         <Field label="Client Name" required>
+          <div className="relative">
+            <input
+              autoComplete="off"
+              className={fieldClass}
+              name="client_name"
+              onBlur={() => {
+                window.setTimeout(() => setShowClientSuggestions(false), 120);
+              }}
+              onChange={(event) => {
+                setClientName(event.target.value);
+                setShowClientSuggestions(true);
+              }}
+              onFocus={() => setShowClientSuggestions(true)}
+              placeholder="Type existing client or new client name"
+              required
+              value={clientName}
+            />
+            {showClientSuggestions && clientSuggestions.length ? (
+              <div className="absolute left-0 right-0 z-20 mt-1 max-h-56 overflow-y-auto rounded-lg border border-sky-200 bg-white shadow-lg">
+                {clientSuggestions.map((client) => (
+                  <button
+                    className="block w-full border-b border-slate-100 px-3 py-2 text-left text-sm text-slate-800 last:border-b-0 hover:bg-sky-50"
+                    key={client.id}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      setClientName(client.client_name ?? "");
+                      setBusinessRegistrationNo(client.business_registration_no ?? "");
+                      setShowClientSuggestions(false);
+                    }}
+                    type="button"
+                  >
+                    <span className="block font-semibold text-slate-900">
+                      {client.client_name}
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      {client.business_registration_no || "No registration number"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </Field>
+        <Field label="Business Registration No">
           <input
             className={fieldClass}
-            list="client-options"
-            name="client_name"
-            placeholder="Type existing client or new client name"
-            required
+            name="business_registration_no"
+            onChange={(event) => setBusinessRegistrationNo(event.target.value)}
+            placeholder="Optional for companies"
+            value={businessRegistrationNo}
           />
-          <datalist id="client-options">
-            {clients.map((client) => (
-              <option key={client.id} value={optionLabel(client)} />
-            ))}
-          </datalist>
         </Field>
       </FormSection>
 
@@ -539,9 +593,6 @@ function EquipmentRiskSection() {
       </Field>
       <Field label="Chassis No">
         <input className={fieldClass} name="equipment_chassis_no" placeholder="Chassis number" />
-      </Field>
-      <Field label="Equipment Sum Insured">
-        <MoneyInput name="generic_sum_insured" placeholder="0.00" />
       </Field>
     </FormSection>
   );

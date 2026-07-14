@@ -56,7 +56,7 @@ async function ClientDetailContent({ params }: PageProps) {
   const [clientResult, policiesResult] = await Promise.all([
     supabase
       .from("clients")
-      .select("id, client_code, client_name, client_type, phone, email, address, notes")
+      .select("id, client_code, client_name, business_registration_no, client_type, phone, email, address, notes")
       .eq("id", id)
       .maybeSingle(),
     supabase

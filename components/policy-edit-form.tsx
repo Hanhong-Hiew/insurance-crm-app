@@ -35,7 +35,6 @@ type PolicyTermRecord = {
 
 type EquipmentDetailRecord = {
   description: string | null;
-  sum_insured: number | string | null;
 };
 
 type PolicyEditFormProps = {
@@ -226,7 +225,7 @@ export function PolicyEditForm({
           <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
             <h2 className="font-semibold text-slate-800">Equipment Details</h2>
             <p className="text-xs text-slate-500">
-              Vehicle number, engine number, chassis number, and sum insured are saved on this equipment risk.
+              Vehicle number, engine number, and chassis number are saved on this equipment risk.
             </p>
           </div>
           <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
@@ -277,15 +276,6 @@ export function PolicyEditForm({
                 defaultValue={String(equipmentJson.chassis_no ?? "")}
                 name="equipment_chassis_no"
                 placeholder="Chassis number"
-              />
-            </Field>
-            <Field label="Equipment Sum Insured">
-              <input
-                className={fieldClass}
-                defaultValue={decimal(equipmentDetail?.sum_insured)}
-                inputMode="decimal"
-                name="equipment_sum_insured"
-                placeholder="0.00"
               />
             </Field>
           </div>

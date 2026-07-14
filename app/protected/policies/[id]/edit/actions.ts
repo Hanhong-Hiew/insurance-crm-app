@@ -77,6 +77,17 @@ function isEquipmentLikeInsurance(code: string | null | undefined) {
   return code === "equipment_insurance" || code === "equipment_all_risk";
 }
 
+function readableError(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const parts = [record.message, record.details, record.hint, record.code]
+      .filter((value): value is string => typeof value === "string" && value.length > 0);
+    if (parts.length) return parts.join(" ");
+  }
+  return fallback;
+}
+
 async function splitPatternRequiresNetPremium(
   supabase: Awaited<ReturnType<typeof createClient>>,
   splitPatternId: string | null,
@@ -158,7 +169,6 @@ export async function updatePolicy(
     if (isEquipmentLikeInsurance(insuranceType?.code)) {
       const equipmentVehicleNo = optionalText(formData, "equipment_vehicle_no");
       const equipmentDescription = optionalText(formData, "equipment_description");
-      const equipmentSumInsured = moneyValue(formData, "equipment_sum_insured");
       const detailsJson = {
         vehicle_no: equipmentVehicleNo ? equipmentVehicleNo.toUpperCase() : null,
         make_model: optionalText(formData, "equipment_make_model"),
@@ -180,7 +190,7 @@ export async function updatePolicy(
           .update({
             detail_type: insuranceType?.name ?? "Equipment Insurance",
             description: equipmentDescription,
-            sum_insured: equipmentSumInsured,
+            sum_insured: null,
             details_json: detailsJson,
           })
           .eq("id", existingEquipment.id);
@@ -192,7 +202,6 @@ export async function updatePolicy(
             policy_term_id: policyTermId,
             detail_type: insuranceType?.name ?? "Equipment Insurance",
             description: equipmentDescription,
-            sum_insured: equipmentSumInsured,
             details_json: detailsJson,
           });
         if (equipmentInsertError) throw equipmentInsertError;
@@ -244,7 +253,7 @@ export async function updatePolicy(
     return { success: "Policy saved." };
   } catch (error) {
     return {
-      error: error instanceof Error ? error.message : "Policy was not saved.",
+      error: readableError(error, "Policy was not saved."),
     };
   }
 }

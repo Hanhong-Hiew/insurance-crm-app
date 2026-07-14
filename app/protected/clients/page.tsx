@@ -10,6 +10,7 @@ type ClientRow = {
   id: string;
   client_code: string | null;
   client_name: string | null;
+  business_registration_no: string | null;
   client_type: string | null;
   phone: string | null;
   email: string | null;
@@ -41,7 +42,7 @@ async function ClientsContent() {
   const [clientsResult, policiesResult] = await Promise.all([
     supabase
       .from("clients")
-      .select("id, client_code, client_name, client_type, phone, email, address, notes")
+      .select("id, client_code, client_name, business_registration_no, client_type, phone, email, address, notes")
       .order("client_name", { ascending: true })
       .limit(500),
     supabase.from("main_policy_view").select("client_id, policy_term_id").limit(2000),
