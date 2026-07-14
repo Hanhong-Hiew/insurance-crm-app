@@ -12,11 +12,11 @@ import {
   EyeOff,
   FileText,
   Flame,
-  LayoutDashboard,
   ReceiptText,
   Search,
   Settings,
   ShieldCheck,
+  TableProperties,
   Users,
   WalletCards,
 } from "lucide-react";
@@ -50,6 +50,7 @@ type PolicyRecord = {
   motor_type: string | null;
   type_of_cover?: string | null;
   ncd: number | string | null;
+  created_at?: string | null;
 };
 
 type CommissionRecord = {
@@ -79,9 +80,8 @@ type DashboardSummary = {
   tasks_due_today_count: number | string | null;
 };
 
-type ViewMode = "all" | "renewals" | "premium" | "commission" | "commissions";
+type ViewMode = "renewals" | "premium" | "commission" | "commissions";
 type SortDirection = "asc" | "desc";
-type MetricSort = "default" | "label" | "value";
 type RecordSort =
   | "expiry_month"
   | "effective_month"
@@ -105,17 +105,10 @@ const viewOptions: Array<{
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
-  { id: "all", label: "All Records", icon: LayoutDashboard },
   { id: "renewals", label: "Renewals", icon: CalendarDays },
   { id: "premium", label: "Unpaid Premium", icon: ReceiptText },
   { id: "commission", label: "Unpaid Commission", icon: WalletCards },
   { id: "commissions", label: "Commissions", icon: BadgeDollarSign },
-];
-
-const metricSortOptions: Array<{ value: MetricSort; label: string }> = [
-  { value: "default", label: "Default" },
-  { value: "label", label: "Name" },
-  { value: "value", label: "Value" },
 ];
 
 const recordSortOptions: Array<{ value: RecordSort; label: string }> = [
@@ -260,11 +253,9 @@ export function CrmMainPanel({
   unpaidCommission,
   errors,
 }: CrmMainPanelProps) {
-  const [view, setView] = useState<ViewMode>("all");
+  const [view, setView] = useState<ViewMode>("renewals");
   const [query, setQuery] = useState("");
   const [hideDashboardValues, setHideDashboardValues] = useState(false);
-  const [metricSort, setMetricSort] = useState<MetricSort>("default");
-  const [metricSortDirection, setMetricSortDirection] = useState<SortDirection>("asc");
   const [recordSort, setRecordSort] = useState<RecordSort>("expiry_month");
   const [recordSortDirection, setRecordSortDirection] = useState<SortDirection>("asc");
   const [selected, setSelected] = useState<PolicyRecord | CommissionRecord | null>(
@@ -280,9 +271,7 @@ export function CrmMainPanel({
           ? unpaidPremium
           : view === "commission"
             ? unpaidCommission
-            : view === "commissions"
-              ? commissions
-            : policies;
+            : commissions;
 
     if (!q) return rows;
 
@@ -293,7 +282,7 @@ export function CrmMainPanel({
           .includes(q),
       ),
     );
-  }, [commissions, policies, query, renewals, unpaidCommission, unpaidPremium, view]);
+  }, [commissions, query, renewals, unpaidCommission, unpaidPremium, view]);
 
   const sortedRows = useMemo(() => {
     const multiplier = sortMultiplier(recordSortDirection);
@@ -396,18 +385,15 @@ export function CrmMainPanel({
     [summary],
   );
 
-  const sortedMetrics = useMemo(() => {
-    const multiplier = sortMultiplier(metricSortDirection);
-    return [...metrics].sort((a, b) => {
-      const result =
-        metricSort === "label"
-          ? compareValues(a.label, b.label)
-          : metricSort === "value"
-            ? compareValues(a.numericValue, b.numericValue)
-            : compareValues(a.order, b.order);
-      return result * multiplier;
-    });
-  }, [metricSort, metricSortDirection, metrics]);
+  const newestPolicies = useMemo(
+    () =>
+      [...policies]
+        .sort((a, b) =>
+          String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")),
+        )
+        .slice(0, 8),
+    [policies],
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
@@ -436,6 +422,13 @@ export function CrmMainPanel({
             </h1>
           </div>
           <div className="flex flex-wrap gap-2">
+            <Link
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-medium text-sky-700 shadow-sm"
+              href="/protected/records"
+            >
+              <TableProperties className="h-4 w-4" />
+              Records
+            </Link>
             <Link
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-medium text-sky-700 shadow-sm"
               href="/protected/clients"
@@ -468,43 +461,8 @@ export function CrmMainPanel({
           </div>
         ) : null}
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <label className="text-xs font-medium uppercase text-slate-500">
-            Cards
-          </label>
-          <select
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-            onChange={(event) => setMetricSort(event.target.value as MetricSort)}
-            value={metricSort}
-          >
-            {metricSortOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <button
-            aria-label={
-              metricSortDirection === "asc"
-                ? "Sort dashboard cards descending"
-                : "Sort dashboard cards ascending"
-            }
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
-            onClick={() =>
-              setMetricSortDirection((current) => (current === "asc" ? "desc" : "asc"))
-            }
-            type="button"
-          >
-            {metricSortDirection === "asc" ? (
-              <ArrowUp className="h-4 w-4" />
-            ) : (
-              <ArrowDown className="h-4 w-4" />
-            )}
-          </button>
-        </div>
-
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {sortedMetrics.map(({ colorClass, icon, label, value }) => (
+          {metrics.map(({ colorClass, icon, label, value }) => (
             <div
               className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm"
               key={label}
@@ -522,6 +480,35 @@ export function CrmMainPanel({
               </span>
             </div>
           ))}
+        </section>
+
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-sm">
+          <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-sky-700">
+                <TableProperties className="h-5 w-5" />
+                <h2 className="text-lg font-semibold text-slate-950">
+                  Newest Records
+                </h2>
+              </div>
+              <p className="mt-1 text-sm text-slate-500">
+                Latest policies added to the CRM.
+              </p>
+            </div>
+            <Link
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm"
+              href="/protected/records"
+            >
+              Analyse Records
+            </Link>
+          </div>
+          <div className="overflow-x-auto">
+            <PolicyTable
+              rows={newestPolicies}
+              selected={selected}
+              setSelected={setSelected}
+            />
+          </div>
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[360px_1fr]">

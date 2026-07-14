@@ -65,8 +65,8 @@ async function ProtectedContent() {
       supabase
         .from("main_policy_view")
         .select("*")
-        .order("expiry_date", { ascending: true })
-        .limit(80),
+        .order("created_at", { ascending: false })
+        .limit(8),
       supabase.from("renewals_due_view").select("*").limit(40),
       supabase.from("unpaid_premium_view").select("*").limit(40),
       supabase.from("unpaid_commission_view").select("*").limit(40),
