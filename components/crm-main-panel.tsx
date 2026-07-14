@@ -454,18 +454,34 @@ export function CrmMainPanel({
 
 function PreviewGrid({ rows }: { rows: Array<[string, string]> }) {
   const visibleRows = rows.filter(([, value]) => value !== "-");
+  const wideLabels = new Set([
+    "Insurer",
+    "Make / Model",
+    "Type of Cover",
+    "Policy No",
+  ]);
 
   return (
-    <dl className="grid gap-2 text-sm">
-      {visibleRows.map(([label, value]) => (
-        <div
-          className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2"
-          key={label}
-        >
-          <dt className="text-[11px] font-semibold uppercase text-slate-500">{label}</dt>
-          <dd className="mt-1 font-semibold text-slate-950">{value}</dd>
-        </div>
-      ))}
+    <dl className="grid grid-cols-2 gap-2 text-sm">
+      {visibleRows.map(([label, value]) => {
+        const isWide = wideLabels.has(label) || value.length > 24;
+
+        return (
+          <div
+            className={`rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 ${
+              isWide ? "col-span-2" : ""
+            }`}
+            key={label}
+          >
+            <dt className="text-[10px] font-semibold uppercase text-slate-500">
+              {label}
+            </dt>
+            <dd className="mt-1 break-words font-semibold text-slate-950">
+              {value}
+            </dd>
+          </div>
+        );
+      })}
     </dl>
   );
 }
