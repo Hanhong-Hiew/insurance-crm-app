@@ -1,6 +1,16 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import {
+  CalendarDays,
+  Car,
+  FileText,
+  Landmark,
+  Plane,
+  Ship,
+  ShieldCheck,
+  Wrench,
+} from "lucide-react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { savePolicy, type SavePolicyState } from "@/app/protected/new-policy/actions";
@@ -35,6 +45,62 @@ function isFireLike(code: string) {
   return code === "fire" || code === "home_insurance" || code === "industrial_all_risk";
 }
 
+function isEquipmentLike(code: string) {
+  return code === "equipment_insurance" || code === "equipment_all_risk";
+}
+
+function normalizeDateText(value: string) {
+  const raw = value.trim();
+  if (!raw) return "";
+
+  const match = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
+  if (!match) return raw;
+
+  const day = match[1].padStart(2, "0");
+  const month = match[2].padStart(2, "0");
+  const rawYear = match[3];
+  const year =
+    rawYear.length === 2
+      ? Number(rawYear) >= 70
+        ? `19${rawYear}`
+        : `20${rawYear}`
+      : rawYear;
+
+  const date = new Date(`${year}-${month}-${day}T00:00:00Z`);
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getUTCDate() !== Number(day) ||
+    date.getUTCMonth() + 1 !== Number(month) ||
+    date.getUTCFullYear() !== Number(year)
+  ) {
+    return raw;
+  }
+
+  return `${day}/${month}/${year}`;
+}
+
+function displayToIso(value: string) {
+  const normalized = normalizeDateText(value);
+  const match = normalized.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return "";
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+function isoToDisplay(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function oneYearExpiry(value: string) {
+  const iso = displayToIso(value);
+  if (!iso) return "";
+  const date = new Date(`${iso}T00:00:00Z`);
+  date.setUTCFullYear(date.getUTCFullYear() + 1);
+  date.setUTCDate(date.getUTCDate() - 1);
+  return isoToDisplay(date.toISOString().slice(0, 10));
+}
+
 function MoneyInput({
   name,
   placeholder,
@@ -58,6 +124,67 @@ function MoneyInput({
         required={required}
         type="text"
       />
+    </div>
+  );
+}
+
+function DateInput({
+  name,
+  onChange,
+  onFormatted,
+  placeholder = "dd/mm/yyyy",
+  required = false,
+  value,
+}: {
+  name: string;
+  onChange: (value: string) => void;
+  onFormatted?: (value: string) => void;
+  placeholder?: string;
+  required?: boolean;
+  value: string;
+}) {
+  const pickerRef = useRef<HTMLInputElement>(null);
+
+  function commit(nextValue: string) {
+    const formatted = normalizeDateText(nextValue);
+    onChange(formatted);
+    onFormatted?.(formatted);
+  }
+
+  return (
+    <div className="flex h-10 overflow-hidden rounded-lg border border-slate-200 bg-white transition focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100">
+      <input
+        className="min-w-0 flex-1 bg-white px-3 text-sm text-slate-700 outline-none placeholder:text-slate-400"
+        inputMode="numeric"
+        name={name}
+        onBlur={(event) => commit(event.target.value)}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={placeholder}
+        required={required}
+        type="text"
+        value={value}
+      />
+      <button
+        aria-label="Open calendar"
+        className="relative flex w-10 items-center justify-center border-l border-sky-100 bg-sky-50 text-sky-700"
+        onClick={() => pickerRef.current?.showPicker?.()}
+        type="button"
+      >
+        <CalendarDays className="h-4 w-4" />
+        <input
+          aria-hidden="true"
+          className="pointer-events-none absolute h-px w-px opacity-0"
+          onChange={(event) => {
+            const display = isoToDisplay(event.target.value);
+            onChange(display);
+            onFormatted?.(display);
+          }}
+          ref={pickerRef}
+          tabIndex={-1}
+          type="date"
+          value={displayToIso(value)}
+        />
+      </button>
     </div>
   );
 }
@@ -87,6 +214,9 @@ export function NewPolicyForm({
     {},
   );
   const [selectedTypeId, setSelectedTypeId] = useState("");
+  const [effectiveDate, setEffectiveDate] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [expiryTouched, setExpiryTouched] = useState(false);
 
   const selectedType = useMemo(
     () => insuranceTypes.find((type) => type.id === selectedTypeId),
@@ -95,9 +225,11 @@ export function NewPolicyForm({
   const selectedCode = typeCode(selectedType?.code);
   const isMotor = selectedCode === "motor";
   const isFire = isFireLike(selectedCode);
+  const isEquipment = isEquipmentLike(selectedCode);
   const isMarine = selectedCode === "marine_insurance";
   const isTravel = selectedCode === "travel";
-  const showGenericRisk = selectedCode && !isMotor && !isFire && !isMarine && !isTravel;
+  const showGenericRisk =
+    selectedCode && !isMotor && !isFire && !isEquipment && !isMarine && !isTravel;
 
   return (
     <form action={formAction} className="space-y-4">
@@ -123,7 +255,7 @@ export function NewPolicyForm({
         description="Choose or type the client name. Existing clients appear as suggestions."
         title="Client"
       >
-        <Field label="Client Name">
+        <Field label="Client Name" required>
           <input
             className={fieldClass}
             list="client-options"
@@ -143,7 +275,7 @@ export function NewPolicyForm({
         description="This decides which risk fields appear and which settings are used for commission."
         title="Policy"
       >
-        <Field label="Insurance Type">
+        <Field label="Insurance Type" required>
           <select
             className={fieldClass}
             name="insurance_type_id"
@@ -160,14 +292,14 @@ export function NewPolicyForm({
           </select>
         </Field>
 
-        <Field label="Stage">
+        <Field label="Stage" required>
           <select className={fieldClass} name="term_stage" required>
             <option value="policy">Policy issued</option>
             <option value="quotation">Quotation only</option>
           </select>
         </Field>
 
-        <Field label="Insurer">
+        <Field label="Insurer" required>
           <select className={fieldClass} name="insurer_id" required>
             <option value="">Select insurer</option>
             {insurers.map((insurer) => (
@@ -197,25 +329,27 @@ export function NewPolicyForm({
         description="Dates drive renewals and follow-up work. Use dd/mm/yyyy."
         title="Term"
       >
-        <Field label="Effective Date">
-          <input
-            className={fieldClass}
-            inputMode="numeric"
+        <Field label="Effective Date" required>
+          <DateInput
             name="effective_date"
-            placeholder="dd/mm/yyyy"
+            onChange={setEffectiveDate}
+            onFormatted={(value) => {
+              if (!expiryTouched) setExpiryDate(oneYearExpiry(value));
+            }}
             required
-            type="text"
+            value={effectiveDate}
           />
         </Field>
 
-        <Field label="Expiry Date">
-          <input
-            className={fieldClass}
-            inputMode="numeric"
+        <Field label="Expiry Date" required>
+          <DateInput
             name="expiry_date"
-            placeholder="dd/mm/yyyy"
+            onChange={(value) => {
+              setExpiryTouched(true);
+              setExpiryDate(value);
+            }}
             required
-            type="text"
+            value={expiryDate}
           />
         </Field>
 
@@ -226,6 +360,7 @@ export function NewPolicyForm({
 
       {isMotor ? <MotorRiskSection /> : null}
       {isFire ? <FireRiskSection /> : null}
+      {isEquipment ? <EquipmentRiskSection /> : null}
       {isMarine ? <MarineRiskSection /> : null}
       {isTravel ? <TravelRiskSection /> : null}
       {showGenericRisk ? <GenericRiskSection /> : null}
@@ -234,7 +369,7 @@ export function NewPolicyForm({
         description="Commission is calculated from settings after selecting the split pattern."
         title="Premium & Commission"
       >
-        <Field label="Gross Premium">
+        <Field label="Gross Premium" required>
           <MoneyInput name="gross_premium" placeholder="0.00" />
         </Field>
 
@@ -283,9 +418,10 @@ function MotorRiskSection() {
   return (
     <FormSection
       description="Stable vehicle fields are reused next year. Yearly values like NCD and BDM/BTM stay on this policy term."
+      icon={<Car className="h-5 w-5" />}
       title="Motor Risk"
     >
-      <Field label="Vehicle No">
+      <Field label="Vehicle No" required>
         <input
           className={`${fieldClass} uppercase`}
           name="vehicle_no"
@@ -300,6 +436,13 @@ function MotorRiskSection() {
           <option value="company">Company</option>
           <option value="permit_a">Permit A</option>
           <option value="permit_c">Permit C</option>
+        </select>
+      </Field>
+      <Field label="Type of Cover">
+        <select className={fieldClass} defaultValue="Comprehensive" name="type_of_cover">
+          <option value="Comprehensive">Comprehensive</option>
+          <option value="3rd Party, Fire and Theft">3rd Party, Fire and Theft</option>
+          <option value="Third Party">Third Party</option>
         </select>
       </Field>
       <Field label="NCD">
@@ -321,10 +464,10 @@ function MotorRiskSection() {
         <input className={fieldClass} name="chassis_no" placeholder="Chassis number" />
       </Field>
       <Field label="BDM">
-        <MoneyInput name="bdm" placeholder="0.00" />
+        <input className={fieldClass} inputMode="decimal" name="bdm" placeholder="Optional" />
       </Field>
       <Field label="BTM">
-        <MoneyInput name="btm" placeholder="0.00" />
+        <input className={fieldClass} inputMode="decimal" name="btm" placeholder="Optional" />
       </Field>
       <div className="md:col-span-2 xl:col-span-3">
         <Field label="Extra Coverage">
@@ -342,7 +485,11 @@ function MotorRiskSection() {
 
 function FireRiskSection() {
   return (
-    <FormSection description="Fire-like policies need location and insured value breakdown." title="Fire Risk">
+    <FormSection
+      description="Fire-like policies need location and insured value breakdown."
+      icon={<Landmark className="h-5 w-5" />}
+      title="Fire Risk"
+    >
       <Field label="Property Address">
         <input className={fieldClass} name="property_address" placeholder="Property address" />
       </Field>
@@ -368,9 +515,42 @@ function FireRiskSection() {
   );
 }
 
+function EquipmentRiskSection() {
+  return (
+    <FormSection
+      description="Equipment policies track machine identity separately from policy values."
+      icon={<Wrench className="h-5 w-5" />}
+      title="Equipment Risk"
+    >
+      <Field label="Equipment Description">
+        <input className={fieldClass} name="generic_description" placeholder="Equipment description" />
+      </Field>
+      <Field label="Make / Model">
+        <input className={fieldClass} name="equipment_make_model" placeholder="Make or model" />
+      </Field>
+      <Field label="Year">
+        <input className={fieldClass} inputMode="numeric" name="equipment_year" placeholder="2022" />
+      </Field>
+      <Field label="Engine No">
+        <input className={fieldClass} name="equipment_engine_no" placeholder="Engine number" />
+      </Field>
+      <Field label="Chassis No">
+        <input className={fieldClass} name="equipment_chassis_no" placeholder="Chassis number" />
+      </Field>
+      <Field label="Equipment Sum Insured">
+        <MoneyInput name="generic_sum_insured" placeholder="0.00" />
+      </Field>
+    </FormSection>
+  );
+}
+
 function MarineRiskSection() {
   return (
-    <FormSection description="Marine policies track the shipment or voyage details separately." title="Marine Risk">
+    <FormSection
+      description="Marine policies track the shipment or voyage details separately."
+      icon={<Ship className="h-5 w-5" />}
+      title="Marine Risk"
+    >
       <Field label="Marine Type">
         <input className={fieldClass} name="marine_type" placeholder="Cargo, hull, open cover" />
       </Field>
@@ -392,7 +572,11 @@ function MarineRiskSection() {
 
 function TravelRiskSection() {
   return (
-    <FormSection description="Travel policies need trip period and destination details." title="Travel Risk">
+    <FormSection
+      description="Travel policies need trip period and destination details."
+      icon={<Plane className="h-5 w-5" />}
+      title="Travel Risk"
+    >
       <Field label="Destination">
         <input className={fieldClass} name="destination" placeholder="Destination" />
       </Field>
@@ -414,7 +598,11 @@ function TravelRiskSection() {
 
 function GenericRiskSection() {
   return (
-    <FormSection description="Use this for PA, liability, machinery, equipment, and other non-motor policies." title="Other Risk">
+    <FormSection
+      description="Use this for PA, liability, machinery, and other non-motor policies."
+      icon={<ShieldCheck className="h-5 w-5" />}
+      title="Other Risk"
+    >
       <Field label="Detail Type">
         <input className={fieldClass} name="generic_detail_type" placeholder="Liability, machinery, PA, etc." />
       </Field>
@@ -433,16 +621,23 @@ function GenericRiskSection() {
 function FormSection({
   children,
   description,
+  icon,
   title,
 }: {
   children: React.ReactNode;
   description: string;
+  icon?: React.ReactNode;
   title: string;
 }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white/95 shadow-sm">
       <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
-        <h2 className="font-semibold text-slate-800">{title}</h2>
+        <h2 className="flex items-center gap-2 font-semibold text-slate-800">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-sky-700 shadow-sm">
+            {icon ?? <FileText className="h-5 w-5" />}
+          </span>
+          {title}
+        </h2>
         <p className="text-xs text-slate-500">{description}</p>
       </div>
       <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
@@ -455,13 +650,18 @@ function FormSection({
 function Field({
   children,
   label,
+  required = false,
 }: {
   children: React.ReactNode;
   label: string;
+  required?: boolean;
 }) {
   return (
     <label className="grid gap-2 text-sm font-medium text-slate-700">
-      {label}
+      <span>
+        {label}
+        {required ? <span className="ml-1 text-red-500">*</span> : null}
+      </span>
       {children}
     </label>
   );

@@ -40,11 +40,13 @@ function moneyValue(formData: FormData, key: string) {
 function parseDate(formData: FormData, key: string) {
   const raw = textValue(formData, key);
   if (!raw) return null;
-  const match = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  const match = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
   if (!match) {
     throw new Error(`${key.replaceAll("_", " ")} must use dd/mm/yyyy format.`);
   }
-  const [, rawDay, rawMonth, year] = match;
+  const [, rawDay, rawMonth, rawYear] = match;
+  const year =
+    rawYear.length === 4 ? rawYear : Number(rawYear) >= 70 ? `19${rawYear}` : `20${rawYear}`;
   const day = rawDay.padStart(2, "0");
   const month = rawMonth.padStart(2, "0");
   const date = new Date(`${year}-${month}-${day}T00:00:00Z`);

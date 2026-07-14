@@ -71,16 +71,22 @@ function percentNumber(value: string | number | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function normalizeYear(rawYear: string) {
+  if (rawYear.length === 4) return rawYear;
+  return Number(rawYear) >= 70 ? `19${rawYear}` : `20${rawYear}`;
+}
+
 function parseDate(formData: FormData, key: string) {
   const raw = textValue(formData, key);
   if (!raw) return null;
 
-  const match = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  const match = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
   if (!match) {
     throw new Error(`${key.replaceAll("_", " ")} must use dd/mm/yyyy format.`);
   }
 
-  const [, rawDay, rawMonth, year] = match;
+  const [, rawDay, rawMonth, rawYear] = match;
+  const year = normalizeYear(rawYear);
   const day = rawDay.padStart(2, "0");
   const month = rawMonth.padStart(2, "0");
   const date = new Date(`${year}-${month}-${day}T00:00:00Z`);
@@ -106,6 +112,10 @@ function cleanInsuranceCode(value: string | null | undefined) {
 
 function isFireLikeInsurance(code: string) {
   return code === "fire" || code === "home_insurance" || code === "industrial_all_risk";
+}
+
+function isEquipmentLikeInsurance(code: string) {
+  return code === "equipment_insurance" || code === "equipment_all_risk";
 }
 
 export async function savePolicy(
@@ -300,19 +310,36 @@ export async function savePolicy(
           }
         }
 
-        const { error: motorError } = await supabase
+        const motorDetails = {
+          policy_term_id: policyTerm.id,
+          vehicle_id: vehicleId,
+          motor_type: optionalText(formData, "motor_type"),
+          type_of_cover: optionalText(formData, "type_of_cover"),
+          vehicle_no_snapshot: vehicleNo.toUpperCase(),
+          ncd: ncdValue(formData, "ncd"),
+          extra_coverage: optionalText(formData, "extra_coverage"),
+          bdm: moneyValue(formData, "bdm"),
+          btm: moneyValue(formData, "btm"),
+          motor_description: optionalText(formData, "motor_description"),
+        };
+        let { error: motorError } = await supabase
           .from("motor_policy_details")
-          .insert({
-            policy_term_id: policyTerm.id,
-            vehicle_id: vehicleId,
-            motor_type: optionalText(formData, "motor_type"),
-            vehicle_no_snapshot: vehicleNo.toUpperCase(),
-            ncd: ncdValue(formData, "ncd"),
-            extra_coverage: optionalText(formData, "extra_coverage"),
-            bdm: moneyValue(formData, "bdm"),
-            btm: moneyValue(formData, "btm"),
-            motor_description: optionalText(formData, "motor_description"),
-          });
+          .insert(motorDetails);
+        if (
+          motorError &&
+          (motorError.message.includes("type_of_cover") ||
+            motorError.message.includes("schema cache"))
+        ) {
+          const motorDetailsWithoutCover: Record<string, unknown> = { ...motorDetails };
+          delete motorDetailsWithoutCover.type_of_cover;
+          const retryResult = await supabase
+            .from("motor_policy_details")
+            .insert(motorDetailsWithoutCover);
+          motorError = retryResult.error;
+          warnings.push(
+            "Policy saved, but Type of Cover was not saved because the Supabase update SQL has not been run.",
+          );
+        }
         if (motorError) throw motorError;
       }
     } else if (isFireLikeInsurance(insuranceCode)) {
@@ -341,6 +368,23 @@ export async function savePolicy(
           sum_insured: moneyValue(formData, "marine_sum_insured"),
         });
       if (marineError) throw marineError;
+    } else if (isEquipmentLikeInsurance(insuranceCode)) {
+      const detailsJson = {
+        make_model: optionalText(formData, "equipment_make_model"),
+        year: optionalText(formData, "equipment_year"),
+        engine_no: optionalText(formData, "equipment_engine_no"),
+        chassis_no: optionalText(formData, "equipment_chassis_no"),
+      };
+      const { error: equipmentError } = await supabase
+        .from("generic_policy_details")
+        .insert({
+          policy_term_id: policyTerm.id,
+          detail_type: insuranceType.name ?? "Equipment Insurance",
+          description: optionalText(formData, "generic_description") || resolvedRiskLabel,
+          sum_insured: moneyValue(formData, "generic_sum_insured"),
+          details_json: detailsJson,
+        });
+      if (equipmentError) throw equipmentError;
     } else if (insuranceCode === "travel") {
       const { error: travelError } = await supabase
         .from("travel_policy_details")
@@ -375,6 +419,9 @@ export async function savePolicy(
         if (rulesError) throw rulesError;
 
         const splitRules = (rules ?? []) as SplitRule[];
+        if (!splitRules.length) {
+          throw new Error("Selected split pattern has no commission rules.");
+        }
         const equalRuleCount =
           splitRules.filter((rule) => rule.rule_type === "equal_net_share").length || 1;
         const netPercent = percentNumber(netCommissionPercent);

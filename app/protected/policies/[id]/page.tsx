@@ -1,11 +1,10 @@
-import { ArrowLeft, CalendarPlus, CheckCircle2, FileText, PenLine, Trash2 } from "lucide-react";
+import { ArrowLeft, FileText, PenLine } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
+import { PolicyActionsCard } from "@/components/policy-actions-card";
 import { createClient } from "@/lib/supabase/server";
-
-import { deletePolicy, markCommissionsPaid, markPremiumPaid, startRenewal } from "./actions";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -215,7 +214,7 @@ async function PolicyRecordContent({ params }: PageProps) {
         </section>
 
         <aside className="space-y-4">
-          <ActionCard policyTermId={id} />
+          <PolicyActionsCard policyTermId={id} />
           <ListCard
             empty="No documents yet."
             items={(documentsResult.data ?? []).map((document) => [
@@ -246,71 +245,41 @@ function buildDetailRows(detail: DetailRow) {
     return [
       ["Vehicle No", clean(detail.vehicle_no_snapshot || vehicle.vehicle_no)],
       ["Motor Type", clean(detail.motor_type)],
+      ["Type of Cover", clean(detail.type_of_cover)],
       ["NCD", percent(detail.ncd)],
       ["Make / Model", clean(vehicle.make_model)],
       ["Year", clean(vehicle.year_of_manufacture)],
       ["Engine CC", clean(vehicle.engine_cc)],
       ["Engine No", clean(vehicle.engine_no)],
       ["Chassis No", clean(vehicle.chassis_no)],
-      ["BDM", money(detail.bdm)],
-      ["BTM", money(detail.btm)],
+      ["BDM", clean(detail.bdm)],
+      ["BTM", clean(detail.btm)],
       ["Extra Coverage", clean(detail.extra_coverage)],
       ["Description", clean(detail.motor_description)],
     ];
   }
 
-  return Object.entries(detail)
+  const rows = Object.entries(detail)
     .filter(([key]) => !["id", "policy_term_id", "created_at", "updated_at"].includes(key))
+    .filter(([key]) => key !== "details_json")
     .map(([key, value]) => [
       key.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
       key.includes("date") ? formatDate(value) : key.includes("sum") ? money(value) : clean(value),
     ]);
-}
 
-function ActionCard({ policyTermId }: { policyTermId: string }) {
-  return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="font-semibold text-slate-800">Actions</h2>
-      <div className="mt-3 grid gap-2">
-        <form action={startRenewal}>
-          <input name="policy_term_id" type="hidden" value={policyTermId} />
-          <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">
-            <CalendarPlus className="h-4 w-4" />
-            Start Renewal
-          </button>
-        </form>
-        <form action={markPremiumPaid}>
-          <input name="policy_term_id" type="hidden" value={policyTermId} />
-          <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50">
-            <CheckCircle2 className="h-4 w-4" />
-            Mark Premium Paid
-          </button>
-        </form>
-        <form action={markCommissionsPaid}>
-          <input name="policy_term_id" type="hidden" value={policyTermId} />
-          <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
-            <CheckCircle2 className="h-4 w-4" />
-            Mark Commission Paid
-          </button>
-        </form>
-        <form action={deletePolicy} className="rounded-lg border border-red-200 bg-red-50 p-3">
-          <input name="policy_term_id" type="hidden" value={policyTermId} />
-          <label className="grid gap-2 text-xs font-medium text-red-900">
-            Type DELETE to remove wrong policy row
-            <input
-              className="h-9 rounded-md border border-red-200 bg-white px-3 text-sm text-red-950 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
-              name="delete_confirmation"
-              placeholder="DELETE"
-            />
-          </label>
-          <button className="mt-2 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-red-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700">
-            <Trash2 className="h-4 w-4" />
-            Delete Policy
-          </button>
-        </form>
-      </div>
-    </section>
-  );
+  const detailJson = detail.details_json as Record<string, unknown> | null | undefined;
+  if (detailJson && typeof detailJson === "object") {
+    rows.push(
+      ...Object.entries(detailJson)
+        .filter(([, value]) => value !== null && value !== "")
+        .map(([key, value]) => [
+          key.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
+          clean(value),
+        ]),
+    );
+  }
+
+  return rows;
 }
 
 function InfoCard({ rows, title }: { rows: string[][]; title: string }) {

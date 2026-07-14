@@ -4,6 +4,28 @@ import { Suspense } from "react";
 import { CrmMainPanel } from "@/components/crm-main-panel";
 import { createClient } from "@/lib/supabase/server";
 
+type RawCommissionRow = {
+  id: string;
+  policy_term_id: string;
+  calculation_percent: number | string | null;
+  amount: number | string | null;
+  unpaid_amount: number | string | null;
+  status: string | null;
+  paid_date: string | null;
+  commission_payees: { name?: string | null } | Array<{ name?: string | null }> | null;
+  policy_terms: {
+    policy_number?: string | null;
+    effective_date?: string | null;
+    expiry_date?: string | null;
+    clients?: { client_name?: string | null } | Array<{ client_name?: string | null }> | null;
+    insurance_types?: { name?: string | null } | Array<{ name?: string | null }> | null;
+  } | null;
+};
+
+function firstValue<T>(value: T | T[] | null | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export default function ProtectedPage() {
   return (
     <Suspense fallback={<ProtectedLoading />}>
@@ -30,7 +52,14 @@ async function ProtectedContent() {
     redirect("/auth/login");
   }
 
-  const [summaryResult, policiesResult, renewalsResult, premiumResult, commissionResult] =
+  const [
+    summaryResult,
+    policiesResult,
+    renewalsResult,
+    premiumResult,
+    commissionResult,
+    allCommissionResult,
+  ] =
     await Promise.all([
       supabase.from("dashboard_summary_view").select("*").maybeSingle(),
       supabase
@@ -41,6 +70,13 @@ async function ProtectedContent() {
       supabase.from("renewals_due_view").select("*").limit(40),
       supabase.from("unpaid_premium_view").select("*").limit(40),
       supabase.from("unpaid_commission_view").select("*").limit(40),
+      supabase
+        .from("commissions")
+        .select(
+          "id, policy_term_id, calculation_percent, amount, unpaid_amount, status, paid_date, commission_payees(name), policy_terms(policy_number, effective_date, expiry_date, clients(client_name), insurance_types(name))",
+        )
+        .order("created_at", { ascending: false })
+        .limit(500),
     ]);
 
   const errors = [
@@ -49,10 +85,36 @@ async function ProtectedContent() {
     renewalsResult.error?.message,
     premiumResult.error?.message,
     commissionResult.error?.message,
+    allCommissionResult.error?.message,
   ].filter((message): message is string => Boolean(message));
+  const commissions = ((allCommissionResult.data ?? []) as RawCommissionRow[]).map(
+    (commission) => {
+      const term = commission.policy_terms;
+      const payee = firstValue(commission.commission_payees);
+      const client = firstValue(term?.clients);
+      const insuranceType = firstValue(term?.insurance_types);
+
+      return {
+        commission_id: commission.id,
+        policy_term_id: commission.policy_term_id,
+        client_name: client?.client_name ?? null,
+        policy_number: term?.policy_number ?? null,
+        insurance_type: insuranceType?.name ?? null,
+        payee_name: payee?.name ?? null,
+        calculation_percent: commission.calculation_percent,
+        amount: commission.amount,
+        unpaid_amount: commission.unpaid_amount,
+        status: commission.status,
+        effective_date: term?.effective_date ?? null,
+        expiry_date: term?.expiry_date ?? null,
+        paid_date: commission.paid_date,
+      };
+    },
+  );
 
   return (
     <CrmMainPanel
+      commissions={commissions}
       errors={errors}
       policies={policiesResult.data ?? []}
       renewals={renewalsResult.data ?? []}

@@ -1,13 +1,18 @@
 "use client";
 
 import {
+  BadgeDollarSign,
   CalendarDays,
   Car,
+  CircleDollarSign,
+  ClipboardList,
   FileText,
+  Flame,
   LayoutDashboard,
   ReceiptText,
   Search,
   Settings,
+  ShieldCheck,
   Users,
   WalletCards,
 } from "lucide-react";
@@ -20,6 +25,8 @@ type PolicyRecord = {
   client_id: string;
   client_name: string | null;
   insurance_type: string | null;
+  insurance_type_code?: string | null;
+  risk_type?: string | null;
   primary_risk_label: string | null;
   policy_number: string | null;
   insurer_name: string | null;
@@ -36,8 +43,8 @@ type PolicyRecord = {
   vehicle_no: string | null;
   make_model?: string | null;
   year_of_manufacture?: number | string | null;
-  engine_cc?: number | string | null;
   motor_type: string | null;
+  type_of_cover?: string | null;
   ncd: number | string | null;
 };
 
@@ -54,6 +61,7 @@ type CommissionRecord = {
   status: string | null;
   effective_date: string | null;
   expiry_date: string | null;
+  paid_date?: string | null;
 };
 
 type DashboardSummary = {
@@ -67,10 +75,11 @@ type DashboardSummary = {
   tasks_due_today_count: number | string | null;
 };
 
-type ViewMode = "all" | "renewals" | "premium" | "commission";
+type ViewMode = "all" | "renewals" | "premium" | "commission" | "commissions";
 
 type CrmMainPanelProps = {
   summary: DashboardSummary | null;
+  commissions: CommissionRecord[];
   policies: PolicyRecord[];
   renewals: PolicyRecord[];
   unpaidPremium: PolicyRecord[];
@@ -87,6 +96,7 @@ const viewOptions: Array<{
   { id: "renewals", label: "Renewals", icon: CalendarDays },
   { id: "premium", label: "Unpaid Premium", icon: ReceiptText },
   { id: "commission", label: "Unpaid Commission", icon: WalletCards },
+  { id: "commissions", label: "Commissions", icon: BadgeDollarSign },
 ];
 
 function toNumber(value: number | string | null | undefined) {
@@ -132,10 +142,35 @@ function count(value: number | string | null | undefined) {
 }
 
 function riskLabel(record: PolicyRecord) {
-  return record.vehicle_no || record.primary_risk_label || record.policy_number || "-";
+  return record.primary_risk_label || record.vehicle_no || record.policy_number || "-";
+}
+
+function riskType(record: PolicyRecord) {
+  if (record.risk_type) return record.risk_type;
+  if (record.vehicle_no || record.insurance_type_code === "motor") return "Motor Risk";
+  if (record.insurance_type_code === "fire") return "Fire Risk";
+  if (record.insurance_type_code === "marine_insurance") return "Marine Risk";
+  if (record.insurance_type_code === "travel") return "Travel Risk";
+  if (
+    record.insurance_type_code === "equipment_insurance" ||
+    record.insurance_type_code === "equipment_all_risk"
+  ) {
+    return "Equipment Risk";
+  }
+  return record.insurance_type ? `${record.insurance_type} Risk` : "Policy Risk";
+}
+
+function RiskIcon({ record }: { record: PolicyRecord }) {
+  const type = riskType(record).toLowerCase();
+  const className = "h-4 w-4";
+  if (type.includes("motor")) return <Car className={className} />;
+  if (type.includes("fire")) return <Flame className={className} />;
+  if (type.includes("equipment")) return <ClipboardList className={className} />;
+  return <ShieldCheck className={className} />;
 }
 
 export function CrmMainPanel({
+  commissions,
   summary,
   policies,
   renewals,
@@ -158,6 +193,8 @@ export function CrmMainPanel({
           ? unpaidPremium
           : view === "commission"
             ? unpaidCommission
+            : view === "commissions"
+              ? commissions
             : policies;
 
     if (!q) return rows;
@@ -169,17 +206,30 @@ export function CrmMainPanel({
           .includes(q),
       ),
     );
-  }, [policies, query, renewals, unpaidCommission, unpaidPremium, view]);
+  }, [commissions, policies, query, renewals, unpaidCommission, unpaidPremium, view]);
 
-  const metrics = [
-    ["Active Policies", count(summary?.active_policy_count)],
-    ["Clients", count(summary?.client_count)],
-    ["Renewals 60 Days", count(summary?.renewals_due_60_days)],
-    ["Gross Premium", money(summary?.active_gross_premium_total)],
-    ["Unpaid Premium", money(summary?.unpaid_premium_total)],
-    ["Unpaid Commission", money(summary?.unpaid_commission_total)],
-    ["Documents", count(summary?.document_attention_count)],
-    ["Tasks Due", count(summary?.tasks_due_today_count)],
+  const commissionSummary = useMemo(() => {
+    const totals = new Map<string, { amount: number; unpaid: number; count: number }>();
+    for (const row of commissions) {
+      const key = clean(row.payee_name);
+      const current = totals.get(key) ?? { amount: 0, unpaid: 0, count: 0 };
+      current.amount += toNumber(row.amount);
+      current.unpaid += toNumber(row.unpaid_amount);
+      current.count += 1;
+      totals.set(key, current);
+    }
+    return [...totals.entries()].sort((a, b) => b[1].amount - a[1].amount);
+  }, [commissions]);
+
+  const metrics: Array<[string, string, React.ReactNode, string]> = [
+    ["Active Policies", count(summary?.active_policy_count), <FileText className="h-5 w-5" key="policies" />, "text-sky-700 bg-sky-50"],
+    ["Clients", count(summary?.client_count), <Users className="h-5 w-5" key="clients" />, "text-emerald-700 bg-emerald-50"],
+    ["Renewals 60 Days", count(summary?.renewals_due_60_days), <CalendarDays className="h-5 w-5" key="renewals" />, "text-amber-700 bg-amber-50"],
+    ["Gross Premium", money(summary?.active_gross_premium_total), <CircleDollarSign className="h-5 w-5" key="gross" />, "text-violet-700 bg-violet-50"],
+    ["Unpaid Premium", money(summary?.unpaid_premium_total), <ReceiptText className="h-5 w-5" key="premium" />, "text-red-700 bg-red-50"],
+    ["Unpaid Commission", money(summary?.unpaid_commission_total), <WalletCards className="h-5 w-5" key="commission" />, "text-orange-700 bg-orange-50"],
+    ["Documents", count(summary?.document_attention_count), <FileText className="h-5 w-5" key="documents" />, "text-slate-700 bg-slate-50"],
+    ["Tasks Due", count(summary?.tasks_due_today_count), <ClipboardList className="h-5 w-5" key="tasks" />, "text-cyan-700 bg-cyan-50"],
   ];
 
   return (
@@ -228,15 +278,20 @@ export function CrmMainPanel({
         ) : null}
 
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {metrics.map(([label, value]) => (
+          {metrics.map(([label, value, icon, colorClass]) => (
             <div
-              className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm"
+              className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm"
               key={label}
             >
-              <p className="text-xs font-medium uppercase text-slate-500">
-                {label}
-              </p>
-              <p className="mt-2 text-2xl font-semibold">{value}</p>
+              <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${colorClass}`}>
+                {icon}
+              </span>
+              <span>
+                <p className="text-xs font-medium uppercase text-slate-500">
+                  {label}
+                </p>
+                <p className="mt-2 text-2xl font-semibold">{value}</p>
+              </span>
             </div>
           ))}
         </section>
@@ -250,9 +305,10 @@ export function CrmMainPanel({
               "payee_name" in selected ? (
                 <div className="mt-4 space-y-4">
                   <div>
-                    <h2 className="text-xl font-semibold">
-                      {clean(selected.client_name)}
-                    </h2>
+                    <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-700">
+                      <BadgeDollarSign className="h-5 w-5" />
+                    </span>
+                    <h2 className="text-xl font-semibold">{clean(selected.client_name)}</h2>
                     <p className="text-sm text-slate-500">
                       {clean(selected.insurance_type)} commission
                     </p>
@@ -277,15 +333,19 @@ export function CrmMainPanel({
               ) : (
                 <div className="mt-4 space-y-4">
                   <div>
+                    <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
+                      <RiskIcon record={selected} />
+                    </span>
                     <h2 className="text-xl font-semibold">
                       {clean(selected.client_name)}
                     </h2>
                     <p className="text-sm text-slate-500">
-                      {clean(selected.insurance_type)} / {riskLabel(selected)}
+                      {riskType(selected)} / {riskLabel(selected)}
                     </p>
                   </div>
                   <PreviewGrid
                     rows={[
+                      ["Risk Type", riskType(selected)],
                       ["Policy No", clean(selected.policy_number)],
                       ["Insurer", clean(selected.insurer_name)],
                       ["Effective", formatDate(selected.effective_date)],
@@ -296,9 +356,9 @@ export function CrmMainPanel({
                       ["Premium", clean(selected.premium_status)],
                       ["Stage", clean(selected.term_stage)],
                       ["Renewal", clean(selected.renewal_status)],
+                      ["Type of Cover", clean(selected.type_of_cover)],
                       ["Make / Model", clean(selected.make_model)],
                       ["Year", clean(selected.year_of_manufacture)],
-                      ["Engine CC", clean(selected.engine_cc)],
                       ["Motor Type", clean(selected.motor_type)],
                       ["NCD", percent(selected.ncd)],
                     ]}
@@ -356,6 +416,15 @@ export function CrmMainPanel({
                   selected={selected}
                   setSelected={setSelected}
                 />
+              ) : view === "commissions" ? (
+                <div>
+                  <CommissionSummary rows={commissionSummary} />
+                  <CommissionTable
+                    rows={activeRows as CommissionRecord[]}
+                    selected={selected}
+                    setSelected={setSelected}
+                  />
+                </div>
               ) : (
                 <PolicyTable
                   rows={activeRows as PolicyRecord[]}
@@ -398,7 +467,7 @@ function PolicyTable({
       <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
         <tr>
           <th className="px-3 py-3 font-medium">Client</th>
-          <th className="px-3 py-3 font-medium">Risk</th>
+          <th className="px-3 py-3 font-medium">Risk Type</th>
           <th className="px-3 py-3 font-medium">Vehicle</th>
           <th className="px-3 py-3 font-medium">Type</th>
           <th className="px-3 py-3 font-medium">Policy No</th>
@@ -430,14 +499,14 @@ function PolicyTable({
             >
               <td className="px-3 py-3 font-medium">{clean(row.client_name)}</td>
               <td className="px-3 py-3">
-                <span className="inline-flex items-center gap-2">
-                  {row.vehicle_no ? <Car className="h-4 w-4 text-zinc-500" /> : null}
-                  {riskLabel(row)}
+                <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">
+                  <RiskIcon record={row} />
+                  {riskType(row)}
                 </span>
               </td>
               <td className="px-3 py-3">
-                {row.make_model || row.year_of_manufacture
-                  ? `${clean(row.make_model)} / ${clean(row.year_of_manufacture)}`
+                {row.vehicle_no || row.make_model || row.year_of_manufacture
+                  ? `${clean(row.vehicle_no)} / ${clean(row.make_model)} / ${clean(row.year_of_manufacture)}`
                   : "-"}
               </td>
               <td className="px-3 py-3">{clean(row.insurance_type)}</td>
@@ -468,6 +537,41 @@ function PolicyTable({
         )}
       </tbody>
     </table>
+  );
+}
+
+function CommissionSummary({
+  rows,
+}: {
+  rows: Array<[string, { amount: number; unpaid: number; count: number }]>;
+}) {
+  if (!rows.length) return null;
+
+  return (
+    <div className="grid gap-3 border-b border-slate-100 p-3 md:grid-cols-3">
+      {rows.map(([payee, total]) => (
+        <div
+          className="rounded-xl border border-orange-100 bg-orange-50/60 p-3"
+          key={payee}
+        >
+          <div className="flex items-center gap-2 text-orange-800">
+            <BadgeDollarSign className="h-4 w-4" />
+            <p className="font-semibold">{payee}</p>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <p className="text-xs uppercase text-orange-700/80">Total</p>
+              <p className="font-semibold text-slate-950">{money(total.amount)}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase text-orange-700/80">Unpaid</p>
+              <p className="font-semibold text-slate-950">{money(total.unpaid)}</p>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-500">{total.count} rows</p>
+        </div>
+      ))}
+    </div>
   );
 }
 

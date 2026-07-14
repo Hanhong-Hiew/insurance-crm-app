@@ -5,6 +5,10 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 
+export type DeletePolicyState = {
+  error?: string;
+};
+
 async function requireUser() {
   const supabase = await createClient();
   const { data: userData, error: userError } = await supabase.auth.getClaims();
@@ -77,13 +81,16 @@ export async function markCommissionsPaid(formData: FormData) {
   revalidatePath(`/protected/policies/${policyTermId}`);
 }
 
-export async function deletePolicy(formData: FormData) {
+export async function deletePolicy(
+  _previousState: DeletePolicyState,
+  formData: FormData,
+): Promise<DeletePolicyState> {
   const policyTermId = textValue(formData, "policy_term_id");
   const confirmation = textValue(formData, "delete_confirmation");
   const { supabase, userId } = await requireUser();
 
   if (confirmation !== "DELETE") {
-    throw new Error("Type DELETE to confirm policy deletion.");
+    return { error: "Type DELETE to confirm policy deletion." };
   }
 
   const { data: policyTerm, error: lookupError } = await supabase
