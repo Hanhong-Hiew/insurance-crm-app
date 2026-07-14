@@ -6,6 +6,8 @@ import {
   Car,
   CircleDollarSign,
   ClipboardList,
+  Eye,
+  EyeOff,
   FileText,
   Flame,
   LayoutDashboard,
@@ -192,6 +194,7 @@ export function CrmMainPanel({
 }: CrmMainPanelProps) {
   const [view, setView] = useState<ViewMode>("all");
   const [query, setQuery] = useState("");
+  const [hideDashboardValues, setHideDashboardValues] = useState(false);
   const [selected, setSelected] = useState<PolicyRecord | CommissionRecord | null>(
     policies[0] || renewals[0] || unpaidPremium[0] || unpaidCommission[0] || null,
   );
@@ -289,6 +292,22 @@ export function CrmMainPanel({
           </div>
         ) : null}
 
+        <div className="flex justify-end">
+          <button
+            aria-label={hideDashboardValues ? "Show dashboard values" : "Hide dashboard values"}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+            onClick={() => setHideDashboardValues((current) => !current)}
+            type="button"
+          >
+            {hideDashboardValues ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+            {hideDashboardValues ? "Hidden" : "Visible"}
+          </button>
+        </div>
+
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {metrics.map(([label, value, icon, colorClass]) => (
             <div
@@ -302,7 +321,9 @@ export function CrmMainPanel({
                 <p className="text-xs font-medium uppercase text-slate-500">
                   {label}
                 </p>
-                <p className="mt-2 text-2xl font-semibold">{value}</p>
+                <p className="mt-2 min-h-8 text-2xl font-semibold">
+                  {hideDashboardValues ? "••••" : value}
+                </p>
               </span>
             </div>
           ))}
