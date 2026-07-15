@@ -225,15 +225,33 @@ function compareValues(a: string | number, b: string | number) {
   });
 }
 
+function dateSortValue(value: string | null | undefined) {
+  if (!value) return null;
+  const parsed = new Date(value.includes("T") ? value : `${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+}
+
 function sortValue(record: PolicyRecord, sortBy: SortBy) {
-  if (sortBy === "created_at") return record.created_at || "";
-  if (sortBy === "expiry_date") return record.expiry_date || "";
-  if (sortBy === "effective_date") return record.effective_date || "";
+  if (sortBy === "created_at") return dateSortValue(record.created_at);
+  if (sortBy === "expiry_date") return dateSortValue(record.expiry_date);
+  if (sortBy === "effective_date") return dateSortValue(record.effective_date);
   if (sortBy === "client") return clean(record.client_name);
   if (sortBy === "risk_type") return riskType(record);
   if (sortBy === "gross_premium") return toNumber(record.gross_premium);
   if (sortBy === "premium_status") return clean(record.premium_status);
-  return "";
+  return null;
+}
+
+function compareSortValues(
+  a: string | number | null,
+  b: string | number | null,
+  direction: SortDirection,
+) {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  const result = compareValues(a, b);
+  return direction === "asc" ? result : result * -1;
 }
 
 function groupKey(record: PolicyRecord, groupBy: GroupBy) {
@@ -315,11 +333,8 @@ export function RecordsPanel({ policies }: { policies: PolicyRecord[] }) {
   ]);
 
   const sortedRows = useMemo(() => {
-    const multiplier = sortDirection === "asc" ? 1 : -1;
-
     return [...filteredRows].sort((a, b) => {
-      const result = compareValues(sortValue(a, sortBy), sortValue(b, sortBy));
-      return result * multiplier;
+      return compareSortValues(sortValue(a, sortBy), sortValue(b, sortBy), sortDirection);
     });
   }, [filteredRows, sortBy, sortDirection]);
 

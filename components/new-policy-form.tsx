@@ -6,11 +6,12 @@ import {
   FileText,
   Landmark,
   Plane,
+  RefreshCcw,
   Ship,
   ShieldCheck,
   Wrench,
 } from "lucide-react";
-import { useActionState, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { savePolicy, type SavePolicyState } from "@/app/protected/new-policy/actions";
@@ -221,6 +222,7 @@ export function NewPolicyForm({
     savePolicy,
     {},
   );
+  const formRef = useRef<HTMLFormElement>(null);
   const [clientName, setClientName] = useState("");
   const [selectedClientId, setSelectedClientId] = useState("");
   const [businessRegistrationNo, setBusinessRegistrationNo] = useState("");
@@ -232,6 +234,25 @@ export function NewPolicyForm({
   const [effectiveDate, setEffectiveDate] = useState("");
   const [expiryDate, setExpiryDate] = useState("");
   const [expiryTouched, setExpiryTouched] = useState(false);
+
+  function resetForm() {
+    formRef.current?.reset();
+    setClientName("");
+    setSelectedClientId("");
+    setBusinessRegistrationNo("");
+    setClientType("individual");
+    setClientPhone("");
+    setClientEmail("");
+    setShowClientSuggestions(false);
+    setSelectedTypeId("");
+    setEffectiveDate("");
+    setExpiryDate("");
+    setExpiryTouched(false);
+  }
+
+  useEffect(() => {
+    if (state.success) resetForm();
+  }, [state.success]);
 
   const selectedType = useMemo(
     () => insuranceTypes.find((type) => type.id === selectedTypeId),
@@ -254,7 +275,7 @@ export function NewPolicyForm({
   }, [clientName, clients]);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form action={formAction} className="space-y-4" ref={formRef}>
       {state.error ? (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
           {state.error}
@@ -486,6 +507,14 @@ export function NewPolicyForm({
             ))}
           </select>
         </Field>
+
+        <Field label="Premium Status">
+          <select className={fieldClass} defaultValue="unpaid" name="premium_status">
+            <option value="unpaid">Unpaid</option>
+            <option value="partial">Partial</option>
+            <option value="paid">Paid</option>
+          </select>
+        </Field>
       </FormSection>
 
       <FormSection
@@ -505,6 +534,14 @@ export function NewPolicyForm({
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <SubmitButton />
+        <button
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50"
+          onClick={resetForm}
+          type="button"
+        >
+          <RefreshCcw className="h-4 w-4" />
+          Start New Policy
+        </button>
         <p className="text-sm text-slate-500">
           Saves client, yearly policy term, risk details, sum assured, and commission rows.
         </p>

@@ -117,6 +117,10 @@ function cleanClientType(value: string) {
   return value === "company" || value === "other" ? value : "individual";
 }
 
+function cleanPremiumStatus(value: string) {
+  return value === "paid" || value === "partial" ? value : "unpaid";
+}
+
 function isFireLikeInsurance(code: string) {
   return code === "fire" || code === "home_insurance" || code === "industrial_all_risk";
 }
@@ -169,6 +173,7 @@ export async function savePolicy(
     const primarySumAssured = moneyValue(formData, "primary_sum_assured");
     const grossPremium = moneyValue(formData, "gross_premium");
     const netPremium = moneyValue(formData, "net_premium");
+    const premiumStatus = cleanPremiumStatus(textValue(formData, "premium_status"));
     const termStage = textValue(formData, "term_stage") === "quotation" ? "quotation" : "policy";
     const notes = optionalText(formData, "notes");
 
@@ -328,7 +333,7 @@ export async function savePolicy(
         net_premium: netPremium,
         gross_commission_percent: grossCommissionPercent,
         net_commission_percent: netCommissionPercent,
-        premium_status: "unpaid",
+        premium_status: premiumStatus,
         term_stage: termStage,
         quotation_status: termStage === "quotation" ? "draft" : null,
         policy_status: termStage === "policy" ? "active" : null,
