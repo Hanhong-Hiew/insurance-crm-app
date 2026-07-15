@@ -227,7 +227,55 @@ function compareValues(a: string | number, b: string | number) {
 
 function dateSortValue(value: string | null | undefined) {
   if (!value) return null;
-  const parsed = new Date(value.includes("T") ? value : `${value}T00:00:00`);
+  const raw = String(value).trim();
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const parsed = new Date(`${isoMatch[1]}-${isoMatch[2]}-${isoMatch[3]}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+  }
+
+  const slashMatch = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
+  if (slashMatch) {
+    const year =
+      slashMatch[3].length === 2
+        ? Number(slashMatch[3]) >= 70
+          ? `19${slashMatch[3]}`
+          : `20${slashMatch[3]}`
+        : slashMatch[3];
+    const parsed = new Date(
+      `${year}-${slashMatch[2].padStart(2, "0")}-${slashMatch[1].padStart(2, "0")}T00:00:00`,
+    );
+    return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+  }
+
+  const monthMatch = raw.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/);
+  if (monthMatch) {
+    const monthIndex = [
+      "jan",
+      "feb",
+      "mar",
+      "apr",
+      "may",
+      "jun",
+      "jul",
+      "aug",
+      "sep",
+      "oct",
+      "nov",
+      "dec",
+    ].indexOf(monthMatch[2].slice(0, 3).toLowerCase());
+    if (monthIndex >= 0) {
+      const parsed = new Date(
+        Number(monthMatch[3]),
+        monthIndex,
+        Number(monthMatch[1]),
+      );
+      return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
+    }
+  }
+
+  const parsed = new Date(raw);
   return Number.isNaN(parsed.getTime()) ? null : parsed.getTime();
 }
 
@@ -429,7 +477,7 @@ export function RecordsPanel({ policies }: { policies: PolicyRecord[] }) {
 
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <SelectField
-            label="Date Basis"
+            label="Filter Date"
             onChange={(value) => setDateBasis(value as DateBasis)}
             options={[
               { value: "expiry_date", label: "Expiry Date" },
