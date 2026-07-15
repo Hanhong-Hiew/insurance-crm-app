@@ -73,6 +73,34 @@ export async function markPremiumPaid(formData: FormData) {
     `Marked premium as ${nextStatus}.`,
   );
   revalidatePath("/protected");
+  revalidatePath("/protected/records");
+  revalidatePath(`/protected/policies/${policyTermId}`);
+}
+
+export async function setPremiumStatus(formData: FormData) {
+  const policyTermId = textValue(formData, "policy_term_id");
+  const premiumStatus = textValue(formData, "premium_status");
+  const { supabase, userId } = await requireUser();
+
+  if (!["unpaid", "partial", "paid"].includes(premiumStatus)) {
+    throw new Error("Premium status must be unpaid, partial, or paid.");
+  }
+
+  const { error } = await supabase
+    .from("policy_terms")
+    .update({ premium_status: premiumStatus })
+    .eq("id", policyTermId);
+  if (error) throw error;
+
+  await logActivity(
+    supabase,
+    userId,
+    policyTermId,
+    "premium_status_update",
+    `Set premium status to ${premiumStatus}.`,
+  );
+  revalidatePath("/protected");
+  revalidatePath("/protected/records");
   revalidatePath(`/protected/policies/${policyTermId}`);
 }
 

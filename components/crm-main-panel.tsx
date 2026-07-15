@@ -23,6 +23,8 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { PremiumStatusSelect } from "@/components/premium-status-select";
+
 type PolicyRecord = {
   policy_term_id: string;
   policy_series_id: string;
@@ -568,7 +570,14 @@ export function CrmMainPanel({
                       ["Sum Assured", money(selected.primary_sum_assured)],
                       ["Gross Premium", money(selected.gross_premium)],
                       ["Net Premium", money(selected.net_premium)],
-                      ["Premium", clean(selected.premium_status)],
+                      [
+                        "Premium",
+                        <PremiumStatusSelect
+                          key="premium-status"
+                          policyTermId={selected.policy_term_id}
+                          status={selected.premium_status}
+                        />,
+                      ],
                       ["Stage", clean(selected.term_stage)],
                       ["Renewal", clean(selected.renewal_status)],
                       ["Type of Cover", clean(selected.type_of_cover)],
@@ -693,7 +702,7 @@ export function CrmMainPanel({
   );
 }
 
-function PreviewGrid({ rows }: { rows: Array<[string, string]> }) {
+function PreviewGrid({ rows }: { rows: Array<[string, React.ReactNode]> }) {
   const visibleRows = rows.filter(([, value]) => value !== "-");
   const wideLabels = new Set([
     "Insurer",
@@ -705,7 +714,7 @@ function PreviewGrid({ rows }: { rows: Array<[string, string]> }) {
   return (
     <dl className="grid grid-cols-2 gap-2 text-sm">
       {visibleRows.map(([label, value]) => {
-        const isWide = wideLabels.has(label) || value.length > 24;
+        const isWide = wideLabels.has(label) || String(value).length > 24;
 
         return (
           <div
@@ -785,7 +794,12 @@ function PolicyTable({
               <td className="px-3 py-3">{formatDate(row.effective_date)}</td>
               <td className="px-3 py-3">{formatDate(row.expiry_date)}</td>
               <td className="px-3 py-3">{money(row.gross_premium)}</td>
-              <td className="px-3 py-3">{clean(row.premium_status)}</td>
+              <td className="px-3 py-3">
+                <PremiumStatusSelect
+                  policyTermId={row.policy_term_id}
+                  status={row.premium_status}
+                />
+              </td>
               <td className="px-3 py-3">{clean(row.renewal_status)}</td>
               <td className="px-3 py-3">
                 <Link

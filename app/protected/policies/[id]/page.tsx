@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { PolicyActionsCard } from "@/components/policy-actions-card";
+import { PremiumStatusSelect } from "@/components/premium-status-select";
 import { createClient } from "@/lib/supabase/server";
 
 type PageProps = {
@@ -161,7 +162,14 @@ async function PolicyRecordContent({ params }: PageProps) {
               ["Stage", clean(record.term_stage)],
               ["Policy Status", clean(record.policy_status || record.quotation_status)],
               ["Renewal", clean(record.renewal_status)],
-              ["Premium Status", clean(record.premium_status)],
+              [
+                "Premium Status",
+                <PremiumStatusSelect
+                  key="premium-status"
+                  policyTermId={id}
+                  status={String(record.premium_status ?? "")}
+                />,
+              ],
               ["Sum Assured", money(record.primary_sum_assured)],
               ["Gross Premium", money(record.gross_premium)],
               ["Net Premium", money(record.net_premium)],
@@ -237,7 +245,7 @@ async function PolicyRecordContent({ params }: PageProps) {
   );
 }
 
-function buildDetailRows(detail: DetailRow) {
+function buildDetailRows(detail: DetailRow): Array<[string, React.ReactNode]> {
   if (!detail) return [["Details", "No type-specific details saved."]];
 
   const vehicle = detail.vehicles as Record<string, unknown> | null | undefined;
@@ -256,16 +264,16 @@ function buildDetailRows(detail: DetailRow) {
       ["BTM", clean(detail.btm)],
       ["Extra Coverage", clean(detail.extra_coverage)],
       ["Description", clean(detail.motor_description)],
-    ];
+    ] as Array<[string, React.ReactNode]>;
   }
 
-  const rows = Object.entries(detail)
+  const rows: Array<[string, React.ReactNode]> = Object.entries(detail)
     .filter(([key]) => !["id", "policy_term_id", "created_at", "updated_at"].includes(key))
     .filter(([key]) => key !== "details_json")
     .map(([key, value]) => [
       key.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
       key.includes("date") ? formatDate(value) : key.includes("sum") ? money(value) : clean(value),
-    ]);
+    ] as [string, React.ReactNode]);
 
   const detailJson = detail.details_json as Record<string, unknown> | null | undefined;
   if (detailJson && typeof detailJson === "object") {
@@ -275,14 +283,20 @@ function buildDetailRows(detail: DetailRow) {
         .map(([key, value]) => [
           key.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),
           clean(value),
-        ]),
+        ] as [string, React.ReactNode]),
     );
   }
 
   return rows;
 }
 
-function InfoCard({ rows, title }: { rows: string[][]; title: string }) {
+function InfoCard({
+  rows,
+  title,
+}: {
+  rows: Array<[string, React.ReactNode]>;
+  title: string;
+}) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">

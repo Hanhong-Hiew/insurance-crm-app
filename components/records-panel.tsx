@@ -14,6 +14,8 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { PremiumStatusSelect } from "@/components/premium-status-select";
+
 export type PolicyRecord = {
   policy_term_id: string;
   policy_series_id: string;
@@ -362,7 +364,14 @@ export function RecordsPanel({ policies }: { policies: PolicyRecord[] }) {
                 ["Expiry", formatDate(selected.expiry_date)],
                 ["Gross", money(selected.gross_premium)],
                 ["Net", money(selected.net_premium)],
-                ["Premium", clean(selected.premium_status)],
+                [
+                  "Premium",
+                  <PremiumStatusSelect
+                    key="premium-status"
+                    policyTermId={selected.policy_term_id}
+                    status={selected.premium_status}
+                  />,
+                ],
                 ["Renewal", clean(selected.renewal_status)],
                 ["Cover", clean(selected.type_of_cover)],
                 ["Make", clean(selected.make_model)],
@@ -536,7 +545,7 @@ function SelectField({
   );
 }
 
-function PreviewGrid({ rows }: { rows: Array<[string, string]> }) {
+function PreviewGrid({ rows }: { rows: Array<[string, React.ReactNode]> }) {
   return (
     <dl className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
       {rows
@@ -614,7 +623,12 @@ function PolicyTable({
               </td>
               <td className="px-3 py-3 text-slate-700">{formatDate(row.expiry_date)}</td>
               <td className="px-3 py-3 text-slate-700">{money(row.gross_premium)}</td>
-              <td className="px-3 py-3 text-slate-700">{clean(row.premium_status)}</td>
+              <td className="px-3 py-3 text-slate-700">
+                <PremiumStatusSelect
+                  policyTermId={row.policy_term_id}
+                  status={row.premium_status}
+                />
+              </td>
               <td className="px-3 py-3 text-slate-700">{clean(row.renewal_status)}</td>
               <td className="px-3 py-3">
                 <Link
