@@ -113,6 +113,10 @@ function cleanInsuranceCode(value: string | null | undefined) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function cleanClientType(value: string) {
+  return value === "company" || value === "other" ? value : "individual";
+}
+
 function isFireLikeInsurance(code: string) {
   return code === "fire" || code === "home_insurance" || code === "industrial_all_risk";
 }
@@ -150,7 +154,11 @@ export async function savePolicy(
   try {
     const warnings: string[] = [];
     const clientName = textValue(formData, "client_name");
+    const selectedClientId = optionalText(formData, "selected_client_id");
     const businessRegistrationNo = optionalText(formData, "business_registration_no");
+    const clientType = cleanClientType(textValue(formData, "client_type"));
+    const clientPhone = optionalText(formData, "client_phone");
+    const clientEmail = optionalText(formData, "client_email");
     const insuranceTypeId = textValue(formData, "insurance_type_id");
     const insurerId = textValue(formData, "insurer_id");
     const splitPatternId = optionalText(formData, "split_pattern_id");
@@ -195,11 +203,28 @@ export async function savePolicy(
       return { error: "Vehicle number is required for motor policies." };
     }
 
-    let existingClient: { id: string; business_registration_no: string | null } | null = null;
-    if (businessRegistrationNo) {
+    let existingClient: {
+      id: string;
+      business_registration_no: string | null;
+      client_type: string | null;
+      phone: string | null;
+      email: string | null;
+    } | null = null;
+
+    if (selectedClientId) {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, business_registration_no")
+        .select("id, business_registration_no, client_type, phone, email")
+        .eq("id", selectedClientId)
+        .maybeSingle();
+      if (error) throw error;
+      existingClient = data;
+    }
+
+    if (!existingClient && businessRegistrationNo) {
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, business_registration_no, client_type, phone, email")
         .eq("business_registration_no", businessRegistrationNo)
         .maybeSingle();
       if (error) throw error;
@@ -209,7 +234,7 @@ export async function savePolicy(
     if (!existingClient) {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, business_registration_no")
+        .select("id, business_registration_no, client_type, phone, email")
         .eq("client_name", clientName)
         .maybeSingle();
       if (error) throw error;
@@ -224,7 +249,9 @@ export async function savePolicy(
         .insert({
           client_name: clientName,
           business_registration_no: businessRegistrationNo,
-          client_type: "individual",
+          client_type: clientType,
+          phone: clientPhone,
+          email: clientEmail,
         })
         .select("id")
         .single();
@@ -232,14 +259,30 @@ export async function savePolicy(
       clientId = createdClient.id as string;
       createdClientId = clientId;
     } else if (
-      businessRegistrationNo &&
-      existingClientRegistrationNo !== businessRegistrationNo
+      existingClient &&
+      (businessRegistrationNo || clientPhone || clientEmail || selectedClientId)
     ) {
-      const { error: clientUpdateError } = await supabase
-        .from("clients")
-        .update({ business_registration_no: businessRegistrationNo })
-        .eq("id", clientId);
-      if (clientUpdateError) throw clientUpdateError;
+      const clientUpdate: Record<string, string | null> = {};
+      if (businessRegistrationNo && existingClientRegistrationNo !== businessRegistrationNo) {
+        clientUpdate.business_registration_no = businessRegistrationNo;
+      }
+
+      if (selectedClientId) {
+        if (existingClient.client_type !== clientType) clientUpdate.client_type = clientType;
+        if (clientPhone !== existingClient.phone) clientUpdate.phone = clientPhone;
+        if (clientEmail !== existingClient.email) clientUpdate.email = clientEmail;
+      } else {
+        if (clientPhone && !existingClient.phone) clientUpdate.phone = clientPhone;
+        if (clientEmail && !existingClient.email) clientUpdate.email = clientEmail;
+      }
+
+      if (Object.keys(clientUpdate).length) {
+        const { error: clientUpdateError } = await supabase
+          .from("clients")
+          .update(clientUpdate)
+          .eq("id", clientId);
+        if (clientUpdateError) throw clientUpdateError;
+      }
     }
 
     const { data: policySeries, error: seriesError } = await supabase
@@ -435,8 +478,6 @@ export async function savePolicy(
         .insert({
           policy_term_id: policyTerm.id,
           destination: optionalText(formData, "destination"),
-          travel_start_date: parseDate(formData, "travel_start_date"),
-          travel_end_date: parseDate(formData, "travel_end_date"),
           pax: integerValue(formData, "pax"),
           plan_name: optionalText(formData, "plan_name"),
         });

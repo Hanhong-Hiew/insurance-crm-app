@@ -20,6 +20,9 @@ type OptionRow = {
   name?: string | null;
   client_name?: string | null;
   business_registration_no?: string | null;
+  client_type?: string | null;
+  phone?: string | null;
+  email?: string | null;
   insurer_name?: string | null;
   code?: string | null;
 };
@@ -39,7 +42,7 @@ function optionLabel(row: OptionRow) {
 }
 
 function clientSearchText(row: OptionRow) {
-  return `${row.client_name ?? ""} ${row.business_registration_no ?? ""}`.toLowerCase();
+  return `${row.client_name ?? ""} ${row.business_registration_no ?? ""} ${row.phone ?? ""} ${row.email ?? ""}`.toLowerCase();
 }
 
 function typeCode(value: string | null | undefined) {
@@ -219,7 +222,11 @@ export function NewPolicyForm({
     {},
   );
   const [clientName, setClientName] = useState("");
+  const [selectedClientId, setSelectedClientId] = useState("");
   const [businessRegistrationNo, setBusinessRegistrationNo] = useState("");
+  const [clientType, setClientType] = useState("individual");
+  const [clientPhone, setClientPhone] = useState("");
+  const [clientEmail, setClientEmail] = useState("");
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState("");
   const [effectiveDate, setEffectiveDate] = useState("");
@@ -267,9 +274,10 @@ export function NewPolicyForm({
       ) : null}
 
       <FormSection
-        description="Choose or type the client name. Existing clients appear as suggestions."
+        description="Choose an existing client or create a new one while saving the policy."
         title="Client"
       >
+        <input name="selected_client_id" type="hidden" value={selectedClientId} />
         <Field label="Client Name" required>
           <div className="relative">
             <input
@@ -281,6 +289,7 @@ export function NewPolicyForm({
               }}
               onChange={(event) => {
                 setClientName(event.target.value);
+                setSelectedClientId("");
                 setShowClientSuggestions(true);
               }}
               onFocus={() => setShowClientSuggestions(true)}
@@ -296,8 +305,12 @@ export function NewPolicyForm({
                     key={client.id}
                     onMouseDown={(event) => {
                       event.preventDefault();
+                      setSelectedClientId(client.id);
                       setClientName(client.client_name ?? "");
                       setBusinessRegistrationNo(client.business_registration_no ?? "");
+                      setClientType(client.client_type ?? "individual");
+                      setClientPhone(client.phone ?? "");
+                      setClientEmail(client.email ?? "");
                       setShowClientSuggestions(false);
                     }}
                     type="button"
@@ -306,7 +319,8 @@ export function NewPolicyForm({
                       {client.client_name}
                     </span>
                     <span className="block text-xs text-slate-500">
-                      {client.business_registration_no || "No registration number"}
+                      {client.business_registration_no || "No IC / business reg no"}
+                      {client.phone ? ` / ${client.phone}` : ""}
                     </span>
                   </button>
                 ))}
@@ -314,13 +328,44 @@ export function NewPolicyForm({
             ) : null}
           </div>
         </Field>
-        <Field label="Business Registration No">
+        <Field label="Client Type">
+          <select
+            className={fieldClass}
+            name="client_type"
+            onChange={(event) => setClientType(event.target.value)}
+            value={clientType}
+          >
+            <option value="individual">Individual</option>
+            <option value="company">Company</option>
+            <option value="other">Other</option>
+          </select>
+        </Field>
+        <Field label="IC / Business Reg. No.">
           <input
             className={fieldClass}
             name="business_registration_no"
             onChange={(event) => setBusinessRegistrationNo(event.target.value)}
-            placeholder="Optional for companies"
+            placeholder="IC for individual, reg no for company"
             value={businessRegistrationNo}
+          />
+        </Field>
+        <Field label="Phone">
+          <input
+            className={fieldClass}
+            name="client_phone"
+            onChange={(event) => setClientPhone(event.target.value)}
+            placeholder="Phone number"
+            value={clientPhone}
+          />
+        </Field>
+        <Field label="Email">
+          <input
+            className={fieldClass}
+            name="client_email"
+            onChange={(event) => setClientEmail(event.target.value)}
+            placeholder="Email"
+            type="email"
+            value={clientEmail}
           />
         </Field>
       </FormSection>
@@ -627,18 +672,12 @@ function MarineRiskSection() {
 function TravelRiskSection() {
   return (
     <FormSection
-      description="Travel policies need trip period and destination details."
+      description="Travel policies use the term dates above. Add destination and traveller details here."
       icon={<Plane className="h-5 w-5" />}
       title="Travel Risk"
     >
       <Field label="Destination">
         <input className={fieldClass} name="destination" placeholder="Destination" />
-      </Field>
-      <Field label="Travel Start Date">
-        <input className={fieldClass} inputMode="numeric" name="travel_start_date" placeholder="dd/mm/yyyy" />
-      </Field>
-      <Field label="Travel End Date">
-        <input className={fieldClass} inputMode="numeric" name="travel_end_date" placeholder="dd/mm/yyyy" />
       </Field>
       <Field label="Pax">
         <input className={fieldClass} inputMode="numeric" name="pax" placeholder="1" />

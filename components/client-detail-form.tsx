@@ -60,12 +60,12 @@ export function ClientDetailForm({ client }: { client: ClientFormRecord }) {
           placeholder="Optional"
         />
       </Field>
-      <Field label="Business Registration No">
+      <Field label="IC / Business Reg. No.">
         <input
           className={fieldClass}
           defaultValue={client.business_registration_no ?? ""}
           name="business_registration_no"
-          placeholder="Optional for companies"
+          placeholder="IC for individual, reg no for company"
         />
       </Field>
       <Field label="Client Type">

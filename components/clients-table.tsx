@@ -61,7 +61,7 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
             Clients
           </h1>
           <p className="text-xs text-slate-500">
-            Master list for names, registration numbers, contacts, and linked policies.
+            Master list for names, IC / business reg numbers, contacts, and linked policies.
           </p>
         </div>
         <label className="relative block w-full md:w-80">
@@ -69,7 +69,7 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
           <input
             className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search client, reg no, phone, email"
+            placeholder="Search client, IC/reg no, phone, email"
             value={query}
           />
         </label>
@@ -100,7 +100,7 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
           <input
             className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
             name="business_registration_no"
-            placeholder="Reg no"
+            placeholder="IC / Business Reg. No."
           />
           <select
             className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
@@ -130,7 +130,7 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
           <thead className="border-b border-slate-100 bg-white text-xs uppercase text-slate-500">
             <tr>
               <th className="px-3 py-3 font-medium">Client</th>
-              <th className="px-3 py-3 font-medium">Reg No</th>
+              <th className="px-3 py-3 font-medium">IC / Business Reg. No.</th>
               <th className="px-3 py-3 font-medium">Type</th>
               <th className="px-3 py-3 font-medium">Phone</th>
               <th className="px-3 py-3 font-medium">Email</th>
