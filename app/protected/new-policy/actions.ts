@@ -435,12 +435,13 @@ export async function savePolicy(
         if (motorError) throw motorError;
       }
     } else if (isFireLikeInsurance(insuranceCode)) {
+      const propertyAddress = optionalText(formData, "property_address");
       const { error: fireError } = await supabase
         .from("fire_policy_details")
         .insert({
           policy_term_id: policyTerm.id,
-          property_address: optionalText(formData, "property_address"),
-          risk_location: optionalText(formData, "risk_location"),
+          property_address: propertyAddress,
+          risk_location: propertyAddress,
           building_sum_insured: moneyValue(formData, "building_sum_insured"),
           contents_sum_insured: moneyValue(formData, "contents_sum_insured"),
           stock_sum_insured: moneyValue(formData, "stock_sum_insured"),

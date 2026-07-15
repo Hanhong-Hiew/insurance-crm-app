@@ -3,13 +3,19 @@
 import {
   ArrowDown,
   ArrowUp,
+  BadgeDollarSign,
   CalendarDays,
   Car,
+  CircleDollarSign,
   ClipboardList,
+  Eye,
+  FileText,
   Flame,
   Search,
   ShieldCheck,
   SlidersHorizontal,
+  Users,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -44,6 +50,11 @@ export type PolicyRecord = {
   type_of_cover?: string | null;
   ncd: number | string | null;
   created_at?: string | null;
+};
+
+type CommissionTotalRow = {
+  policy_term_id: string;
+  amount: number | string | null;
 };
 
 type SortDirection = "asc" | "desc";
@@ -84,9 +95,9 @@ const groupOptions: Array<{ value: GroupBy; label: string }> = [
 ];
 
 const sortOptions: Array<{ value: SortBy; label: string }> = [
-  { value: "created_at", label: "Newest" },
-  { value: "expiry_date", label: "Expiry Date" },
   { value: "effective_date", label: "Effective Date" },
+  { value: "expiry_date", label: "Expiry Date" },
+  { value: "created_at", label: "Newest" },
   { value: "client", label: "Client" },
   { value: "risk_type", label: "Risk Type" },
   { value: "gross_premium", label: "Gross Premium" },
@@ -217,6 +228,31 @@ function RiskIcon({ record }: { record: PolicyRecord }) {
   return <ShieldCheck className={className} />;
 }
 
+function stageLabel(record: PolicyRecord) {
+  return record.term_stage === "quotation" ? "Quotation" : "Policy";
+}
+
+function stageMeta(record: PolicyRecord) {
+  return record.term_stage === "quotation"
+    ? clean(record.quotation_status)
+    : clean(record.policy_status);
+}
+
+function StageBadge({ record }: { record: PolicyRecord }) {
+  const isQuotation = record.term_stage === "quotation";
+  return (
+    <span
+      className={`inline-flex min-w-24 items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+        isQuotation
+          ? "bg-orange-50 text-orange-800 ring-1 ring-orange-200"
+          : "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
+      }`}
+    >
+      {stageLabel(record)}
+    </span>
+  );
+}
+
 function compareValues(a: string | number, b: string | number) {
   if (typeof a === "number" && typeof b === "number") return a - b;
   return String(a).localeCompare(String(b), "en", {
@@ -316,17 +352,23 @@ function uniqueOptions(records: PolicyRecord[], getValue: (record: PolicyRecord)
     .sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
 }
 
-export function RecordsPanel({ policies }: { policies: PolicyRecord[] }) {
+export function RecordsPanel({
+  commissionTotals,
+  policies,
+}: {
+  commissionTotals: CommissionTotalRow[];
+  policies: PolicyRecord[];
+}) {
   const [query, setQuery] = useState("");
-  const [dateBasis, setDateBasis] = useState<DateBasis>("expiry_date");
+  const [dateBasis, setDateBasis] = useState<DateBasis>("effective_date");
   const [period, setPeriod] = useState<PeriodFilter>("all");
   const [riskFilter, setRiskFilter] = useState("all");
   const [insurerFilter, setInsurerFilter] = useState("all");
   const [premiumFilter, setPremiumFilter] = useState("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
-  const [sortBy, setSortBy] = useState<SortBy>("expiry_date");
+  const [sortBy, setSortBy] = useState<SortBy>("effective_date");
   const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const [selected, setSelected] = useState<PolicyRecord | null>(policies[0] ?? null);
+  const [previewRecord, setPreviewRecord] = useState<PolicyRecord | null>(null);
 
   function updateDateBasis(value: DateBasis) {
     setDateBasis(value);
@@ -404,58 +446,52 @@ export function RecordsPanel({ policies }: { policies: PolicyRecord[] }) {
     () => filteredRows.reduce((sum, record) => sum + toNumber(record.gross_premium), 0),
     [filteredRows],
   );
+  const cardStats = useMemo(() => {
+    const visiblePolicyIds = new Set(filteredRows.map((record) => record.policy_term_id));
+    const clientIds = new Set(
+      filteredRows.map((record) => record.client_id).filter((value) => Boolean(value)),
+    );
+    const commissionTotal = commissionTotals.reduce((sum, row) => {
+      return visiblePolicyIds.has(row.policy_term_id) ? sum + toNumber(row.amount) : sum;
+    }, 0);
+
+    return {
+      activePolicies: filteredRows.filter(
+        (record) => record.term_stage === "policy" && record.policy_status === "active",
+      ).length,
+      clients: clientIds.size,
+      commissionTotal,
+      grossPremium: totalGross,
+    };
+  }, [commissionTotals, filteredRows, totalGross]);
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm">
-        <div className="mb-3 flex items-center gap-2 text-sky-700">
-          <ShieldCheck className="h-5 w-5" />
-          <h2 className="text-lg font-semibold text-slate-950">Selected Record</h2>
-        </div>
-        {selected ? (
-          <div className="grid gap-3 lg:grid-cols-[1.2fr_2fr_auto] lg:items-start">
-            <div>
-              <p className="text-xs font-semibold uppercase text-slate-500">Client</p>
-              <p className="mt-1 text-xl font-semibold text-slate-950">
-                {clean(selected.client_name)}
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                {riskType(selected)} / {riskLabel(selected)}
-              </p>
-            </div>
-            <PreviewGrid
-              rows={[
-                ["Policy No", clean(selected.policy_number)],
-                ["Vehicle No", vehicleNo(selected)],
-                ["Insurer", clean(selected.insurer_name)],
-                ["Effective", formatDate(selected.effective_date)],
-                ["Expiry", formatDate(selected.expiry_date)],
-                ["Gross", money(selected.gross_premium)],
-                ["Net", money(selected.net_premium)],
-                [
-                  "Premium",
-                  <PremiumStatusSelect
-                    key="premium-status"
-                    policyTermId={selected.policy_term_id}
-                    status={selected.premium_status}
-                  />,
-                ],
-                ["Renewal", clean(selected.renewal_status)],
-                ["Cover", clean(selected.type_of_cover)],
-                ["Make", clean(selected.make_model)],
-                ["NCD", percent(selected.ncd)],
-              ]}
-            />
-            <Link
-              className="inline-flex h-9 items-center justify-center rounded-lg bg-sky-600 px-3 text-sm font-semibold text-white shadow-sm"
-              href={`/protected/policies/${selected.policy_term_id}`}
-            >
-              Open Record
-            </Link>
-          </div>
-        ) : (
-          <p className="text-sm text-slate-500">No records yet.</p>
-        )}
+      <section className="grid gap-3 md:grid-cols-4">
+        <MetricCard
+          colorClass="bg-emerald-50 text-emerald-700"
+          icon={<FileText className="h-5 w-5" />}
+          label="Active Policies"
+          value={cardStats.activePolicies.toLocaleString("en-MY")}
+        />
+        <MetricCard
+          colorClass="bg-sky-50 text-sky-700"
+          icon={<Users className="h-5 w-5" />}
+          label="Clients"
+          value={cardStats.clients.toLocaleString("en-MY")}
+        />
+        <MetricCard
+          colorClass="bg-violet-50 text-violet-700"
+          icon={<CircleDollarSign className="h-5 w-5" />}
+          label="Gross Premium"
+          value={money(cardStats.grossPremium)}
+        />
+        <MetricCard
+          colorClass="bg-orange-50 text-orange-700"
+          icon={<BadgeDollarSign className="h-5 w-5" />}
+          label="Commission"
+          value={money(cardStats.commissionTotal)}
+        />
       </section>
 
       <section className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm">
@@ -485,8 +521,8 @@ export function RecordsPanel({ policies }: { policies: PolicyRecord[] }) {
             label="Filter Date"
             onChange={(value) => updateDateBasis(value as DateBasis)}
             options={[
-              { value: "expiry_date", label: "Expiry Date" },
               { value: "effective_date", label: "Effective Date" },
+              { value: "expiry_date", label: "Expiry Date" },
             ]}
             value={dateBasis}
           />
@@ -573,11 +609,41 @@ export function RecordsPanel({ policies }: { policies: PolicyRecord[] }) {
               </div>
             ) : null}
             <div className="overflow-x-auto">
-              <PolicyTable rows={rows} selected={selected} setSelected={setSelected} />
+              <PolicyTable rows={rows} setPreviewRecord={setPreviewRecord} />
             </div>
           </div>
         ))}
       </section>
+      {previewRecord ? (
+        <RecordPreviewModal
+          record={previewRecord}
+          onClose={() => setPreviewRecord(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function MetricCard({
+  colorClass,
+  icon,
+  label,
+  value,
+}: {
+  colorClass: string;
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm">
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${colorClass}`}>
+        {icon}
+      </span>
+      <span className="min-w-0">
+        <p className="text-xs font-semibold uppercase text-slate-500">{label}</p>
+        <p className="mt-2 truncate text-xl font-semibold text-slate-950">{value}</p>
+      </span>
     </div>
   );
 }
@@ -635,17 +701,128 @@ function PreviewGrid({ rows }: { rows: Array<[string, React.ReactNode]> }) {
   );
 }
 
+function RecordPreviewModal({
+  onClose,
+  record,
+}: {
+  onClose: () => void;
+  record: PolicyRecord;
+}) {
+  const stageDescription =
+    record.term_stage === "quotation"
+      ? `Quotation: ${stageMeta(record)}`
+      : `Policy: ${stageMeta(record)}`;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <section
+        aria-modal="true"
+        className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100">
+                <RiskIcon record={record} />
+                {riskType(record)}
+              </span>
+              <StageBadge record={record} />
+            </div>
+            <h3 className="truncate text-xl font-semibold text-slate-950">
+              {clean(record.client_name)}
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">{stageDescription}</p>
+          </div>
+          <button
+            aria-label="Close preview"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div className="rounded-xl border border-sky-100 bg-sky-50/70 p-3">
+            <p className="text-xs font-semibold uppercase text-sky-700">Risk</p>
+            <p className="mt-1 text-base font-semibold text-slate-950">
+              {riskLabel(record)}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              Vehicle No: {vehicleNo(record)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-3">
+            <p className="text-xs font-semibold uppercase text-emerald-700">
+              Term
+            </p>
+            <p className="mt-1 text-base font-semibold text-slate-950">
+              {formatDate(record.effective_date)}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              to {formatDate(record.expiry_date)}
+            </p>
+          </div>
+          <div className="rounded-xl border border-orange-100 bg-orange-50/70 p-3">
+            <p className="text-xs font-semibold uppercase text-orange-700">
+              Premium
+            </p>
+            <p className="mt-1 text-base font-semibold text-slate-950">
+              {money(record.gross_premium)}
+            </p>
+            <p className="mt-1 text-sm text-slate-600">
+              {clean(record.premium_status)}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+          <PreviewGrid
+            rows={[
+              ["Policy No", clean(record.policy_number)],
+              ["Insurer", clean(record.insurer_name)],
+              ["Insurance Type", clean(record.insurance_type)],
+              ["Sum Assured", money(record.primary_sum_assured)],
+              ["Net Premium", money(record.net_premium)],
+              ["Renewal", clean(record.renewal_status)],
+              ["Make / Model", clean(record.make_model)],
+              ["Year", clean(record.year_of_manufacture)],
+              ["Motor Type", clean(record.motor_type)],
+              ["Type of Cover", clean(record.type_of_cover)],
+              ["NCD", percent(record.ncd)],
+            ]}
+          />
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <Link
+            className="inline-flex items-center justify-center rounded-lg bg-sky-700 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-800"
+            href={`/protected/policies/${record.policy_term_id}`}
+          >
+            Open Full Record
+          </Link>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function PolicyTable({
   rows,
-  selected,
-  setSelected,
+  setPreviewRecord,
 }: {
   rows: PolicyRecord[];
-  selected: PolicyRecord | null;
-  setSelected: (record: PolicyRecord) => void;
+  setPreviewRecord: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="w-full min-w-[1040px] text-left text-sm">
+    <table className="w-full min-w-[1180px] text-left text-sm">
       <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
         <tr>
           <th className="px-3 py-3 font-medium">Client</th>
@@ -655,9 +832,11 @@ function PolicyTable({
           <th className="px-3 py-3 font-medium">Insurer</th>
           <th className="px-3 py-3 font-medium">Effective</th>
           <th className="px-3 py-3 font-medium">Expiry</th>
+          <th className="px-3 py-3 font-medium">Stage</th>
           <th className="px-3 py-3 font-medium">Gross</th>
           <th className="px-3 py-3 font-medium">Premium</th>
           <th className="px-3 py-3 font-medium">Renewal</th>
+          <th className="px-3 py-3 font-medium">Preview</th>
           <th className="px-3 py-3 font-medium">Open</th>
         </tr>
       </thead>
@@ -665,11 +844,8 @@ function PolicyTable({
         {rows.length ? (
           rows.map((row) => (
             <tr
-              className={`cursor-pointer border-b border-slate-100 transition hover:bg-sky-50/60 ${
-                selected?.policy_term_id === row.policy_term_id ? "bg-sky-50" : ""
-              }`}
+              className="cursor-pointer border-b border-slate-100 transition hover:bg-sky-50/60"
               key={row.policy_term_id}
-              onClick={() => setSelected(row)}
               onDoubleClick={() => {
                 window.location.href = `/protected/policies/${row.policy_term_id}`;
               }}
@@ -690,6 +866,10 @@ function PolicyTable({
                 {formatDate(row.effective_date)}
               </td>
               <td className="px-3 py-3 text-slate-700">{formatDate(row.expiry_date)}</td>
+              <td className="px-3 py-3">
+                <StageBadge record={row} />
+                <p className="mt-1 text-xs text-slate-500">{stageMeta(row)}</p>
+              </td>
               <td className="px-3 py-3 text-slate-700">{money(row.gross_premium)}</td>
               <td className="px-3 py-3 text-slate-700">
                 <PremiumStatusSelect
@@ -698,6 +878,19 @@ function PolicyTable({
                 />
               </td>
               <td className="px-3 py-3 text-slate-700">{clean(row.renewal_status)}</td>
+              <td className="px-3 py-3">
+                <button
+                  aria-label={`Preview ${clean(row.client_name)}`}
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 transition hover:border-sky-200 hover:bg-sky-50"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setPreviewRecord(row);
+                  }}
+                  type="button"
+                >
+                  <Eye className="h-4 w-4" />
+                </button>
+              </td>
               <td className="px-3 py-3">
                 <Link
                   className="font-medium text-sky-700 hover:text-sky-900"
@@ -711,7 +904,7 @@ function PolicyTable({
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-slate-500" colSpan={11}>
+            <td className="px-3 py-8 text-center text-slate-500" colSpan={13}>
               No matching records.
             </td>
           </tr>

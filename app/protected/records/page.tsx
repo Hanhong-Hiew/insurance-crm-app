@@ -6,6 +6,11 @@ import { Suspense } from "react";
 import { RecordsPanel, type PolicyRecord } from "@/components/records-panel";
 import { createClient } from "@/lib/supabase/server";
 
+type CommissionTotalRow = {
+  policy_term_id: string;
+  amount: number | string | null;
+};
+
 export default function RecordsPage() {
   return (
     <Suspense fallback={<PageShell>Loading records...</PageShell>}>
@@ -22,13 +27,16 @@ async function RecordsContent() {
     redirect("/auth/login");
   }
 
-  const recordsResult = await supabase
-    .from("main_policy_view")
-    .select("*")
-    .order("created_at", { ascending: false })
-    .limit(2000);
+  const [recordsResult, commissionsResult] = await Promise.all([
+    supabase
+      .from("main_policy_view")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(2000),
+    supabase.from("commissions").select("policy_term_id, amount").limit(5000),
+  ]);
 
-  const errors = [recordsResult.error?.message].filter(
+  const errors = [recordsResult.error?.message, commissionsResult.error?.message].filter(
     (message): message is string => Boolean(message),
   );
 
@@ -39,7 +47,10 @@ async function RecordsContent() {
           {errors.join(" ")}
         </div>
       ) : null}
-      <RecordsPanel policies={(recordsResult.data ?? []) as PolicyRecord[]} />
+      <RecordsPanel
+        commissionTotals={(commissionsResult.data ?? []) as CommissionTotalRow[]}
+        policies={(recordsResult.data ?? []) as PolicyRecord[]}
+      />
     </PageShell>
   );
 }

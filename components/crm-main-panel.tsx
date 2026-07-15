@@ -220,6 +220,31 @@ function RiskIcon({ record }: { record: PolicyRecord }) {
   return <ShieldCheck className={className} />;
 }
 
+function stageLabel(record: PolicyRecord) {
+  return record.term_stage === "quotation" ? "Quotation" : "Policy";
+}
+
+function stageMeta(record: PolicyRecord) {
+  return record.term_stage === "quotation"
+    ? clean(record.quotation_status)
+    : clean(record.policy_status);
+}
+
+function StageBadge({ record }: { record: PolicyRecord }) {
+  const isQuotation = record.term_stage === "quotation";
+  return (
+    <span
+      className={`inline-flex min-w-24 items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+        isQuotation
+          ? "bg-orange-50 text-orange-800 ring-1 ring-orange-200"
+          : "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
+      }`}
+    >
+      {stageLabel(record)}
+    </span>
+  );
+}
+
 function isCommissionRecord(
   record: PolicyRecord | CommissionRecord,
 ): record is CommissionRecord {
@@ -757,6 +782,7 @@ function PolicyTable({
           <th className="px-3 py-3 font-medium">Insurer</th>
           <th className="px-3 py-3 font-medium">Effective</th>
           <th className="px-3 py-3 font-medium">Expiry</th>
+          <th className="px-3 py-3 font-medium">Stage</th>
           <th className="px-3 py-3 font-medium">Gross</th>
           <th className="px-3 py-3 font-medium">Premium</th>
           <th className="px-3 py-3 font-medium">Renewal</th>
@@ -793,6 +819,10 @@ function PolicyTable({
               <td className="px-3 py-3">{clean(row.insurer_name)}</td>
               <td className="px-3 py-3">{formatDate(row.effective_date)}</td>
               <td className="px-3 py-3">{formatDate(row.expiry_date)}</td>
+              <td className="px-3 py-3">
+                <StageBadge record={row} />
+                <p className="mt-1 text-xs text-slate-500">{stageMeta(row)}</p>
+              </td>
               <td className="px-3 py-3">{money(row.gross_premium)}</td>
               <td className="px-3 py-3">
                 <PremiumStatusSelect
@@ -814,7 +844,7 @@ function PolicyTable({
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-zinc-500" colSpan={12}>
+            <td className="px-3 py-8 text-center text-zinc-500" colSpan={13}>
               No matching records.
             </td>
           </tr>

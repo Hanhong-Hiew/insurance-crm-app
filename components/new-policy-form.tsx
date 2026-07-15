@@ -626,17 +626,19 @@ function FireRiskSection() {
       icon={<Landmark className="h-5 w-5" />}
       title="Fire Risk"
     >
-      <Field label="Property Address">
-        <input className={fieldClass} name="property_address" placeholder="Property address" />
-      </Field>
-      <Field label="Risk Location">
-        <input className={fieldClass} name="risk_location" placeholder="Risk location" />
+      <Field label="Risk Location / Property Address">
+        <input className={fieldClass} name="property_address" placeholder="Insured property or risk location" />
       </Field>
       <Field label="Occupation">
         <input className={fieldClass} name="occupation" placeholder="Shop, warehouse, residence" />
       </Field>
-      <Field label="Construction Type">
-        <input className={fieldClass} name="construction_type" placeholder="Concrete, timber, mixed" />
+      <Field label="Construction Class">
+        <select className={fieldClass} name="construction_type">
+          <option value="">Select construction class</option>
+          <option value="C1A">C1A</option>
+          <option value="C1B">C1B</option>
+          <option value="C2">C2</option>
+        </select>
       </Field>
       <Field label="Building Sum Insured">
         <MoneyInput name="building_sum_insured" placeholder="0.00" />
