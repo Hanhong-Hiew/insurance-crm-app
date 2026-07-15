@@ -324,9 +324,14 @@ export function RecordsPanel({ policies }: { policies: PolicyRecord[] }) {
   const [insurerFilter, setInsurerFilter] = useState("all");
   const [premiumFilter, setPremiumFilter] = useState("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("none");
-  const [sortBy, setSortBy] = useState<SortBy>("created_at");
-  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [sortBy, setSortBy] = useState<SortBy>("expiry_date");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
   const [selected, setSelected] = useState<PolicyRecord | null>(policies[0] ?? null);
+
+  function updateDateBasis(value: DateBasis) {
+    setDateBasis(value);
+    setSortBy(value);
+  }
 
   const riskOptions = useMemo(
     () => uniqueOptions(policies, (record) => riskType(record)),
@@ -478,7 +483,7 @@ export function RecordsPanel({ policies }: { policies: PolicyRecord[] }) {
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <SelectField
             label="Filter Date"
-            onChange={(value) => setDateBasis(value as DateBasis)}
+            onChange={(value) => updateDateBasis(value as DateBasis)}
             options={[
               { value: "expiry_date", label: "Expiry Date" },
               { value: "effective_date", label: "Effective Date" },
