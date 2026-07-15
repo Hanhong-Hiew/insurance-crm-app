@@ -1,5 +1,8 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useEffect, useState, useTransition } from "react";
+
 import { setPremiumStatus } from "@/app/protected/policies/[id]/actions";
 
 type PremiumStatus = "unpaid" | "partial" | "paid";
@@ -26,27 +29,56 @@ export function PremiumStatusSelect({
   status: string | null | undefined;
 }) {
   const currentStatus = normalizedStatus(status);
+  const [selectedStatus, setSelectedStatus] = useState<PremiumStatus>(currentStatus);
+  const [hasError, setHasError] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const router = useRouter();
+
+  useEffect(() => {
+    setSelectedStatus(currentStatus);
+  }, [currentStatus]);
+
+  function updateStatus(nextStatus: PremiumStatus) {
+    setSelectedStatus(nextStatus);
+    setHasError(false);
+
+    const formData = new FormData();
+    formData.set("policy_term_id", policyTermId);
+    formData.set("premium_status", nextStatus);
+
+    startTransition(async () => {
+      try {
+        await setPremiumStatus(formData);
+        router.refresh();
+      } catch {
+        setSelectedStatus(currentStatus);
+        setHasError(true);
+      }
+    });
+  }
 
   return (
-    <form
-      action={setPremiumStatus}
+    <div
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
+      title={hasError ? "Premium status could not be updated." : undefined}
     >
-      <input name="policy_term_id" type="hidden" value={policyTermId} />
       <select
         aria-label="Premium payment status"
-        className={`h-8 min-w-28 rounded-full border px-2 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-sky-100 ${statusClass(
-          currentStatus,
+        className={`h-8 min-w-28 rounded-full border px-2 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-sky-100 disabled:cursor-wait disabled:opacity-70 ${statusClass(
+          selectedStatus,
         )}`}
-        defaultValue={currentStatus}
-        name="premium_status"
-        onChange={(event) => event.currentTarget.form?.requestSubmit()}
+        disabled={isPending}
+        onChange={(event) => updateStatus(event.target.value as PremiumStatus)}
+        value={selectedStatus}
       >
         <option value="unpaid">Unpaid</option>
         <option value="partial">Partial</option>
         <option value="paid">Paid</option>
       </select>
-    </form>
+      {hasError ? (
+        <span className="ml-2 text-xs font-semibold text-red-700">Failed</span>
+      ) : null}
+    </div>
   );
 }
