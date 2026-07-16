@@ -11,6 +11,7 @@ import {
   markPremiumPaid,
   startRenewal,
 } from "@/app/protected/policies/[id]/actions";
+import { ActionMessage } from "@/components/action-message";
 
 export function PolicyActionsCard({ policyTermId }: { policyTermId: string }) {
   const [deleteState, deleteAction] = useActionState<DeletePolicyState, FormData>(
@@ -45,11 +46,9 @@ export function PolicyActionsCard({ policyTermId }: { policyTermId: string }) {
         </form>
         <form action={deleteAction} className="rounded-lg border border-red-200 bg-red-50 p-3">
           <input name="policy_term_id" type="hidden" value={policyTermId} />
-          {deleteState.error ? (
-            <div className="mb-2 rounded-md border border-red-200 bg-white px-3 py-2 text-sm text-red-700">
-              {deleteState.error}
-            </div>
-          ) : null}
+          <div className="mb-2">
+            <ActionMessage message={deleteState.error} tone="error" />
+          </div>
           <label className="grid gap-2 text-xs font-medium text-red-900">
             Type DELETE to remove wrong policy row
             <input

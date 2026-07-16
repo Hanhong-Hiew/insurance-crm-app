@@ -10,6 +10,7 @@ import {
   deleteClientRecord,
   type ClientActionState,
 } from "@/app/protected/clients/actions";
+import { ActionMessage } from "@/components/action-message";
 
 export type ClientTableRow = {
   id: string;
@@ -76,16 +77,8 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
       </div>
 
       <div className="grid gap-3 border-b border-slate-100 p-4">
-        {createState.error || deleteState.error ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-            {createState.error || deleteState.error}
-          </div>
-        ) : null}
-        {createState.success || deleteState.success ? (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-            {createState.success || deleteState.success}
-          </div>
-        ) : null}
+        <ActionMessage message={createState.error || deleteState.error} tone="error" />
+        <ActionMessage message={createState.success || deleteState.success} tone="success" />
 
         <form
           action={createAction}
@@ -136,7 +129,6 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
               <th className="px-3 py-3 font-medium">Email</th>
               <th className="px-3 py-3 font-medium">Address</th>
               <th className="px-3 py-3 font-medium">Policies</th>
-              <th className="px-3 py-3 font-medium">Open</th>
               <th className="px-3 py-3 font-medium">Delete</th>
             </tr>
           </thead>
@@ -159,14 +151,6 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
                   <td className="max-w-xs truncate px-3 py-3">{clean(client.address)}</td>
                   <td className="px-3 py-3">{client.policy_count}</td>
                   <td className="px-3 py-3">
-                    <Link
-                      className="font-medium text-sky-700 hover:text-sky-900"
-                      href={`/protected/clients/${client.id}`}
-                    >
-                      Open
-                    </Link>
-                  </td>
-                  <td className="px-3 py-3">
                     <form action={deleteAction}>
                       <input name="client_id" type="hidden" value={client.id} />
                       <input
@@ -184,7 +168,7 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
               ))
             ) : (
               <tr>
-                <td className="px-3 py-8 text-center text-slate-500" colSpan={9}>
+                <td className="px-3 py-8 text-center text-slate-500" colSpan={8}>
                   No matching clients.
                 </td>
               </tr>

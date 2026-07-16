@@ -442,9 +442,6 @@ export async function savePolicy(
           policy_term_id: policyTerm.id,
           property_address: propertyAddress,
           risk_location: propertyAddress,
-          building_sum_insured: moneyValue(formData, "building_sum_insured"),
-          contents_sum_insured: moneyValue(formData, "contents_sum_insured"),
-          stock_sum_insured: moneyValue(formData, "stock_sum_insured"),
           occupation: optionalText(formData, "occupation"),
           construction_type: optionalText(formData, "construction_type"),
         });
@@ -458,7 +455,6 @@ export async function savePolicy(
           voyage_from: optionalText(formData, "voyage_from"),
           voyage_to: optionalText(formData, "voyage_to"),
           goods_description: optionalText(formData, "goods_description"),
-          sum_insured: moneyValue(formData, "marine_sum_insured"),
         });
       if (marineError) throw marineError;
     } else if (isEquipmentPolicy) {
@@ -495,7 +491,6 @@ export async function savePolicy(
           policy_term_id: policyTerm.id,
           detail_type: optionalText(formData, "generic_detail_type"),
           description: optionalText(formData, "generic_description") || resolvedRiskLabel,
-          sum_insured: moneyValue(formData, "generic_sum_insured"),
         });
       if (genericError) throw genericError;
     }

@@ -8,6 +8,7 @@ import {
   updateClient,
   type UpdateClientState,
 } from "@/app/protected/clients/[id]/actions";
+import { ActionMessage } from "@/components/action-message";
 
 type ClientFormRecord = {
   id: string;
@@ -32,16 +33,8 @@ export function ClientDetailForm({ client }: { client: ClientFormRecord }) {
 
   return (
     <form action={formAction} className="grid gap-4 p-4">
-      {state.error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {state.error}
-        </div>
-      ) : null}
-      {state.success ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {state.success}
-        </div>
-      ) : null}
+      <ActionMessage message={state.error} tone="error" />
+      <ActionMessage message={state.success} tone="success" />
 
       <input name="client_id" type="hidden" value={client.id} />
       <Field label="Client Name">

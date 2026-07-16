@@ -15,6 +15,8 @@ import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { savePolicy, type SavePolicyState } from "@/app/protected/new-policy/actions";
+import { ActionMessage } from "@/components/action-message";
+import { CurrencyInput } from "@/components/currency-input";
 
 type OptionRow = {
   id: string;
@@ -108,33 +110,6 @@ function oneYearExpiry(value: string) {
   date.setUTCFullYear(date.getUTCFullYear() + 1);
   date.setUTCDate(date.getUTCDate() - 1);
   return isoToDisplay(date.toISOString().slice(0, 10));
-}
-
-function MoneyInput({
-  name,
-  placeholder,
-  required = false,
-}: {
-  name: string;
-  placeholder: string;
-  required?: boolean;
-}) {
-  return (
-    <div className="flex h-10 overflow-hidden rounded-lg border border-slate-200 bg-white transition focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100">
-      <span className="flex items-center border-r border-sky-100 bg-sky-50 px-3 text-sm font-semibold text-sky-700">
-        RM
-      </span>
-      <input
-        className="min-w-0 flex-1 bg-white px-3 text-sm text-slate-700 outline-none placeholder:text-slate-400"
-        inputMode="decimal"
-        name={name}
-        pattern="[0-9]+([.][0-9]{1,2})?"
-        placeholder={placeholder}
-        required={required}
-        type="text"
-      />
-    </div>
-  );
 }
 
 function DateInput({
@@ -276,23 +251,9 @@ export function NewPolicyForm({
 
   return (
     <form action={formAction} className="space-y-4" ref={formRef}>
-      {state.error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          {state.error}
-        </div>
-      ) : null}
-
-      {state.success ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {state.success}
-        </div>
-      ) : null}
-
-      {state.warning ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {state.warning}
-        </div>
-      ) : null}
+      <ActionMessage message={state.error} tone="error" />
+      <ActionMessage message={state.success} tone="success" />
+      <ActionMessage message={state.warning} tone="warning" />
 
       <FormSection
         description="Choose an existing client or create a new one while saving the policy."
@@ -435,11 +396,11 @@ export function NewPolicyForm({
         </Field>
 
         {!isMotor ? (
-          <Field label="Risk Label">
+          <Field label="Risk / Subject">
             <input
               className={fieldClass}
               name="risk_label"
-              placeholder="Property, voyage, person, or short risk label"
+              placeholder="Property name, voyage, person, or insured item"
             />
           </Field>
         ) : null}
@@ -474,7 +435,7 @@ export function NewPolicyForm({
         </Field>
 
         <Field label="Sum Assured">
-          <MoneyInput name="primary_sum_assured" placeholder="0.00" />
+          <CurrencyInput name="primary_sum_assured" />
         </Field>
       </FormSection>
 
@@ -490,11 +451,11 @@ export function NewPolicyForm({
         title="Premium & Commission"
       >
         <Field label="Gross Premium" required>
-          <MoneyInput name="gross_premium" placeholder="0.00" />
+          <CurrencyInput name="gross_premium" required />
         </Field>
 
         <Field label="Net Premium">
-          <MoneyInput name="net_premium" placeholder="0.00" />
+          <CurrencyInput name="net_premium" />
         </Field>
 
         <Field label="Split Pattern">
@@ -622,7 +583,7 @@ function MotorRiskSection() {
 function FireRiskSection() {
   return (
     <FormSection
-      description="Fire-like policies need location and insured value breakdown."
+      description="Fire-like policies use the main term sum assured. Keep this section for risk details only."
       icon={<Landmark className="h-5 w-5" />}
       title="Fire Risk"
     >
@@ -639,15 +600,6 @@ function FireRiskSection() {
           <option value="C1B">C1B</option>
           <option value="C2">C2</option>
         </select>
-      </Field>
-      <Field label="Building Sum Insured">
-        <MoneyInput name="building_sum_insured" placeholder="0.00" />
-      </Field>
-      <Field label="Contents Sum Insured">
-        <MoneyInput name="contents_sum_insured" placeholder="0.00" />
-      </Field>
-      <Field label="Stock Sum Insured">
-        <MoneyInput name="stock_sum_insured" placeholder="0.00" />
       </Field>
     </FormSection>
   );
@@ -701,9 +653,6 @@ function MarineRiskSection() {
       <Field label="Goods Description">
         <input className={fieldClass} name="goods_description" placeholder="Goods description" />
       </Field>
-      <Field label="Marine Sum Insured">
-        <MoneyInput name="marine_sum_insured" placeholder="0.00" />
-      </Field>
     </FormSection>
   );
 }
@@ -737,9 +686,6 @@ function GenericRiskSection() {
     >
       <Field label="Detail Type">
         <input className={fieldClass} name="generic_detail_type" placeholder="Liability, machinery, PA, etc." />
-      </Field>
-      <Field label="Generic Sum Insured">
-        <MoneyInput name="generic_sum_insured" placeholder="0.00" />
       </Field>
       <div className="md:col-span-2 xl:col-span-3">
         <Field label="Description">

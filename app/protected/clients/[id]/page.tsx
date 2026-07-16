@@ -102,14 +102,20 @@ async function ClientDetailContent({ params }: PageProps) {
                   <th className="px-3 py-3 font-medium">Expiry</th>
                   <th className="px-3 py-3 font-medium">Gross</th>
                   <th className="px-3 py-3 font-medium">Status</th>
-                  <th className="px-3 py-3 font-medium">Open</th>
                 </tr>
               </thead>
               <tbody>
                 {policies.length ? (
                   policies.map((policy) => (
                     <tr className="border-b border-slate-100 hover:bg-slate-50" key={policy.policy_term_id}>
-                      <td className="px-3 py-3 font-medium">{clean(policy.policy_number)}</td>
+                      <td className="px-3 py-3 font-medium">
+                        <Link
+                          className="hover:text-sky-700"
+                          href={`/protected/policies/${policy.policy_term_id}`}
+                        >
+                          {clean(policy.policy_number)}
+                        </Link>
+                      </td>
                       <td className="px-3 py-3">{clean(policy.insurance_type)}</td>
                       <td className="px-3 py-3">
                         {clean(policy.vehicle_no || policy.primary_risk_label)}
@@ -117,19 +123,11 @@ async function ClientDetailContent({ params }: PageProps) {
                       <td className="px-3 py-3">{formatDate(policy.expiry_date)}</td>
                       <td className="px-3 py-3">{money(policy.gross_premium)}</td>
                       <td className="px-3 py-3">{clean(policy.policy_status || policy.quotation_status)}</td>
-                      <td className="px-3 py-3">
-                        <Link
-                          className="font-medium text-sky-700 hover:text-sky-900"
-                          href={`/protected/policies/${policy.policy_term_id}`}
-                        >
-                          Open
-                        </Link>
-                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td className="px-3 py-8 text-center text-slate-500" colSpan={7}>
+                    <td className="px-3 py-8 text-center text-slate-500" colSpan={6}>
                       No linked policies.
                     </td>
                   </tr>

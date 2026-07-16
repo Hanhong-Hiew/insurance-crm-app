@@ -8,6 +8,8 @@ import {
   updatePolicy,
   type UpdatePolicyState,
 } from "@/app/protected/policies/[id]/edit/actions";
+import { ActionMessage } from "@/components/action-message";
+import { CurrencyInput } from "@/components/currency-input";
 
 type OptionRow = {
   id: string;
@@ -57,12 +59,6 @@ function toDdMmYyyy(value: string | null | undefined) {
   return `${day}/${month}/${year}`;
 }
 
-function decimal(value: unknown) {
-  if (value === null || value === undefined || value === "") return "";
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed.toFixed(2) : "";
-}
-
 export function PolicyEditForm({
   equipmentDetail,
   equipmentJson,
@@ -79,16 +75,8 @@ export function PolicyEditForm({
 
   return (
     <form action={formAction} className="space-y-4">
-      {state.error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800">
-          {state.error}
-        </div>
-      ) : null}
-      {state.success ? (
-        <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
-          {state.success}
-        </div>
-      ) : null}
+      <ActionMessage message={state.error} tone="error" />
+      <ActionMessage message={state.success} tone="success" />
 
       <input name="policy_term_id" type="hidden" value={policyTermId} />
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -139,28 +127,13 @@ export function PolicyEditForm({
             />
           </Field>
           <Field label="Sum Assured">
-            <input
-              className={fieldClass}
-              defaultValue={decimal(term.primary_sum_assured)}
-              inputMode="decimal"
-              name="primary_sum_assured"
-            />
+            <CurrencyInput defaultValue={term.primary_sum_assured} name="primary_sum_assured" />
           </Field>
           <Field label="Gross Premium">
-            <input
-              className={fieldClass}
-              defaultValue={decimal(term.gross_premium)}
-              inputMode="decimal"
-              name="gross_premium"
-            />
+            <CurrencyInput defaultValue={term.gross_premium} name="gross_premium" />
           </Field>
           <Field label="Net Premium">
-            <input
-              className={fieldClass}
-              defaultValue={decimal(term.net_premium)}
-              inputMode="decimal"
-              name="net_premium"
-            />
+            <CurrencyInput defaultValue={term.net_premium} name="net_premium" />
           </Field>
           <Field label="Split Pattern">
             <select className={fieldClass} defaultValue={term.split_pattern_id ?? ""} name="split_pattern_id">

@@ -565,12 +565,6 @@ export function CrmMainPanel({
                       ["Expiry", formatDate(selected.expiry_date)],
                     ]}
                   />
-                  <Link
-                    className="inline-flex h-9 items-center justify-center rounded-lg bg-sky-600 px-3 text-sm font-semibold text-white shadow-sm"
-                    href={`/protected/policies/${selected.policy_term_id}`}
-                  >
-                    Open Record
-                  </Link>
                 </div>
               ) : (
                 <div className="mt-4 space-y-4">
@@ -612,12 +606,6 @@ export function CrmMainPanel({
                       ["NCD", percent(selected.ncd)],
                     ]}
                   />
-                  <Link
-                    className="inline-flex h-9 items-center justify-center rounded-lg bg-sky-600 px-3 text-sm font-semibold text-white shadow-sm"
-                    href={`/protected/policies/${selected.policy_term_id}`}
-                  >
-                    Open Record
-                  </Link>
                 </div>
               )
             ) : (
@@ -786,7 +774,6 @@ function PolicyTable({
           <th className="px-3 py-3 font-medium">Gross</th>
           <th className="px-3 py-3 font-medium">Premium</th>
           <th className="px-3 py-3 font-medium">Renewal</th>
-          <th className="px-3 py-3 font-medium">Open</th>
         </tr>
       </thead>
       <tbody>
@@ -806,7 +793,28 @@ function PolicyTable({
                 window.location.href = `/protected/policies/${row.policy_term_id}`;
               }}
             >
-              <td className="px-3 py-3 font-medium">{clean(row.client_name)}</td>
+              <td className="px-3 py-3 font-medium">
+                <span className="flex items-center gap-2">
+                  <button
+                    aria-label={`Preview ${clean(row.client_name)}`}
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 transition hover:border-sky-200 hover:bg-sky-50"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelected(row);
+                    }}
+                    type="button"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                  <Link
+                    className="text-slate-950 hover:text-sky-700"
+                    href={`/protected/policies/${row.policy_term_id}`}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {clean(row.client_name)}
+                  </Link>
+                </span>
+              </td>
               <td className="px-3 py-3">
                 <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">
                   <RiskIcon record={row} />
@@ -831,20 +839,11 @@ function PolicyTable({
                 />
               </td>
               <td className="px-3 py-3">{clean(row.renewal_status)}</td>
-              <td className="px-3 py-3">
-                <Link
-                  className="font-medium text-sky-700 hover:text-sky-900"
-                  href={`/protected/policies/${row.policy_term_id}`}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  Open
-                </Link>
-              </td>
             </tr>
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-zinc-500" colSpan={13}>
+            <td className="px-3 py-8 text-center text-zinc-500" colSpan={12}>
               No matching records.
             </td>
           </tr>
@@ -899,7 +898,7 @@ function CommissionTable({
   setSelected: (record: CommissionRecord) => void;
 }) {
   return (
-    <table className="w-full min-w-[860px] text-left text-sm">
+    <table className="w-full min-w-[820px] text-left text-sm">
       <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
         <tr>
           <th className="px-3 py-3 font-medium">Client</th>
@@ -910,7 +909,6 @@ function CommissionTable({
           <th className="px-3 py-3 font-medium">Amount</th>
           <th className="px-3 py-3 font-medium">Unpaid</th>
           <th className="px-3 py-3 font-medium">Status</th>
-          <th className="px-3 py-3 font-medium">Open</th>
         </tr>
       </thead>
       <tbody>
@@ -930,7 +928,28 @@ function CommissionTable({
                 window.location.href = `/protected/policies/${row.policy_term_id}`;
               }}
             >
-              <td className="px-3 py-3 font-medium">{clean(row.client_name)}</td>
+              <td className="px-3 py-3 font-medium">
+                <span className="flex items-center gap-2">
+                  <button
+                    aria-label={`Preview ${clean(row.client_name)}`}
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 transition hover:border-sky-200 hover:bg-sky-50"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setSelected(row);
+                    }}
+                    type="button"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                  <Link
+                    className="text-slate-950 hover:text-sky-700"
+                    href={`/protected/policies/${row.policy_term_id}`}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {clean(row.client_name)}
+                  </Link>
+                </span>
+              </td>
               <td className="px-3 py-3">{clean(row.insurance_type)}</td>
               <td className="px-3 py-3">{clean(row.policy_number)}</td>
               <td className="px-3 py-3">{clean(row.payee_name)}</td>
@@ -938,20 +957,11 @@ function CommissionTable({
               <td className="px-3 py-3">{money(row.amount)}</td>
               <td className="px-3 py-3">{money(row.unpaid_amount)}</td>
               <td className="px-3 py-3">{clean(row.status)}</td>
-              <td className="px-3 py-3">
-                <Link
-                  className="font-medium text-sky-700 hover:text-sky-900"
-                  href={`/protected/policies/${row.policy_term_id}`}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  Open
-                </Link>
-              </td>
             </tr>
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-zinc-500" colSpan={9}>
+            <td className="px-3 py-8 text-center text-zinc-500" colSpan={8}>
               No matching commission records.
             </td>
           </tr>

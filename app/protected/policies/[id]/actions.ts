@@ -328,7 +328,7 @@ async function copyTypeSpecificDetails(
 
   const { data: fire } = await supabase
     .from("fire_policy_details")
-    .select("property_address, risk_location, building_sum_insured, contents_sum_insured, stock_sum_insured, occupation, construction_type, notes")
+    .select("property_address, risk_location, occupation, construction_type, notes")
     .eq("policy_term_id", previousPolicyTermId)
     .maybeSingle();
   if (fire) {
@@ -342,7 +342,7 @@ async function copyTypeSpecificDetails(
 
   const { data: marine } = await supabase
     .from("marine_policy_details")
-    .select("marine_type, voyage_from, voyage_to, goods_description, sum_insured, notes")
+    .select("marine_type, voyage_from, voyage_to, goods_description, notes")
     .eq("policy_term_id", previousPolicyTermId)
     .maybeSingle();
   if (marine) {
@@ -370,7 +370,7 @@ async function copyTypeSpecificDetails(
 
   const { data: generic } = await supabase
     .from("generic_policy_details")
-    .select("detail_type, description, sum_insured, details_json, notes")
+    .select("detail_type, description, details_json, notes")
     .eq("policy_term_id", previousPolicyTermId)
     .maybeSingle();
   if (generic) {

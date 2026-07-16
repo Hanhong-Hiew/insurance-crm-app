@@ -248,6 +248,12 @@ async function PolicyRecordContent({ params }: PageProps) {
 function buildDetailRows(detail: DetailRow): Array<[string, React.ReactNode]> {
   if (!detail) return [["Details", "No type-specific details saved."]];
 
+  const duplicateSumKeys = new Set([
+    "building_sum_insured",
+    "contents_sum_insured",
+    "stock_sum_insured",
+    "sum_insured",
+  ]);
   const vehicle = detail.vehicles as Record<string, unknown> | null | undefined;
   if (vehicle) {
     return [
@@ -269,6 +275,7 @@ function buildDetailRows(detail: DetailRow): Array<[string, React.ReactNode]> {
 
   const rows: Array<[string, React.ReactNode]> = Object.entries(detail)
     .filter(([key]) => !["id", "policy_term_id", "created_at", "updated_at"].includes(key))
+    .filter(([key]) => !duplicateSumKeys.has(key))
     .filter(([key]) => key !== "details_json")
     .map(([key, value]) => [
       key.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()),

@@ -822,7 +822,7 @@ function PolicyTable({
   setPreviewRecord: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="w-full min-w-[1180px] text-left text-sm">
+    <table className="w-full min-w-[1120px] text-left text-sm">
       <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
         <tr>
           <th className="px-3 py-3 font-medium">Client</th>
@@ -837,7 +837,6 @@ function PolicyTable({
           <th className="px-3 py-3 font-medium">Premium</th>
           <th className="px-3 py-3 font-medium">Renewal</th>
           <th className="px-3 py-3 font-medium">Preview</th>
-          <th className="px-3 py-3 font-medium">Open</th>
         </tr>
       </thead>
       <tbody>
@@ -850,8 +849,14 @@ function PolicyTable({
                 window.location.href = `/protected/policies/${row.policy_term_id}`;
               }}
             >
-              <td className="px-3 py-3 font-medium text-slate-950">
-                {clean(row.client_name)}
+              <td className="px-3 py-3 font-medium">
+                <Link
+                  className="text-slate-950 hover:text-sky-700"
+                  href={`/protected/policies/${row.policy_term_id}`}
+                  onClick={(event) => event.stopPropagation()}
+                >
+                  {clean(row.client_name)}
+                </Link>
               </td>
               <td className="px-3 py-3">
                 <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">
@@ -891,20 +896,11 @@ function PolicyTable({
                   <Eye className="h-4 w-4" />
                 </button>
               </td>
-              <td className="px-3 py-3">
-                <Link
-                  className="font-medium text-sky-700 hover:text-sky-900"
-                  href={`/protected/policies/${row.policy_term_id}`}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  Open
-                </Link>
-              </td>
             </tr>
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-slate-500" colSpan={13}>
+            <td className="px-3 py-8 text-center text-slate-500" colSpan={12}>
               No matching records.
             </td>
           </tr>
