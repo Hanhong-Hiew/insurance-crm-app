@@ -19,6 +19,7 @@ import {
   TableProperties,
   Users,
   WalletCards,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -288,6 +289,9 @@ export function CrmMainPanel({
   const [selected, setSelected] = useState<PolicyRecord | CommissionRecord | null>(
     policies[0] || renewals[0] || unpaidPremium[0] || unpaidCommission[0] || null,
   );
+  const [previewRecord, setPreviewRecord] = useState<PolicyRecord | CommissionRecord | null>(
+    null,
+  );
 
   const activeRows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -532,6 +536,7 @@ export function CrmMainPanel({
           <div className="overflow-x-auto">
             <PolicyTable
               rows={newestPolicies}
+              setPreviewRecord={setPreviewRecord}
               selected={selected}
               setSelected={setSelected}
             />
@@ -688,6 +693,7 @@ export function CrmMainPanel({
               {view === "commission" ? (
                 <CommissionTable
                   rows={sortedRows as CommissionRecord[]}
+                  setPreviewRecord={setPreviewRecord}
                   selected={selected}
                   setSelected={setSelected}
                 />
@@ -696,6 +702,7 @@ export function CrmMainPanel({
                   <CommissionSummary rows={commissionSummary} />
                   <CommissionTable
                     rows={sortedRows as CommissionRecord[]}
+                    setPreviewRecord={setPreviewRecord}
                     selected={selected}
                     setSelected={setSelected}
                   />
@@ -703,6 +710,7 @@ export function CrmMainPanel({
               ) : (
                 <PolicyTable
                   rows={sortedRows as PolicyRecord[]}
+                  setPreviewRecord={setPreviewRecord}
                   selected={selected}
                   setSelected={setSelected}
                 />
@@ -711,6 +719,120 @@ export function CrmMainPanel({
           </section>
         </section>
       </main>
+      {previewRecord ? (
+        <DashboardPreviewModal
+          onClose={() => setPreviewRecord(null)}
+          record={previewRecord}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function DashboardPreviewModal({
+  onClose,
+  record,
+}: {
+  onClose: () => void;
+  record: PolicyRecord | CommissionRecord;
+}) {
+  const isCommission = isCommissionRecord(record);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4"
+      onClick={onClose}
+      role="presentation"
+    >
+      <section
+        aria-modal="true"
+        className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="min-w-0">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              {isCommission ? (
+                <span className="inline-flex items-center gap-2 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-semibold text-orange-700 ring-1 ring-orange-100">
+                  <BadgeDollarSign className="h-4 w-4" />
+                  Commission
+                </span>
+              ) : (
+                <>
+                  <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100">
+                    <RiskIcon record={record} />
+                    {riskType(record)}
+                  </span>
+                  <StageBadge record={record} />
+                </>
+              )}
+            </div>
+            <h3 className="truncate text-xl font-semibold text-slate-950">
+              {clean(record.client_name)}
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              {isCommission
+                ? `${clean(record.payee_name)} / ${clean(record.status)}`
+                : `${riskType(record)} / ${riskLabel(record)}`}
+            </p>
+          </div>
+          <button
+            aria-label="Close preview"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+          <PreviewGrid
+            rows={
+              isCommission
+                ? [
+                    ["Policy No", clean(record.policy_number)],
+                    ["Insurance Type", clean(record.insurance_type)],
+                    ["Payee", clean(record.payee_name)],
+                    ["Rate", percent(record.calculation_percent)],
+                    ["Amount", money(record.amount)],
+                    ["Unpaid", money(record.unpaid_amount)],
+                    ["Status", clean(record.status)],
+                    ["Effective", formatDate(record.effective_date)],
+                    ["Expiry", formatDate(record.expiry_date)],
+                  ]
+                : [
+                    ["Policy No", clean(record.policy_number)],
+                    ["Vehicle No", vehicleNo(record)],
+                    ["Insurer", clean(record.insurer_name)],
+                    ["Effective", formatDate(record.effective_date)],
+                    ["Expiry", formatDate(record.expiry_date)],
+                    ["Sum Assured", money(record.primary_sum_assured)],
+                    ["Gross Premium", money(record.gross_premium)],
+                    ["Net Premium", money(record.net_premium)],
+                    ["Premium", clean(record.premium_status)],
+                    ["Stage", `${stageLabel(record)} / ${stageMeta(record)}`],
+                    ["Renewal", clean(record.renewal_status)],
+                    ["Type of Cover", clean(record.type_of_cover)],
+                    ["Make / Model", clean(record.make_model)],
+                    ["Year", clean(record.year_of_manufacture)],
+                    ["Motor Type", clean(record.motor_type)],
+                    ["NCD", percent(record.ncd)],
+                  ]
+            }
+          />
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <Link
+            className="inline-flex h-9 items-center justify-center rounded-lg bg-sky-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-800"
+            href={`/protected/policies/${record.policy_term_id}`}
+          >
+            View Details
+          </Link>
+        </div>
+      </section>
     </div>
   );
 }
@@ -751,10 +873,12 @@ function PreviewGrid({ rows }: { rows: Array<[string, React.ReactNode]> }) {
 
 function PolicyTable({
   rows,
+  setPreviewRecord,
   selected,
   setSelected,
 }: {
   rows: PolicyRecord[];
+  setPreviewRecord: (record: PolicyRecord) => void;
   selected: PolicyRecord | CommissionRecord | null;
   setSelected: (record: PolicyRecord) => void;
 }) {
@@ -800,7 +924,7 @@ function PolicyTable({
                     className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 transition hover:border-sky-200 hover:bg-sky-50"
                     onClick={(event) => {
                       event.stopPropagation();
-                      setSelected(row);
+                      setPreviewRecord(row);
                     }}
                     type="button"
                   >
@@ -890,10 +1014,12 @@ function CommissionSummary({
 
 function CommissionTable({
   rows,
+  setPreviewRecord,
   selected,
   setSelected,
 }: {
   rows: CommissionRecord[];
+  setPreviewRecord: (record: CommissionRecord) => void;
   selected: PolicyRecord | CommissionRecord | null;
   setSelected: (record: CommissionRecord) => void;
 }) {
@@ -935,7 +1061,7 @@ function CommissionTable({
                     className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 transition hover:border-sky-200 hover:bg-sky-50"
                     onClick={(event) => {
                       event.stopPropagation();
-                      setSelected(row);
+                      setPreviewRecord(row);
                     }}
                     type="button"
                   >
