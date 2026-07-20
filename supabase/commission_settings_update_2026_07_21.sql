@@ -48,6 +48,7 @@ create table if not exists public.commission_payment_items (
   client_name_snapshot text,
   policy_number_snapshot text,
   insurance_type_snapshot text,
+  insurer_name_snapshot text,
   effective_date_snapshot date,
   expiry_date_snapshot date,
   gross_premium_snapshot numeric(14, 2),
@@ -55,6 +56,9 @@ create table if not exists public.commission_payment_items (
   created_at timestamptz not null default now(),
   unique (batch_id, commission_id)
 );
+
+alter table public.commission_payment_items
+add column if not exists insurer_name_snapshot text;
 
 do $$
 begin
@@ -102,6 +106,7 @@ create trigger set_commission_payment_batches_updated_at
 before update on public.commission_payment_batches
 for each row execute function public.set_updated_at();
 
+drop view if exists public.commission_payment_statement_view;
 create or replace view public.commission_payment_statement_view as
 select
   cpb.id as batch_id,
@@ -119,6 +124,7 @@ select
   cpi.client_name_snapshot,
   cpi.policy_number_snapshot,
   cpi.insurance_type_snapshot,
+  cpi.insurer_name_snapshot,
   cpi.effective_date_snapshot,
   cpi.expiry_date_snapshot,
   cpi.gross_premium_snapshot,
@@ -135,6 +141,7 @@ select
   c.client_name,
   pt.policy_number,
   it.name as insurance_type,
+  ins.insurer_name,
   cp.name as payee_name,
   cm.calculation_percent,
   cm.amount,
@@ -150,6 +157,7 @@ from public.commissions cm
 join public.policy_terms pt on pt.id = cm.policy_term_id
 join public.clients c on c.id = pt.client_id
 join public.insurance_types it on it.id = pt.insurance_type_id
+join public.insurers ins on ins.id = pt.insurer_id
 join public.commission_payees cp on cp.id = cm.payee_id
 left join public.commission_payment_batches cpb on cpb.id = cm.payment_batch_id
 where cm.status in ('unpaid', 'partial')

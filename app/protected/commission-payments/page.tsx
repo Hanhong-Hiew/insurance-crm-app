@@ -21,6 +21,7 @@ type RawCommissionRow = {
     gross_premium?: number | string | null;
     policy_number?: string | null;
     clients?: { client_name?: string | null } | Array<{ client_name?: string | null }> | null;
+    insurers?: { insurer_name?: string | null } | Array<{ insurer_name?: string | null }> | null;
     insurance_types?: { name?: string | null } | Array<{ name?: string | null }> | null;
   } | null;
   status: string | null;
@@ -50,7 +51,7 @@ async function CommissionPaymentsContent() {
   const { data, error } = await supabase
     .from("commissions")
     .select(
-      "id, payee_id, calculation_percent, amount, unpaid_amount, status, commission_payees(id, name), policy_terms(policy_number, effective_date, expiry_date, gross_premium, clients(client_name), insurance_types(name))",
+      "id, payee_id, calculation_percent, amount, unpaid_amount, status, commission_payees(id, name), policy_terms(policy_number, effective_date, expiry_date, gross_premium, clients(client_name), insurers(insurer_name), insurance_types(name))",
     )
     .neq("status", "paid")
     .order("created_at", { ascending: false })
@@ -60,6 +61,7 @@ async function CommissionPaymentsContent() {
     const payee = firstValue(row.commission_payees);
     const term = row.policy_terms;
     const client = firstValue(term?.clients);
+    const insurer = firstValue(term?.insurers);
     const insuranceType = firstValue(term?.insurance_types);
 
     return {
@@ -70,6 +72,7 @@ async function CommissionPaymentsContent() {
       effective_date: term?.effective_date ?? null,
       expiry_date: term?.expiry_date ?? null,
       gross_premium: term?.gross_premium ?? null,
+      insurer_name: insurer?.insurer_name ?? null,
       insurance_type: insuranceType?.name ?? null,
       payee_id: row.payee_id,
       payee_name: payee?.name ?? null,

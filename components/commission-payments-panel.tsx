@@ -18,6 +18,7 @@ export type CommissionPaymentRow = {
   effective_date: string | null;
   expiry_date: string | null;
   gross_premium: number | string | null;
+  insurer_name: string | null;
   insurance_type: string | null;
   payee_id: string;
   payee_name: string | null;
@@ -85,6 +86,7 @@ export function CommissionPaymentsPanel({
     return rows.filter((row) =>
       [
         row.client_name,
+        row.insurer_name,
         row.policy_number,
         row.insurance_type,
         row.payee_name,
@@ -159,7 +161,7 @@ export function CommissionPaymentsPanel({
               <input
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Client, policy, payee"
+                placeholder="Client, insurer, policy, payee"
                 value={query}
               />
             </span>
@@ -226,6 +228,7 @@ export function CommissionPaymentsPanel({
                   </th>
                   <th className="px-3 py-3">Payee</th>
                   <th className="px-3 py-3">Client</th>
+                  <th className="px-3 py-3">Insurer</th>
                   <th className="px-3 py-3">Policy</th>
                   <th className="px-3 py-3">Expiry</th>
                   <th className="px-3 py-3 text-right">Unpaid</th>
@@ -243,6 +246,7 @@ export function CommissionPaymentsPanel({
                     </td>
                     <td className="px-3 py-3">{clean(row.payee_name)}</td>
                     <td className="px-3 py-3">{clean(row.client_name)}</td>
+                    <td className="px-3 py-3">{clean(row.insurer_name)}</td>
                     <td className="px-3 py-3">{clean(row.policy_number)}</td>
                     <td className="px-3 py-3">{formatDate(row.expiry_date)}</td>
                     <td className="px-3 py-3 text-right font-semibold">
@@ -313,6 +317,7 @@ function StatementPreview({
                     <th className="px-2 py-2">Client</th>
                     <th className="px-2 py-2">Policy</th>
                     <th className="px-2 py-2">Type</th>
+                    <th className="px-2 py-2">Insurer</th>
                     <th className="px-2 py-2">Effective</th>
                     <th className="px-2 py-2">Expiry</th>
                     <th className="px-2 py-2 text-right">Gross</th>
@@ -326,6 +331,7 @@ function StatementPreview({
                       <td className="px-2 py-2">{clean(row.client_name)}</td>
                       <td className="px-2 py-2">{clean(row.policy_number)}</td>
                       <td className="px-2 py-2">{clean(row.insurance_type)}</td>
+                      <td className="px-2 py-2">{clean(row.insurer_name)}</td>
                       <td className="px-2 py-2">{formatDate(row.effective_date)}</td>
                       <td className="px-2 py-2">{formatDate(row.expiry_date)}</td>
                       <td className="px-2 py-2 text-right">{money(row.gross_premium)}</td>
