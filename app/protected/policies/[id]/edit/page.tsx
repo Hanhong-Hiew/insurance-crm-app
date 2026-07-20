@@ -27,10 +27,19 @@ async function EditPolicyContent({ params }: PageProps) {
     redirect("/auth/login");
   }
 
-  const [termResult, insurersResult, splitsResult] = await Promise.all([
+  const [
+    termResult,
+    insurersResult,
+    splitsResult,
+    motorResult,
+    fireResult,
+    marineResult,
+    travelResult,
+    genericResult,
+  ] = await Promise.all([
     supabase
       .from("policy_terms")
-      .select("*, insurance_types(code, name)")
+      .select("*, insurance_types(code, name), clients(id, client_name, business_registration_no, client_type, phone, email)")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -43,26 +52,47 @@ async function EditPolicyContent({ params }: PageProps) {
       .select("id, code, name")
       .eq("active", true)
       .order("code", { ascending: true }),
+    supabase
+      .from("motor_policy_details")
+      .select("*, vehicles(*)")
+      .eq("policy_term_id", id)
+      .maybeSingle(),
+    supabase.from("fire_policy_details").select("*").eq("policy_term_id", id).maybeSingle(),
+    supabase.from("marine_policy_details").select("*").eq("policy_term_id", id).maybeSingle(),
+    supabase.from("travel_policy_details").select("*").eq("policy_term_id", id).maybeSingle(),
+    supabase.from("generic_policy_details").select("*").eq("policy_term_id", id).maybeSingle(),
   ]);
 
   if (termResult.error) throw termResult.error;
   if (!termResult.data) notFound();
+  const setupErrors = [
+    insurersResult.error,
+    splitsResult.error,
+    motorResult.error,
+    fireResult.error,
+    marineResult.error,
+    travelResult.error,
+    genericResult.error,
+  ].filter(Boolean);
+  if (setupErrors.length) throw setupErrors[0];
 
   const term = termResult.data;
   const insuranceType = Array.isArray(term.insurance_types)
     ? term.insurance_types[0]
     : term.insurance_types;
+  const client = Array.isArray(term.clients) ? term.clients[0] : term.clients;
   const isEquipmentPolicy =
     insuranceType?.code === "equipment_insurance" ||
     insuranceType?.code === "equipment_all_risk";
-  const equipmentResult = isEquipmentPolicy
+  const seriesResult = term.policy_series_id
     ? await supabase
-        .from("generic_policy_details")
-        .select("description, details_json")
-        .eq("policy_term_id", id)
+        .from("policy_series")
+        .select("primary_risk_label")
+        .eq("id", term.policy_series_id)
         .maybeSingle()
     : null;
-  const equipmentDetail = equipmentResult?.data ?? null;
+  if (seriesResult?.error) throw seriesResult.error;
+  const equipmentDetail = isEquipmentPolicy ? genericResult.data ?? null : null;
   const equipmentJson =
     equipmentDetail?.details_json && typeof equipmentDetail.details_json === "object"
       ? (equipmentDetail.details_json as Record<string, unknown>)
@@ -71,13 +101,21 @@ async function EditPolicyContent({ params }: PageProps) {
   return (
     <PageShell policyTermId={id}>
       <PolicyEditForm
+        client={client ?? null}
         equipmentDetail={equipmentDetail}
         equipmentJson={equipmentJson}
+        fireDetail={fireResult.data ?? null}
+        genericDetail={genericResult.data ?? null}
         insurers={insurersResult.data ?? []}
+        insuranceCode={insuranceType?.code ?? null}
         isEquipmentPolicy={isEquipmentPolicy}
+        marineDetail={marineResult.data ?? null}
+        motorDetail={motorResult.data ?? null}
         policyTermId={id}
+        primaryRiskLabel={seriesResult?.data?.primary_risk_label ?? null}
         splitPatterns={splitsResult.data ?? []}
         term={term}
+        travelDetail={travelResult.data ?? null}
       />
     </PageShell>
   );

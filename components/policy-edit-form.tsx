@@ -1,7 +1,17 @@
 "use client";
 
-import { Save } from "lucide-react";
-import { useActionState } from "react";
+import {
+  CalendarDays,
+  Car,
+  FileText,
+  Landmark,
+  Plane,
+  Save,
+  ShieldCheck,
+  Ship,
+  Wrench,
+} from "lucide-react";
+import { useActionState, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -35,18 +45,39 @@ type PolicyTermRecord = {
   notes: string | null;
 };
 
-type EquipmentDetailRecord = {
-  description: string | null;
+type ClientRecord = {
+  id: string;
+  business_registration_no: string | null;
+  client_name: string | null;
+  client_type: string | null;
+  email: string | null;
+  phone: string | null;
 };
 
+type EquipmentDetailRecord = {
+  description: string | null;
+  detail_type?: string | null;
+  details_json?: Record<string, unknown> | null;
+};
+
+type RiskDetailRecord = Record<string, unknown> | null;
+
 type PolicyEditFormProps = {
+  client: ClientRecord | null;
   equipmentDetail: EquipmentDetailRecord | null;
   equipmentJson: Record<string, unknown>;
+  fireDetail: RiskDetailRecord;
+  genericDetail: RiskDetailRecord;
   insurers: OptionRow[];
+  insuranceCode: string | null;
   isEquipmentPolicy: boolean;
+  marineDetail: RiskDetailRecord;
+  motorDetail: RiskDetailRecord;
   policyTermId: string;
+  primaryRiskLabel: string | null;
   splitPatterns: OptionRow[];
   term: PolicyTermRecord;
+  travelDetail: RiskDetailRecord;
 };
 
 const fieldClass =
@@ -59,19 +90,205 @@ function toDdMmYyyy(value: string | null | undefined) {
   return `${day}/${month}/${year}`;
 }
 
+function normalizeDateText(value: string) {
+  const raw = value.trim();
+  if (!raw) return "";
+
+  const match = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
+  if (!match) return raw;
+
+  const day = match[1].padStart(2, "0");
+  const month = match[2].padStart(2, "0");
+  const rawYear = match[3];
+  const year =
+    rawYear.length === 2
+      ? Number(rawYear) >= 70
+        ? `19${rawYear}`
+        : `20${rawYear}`
+      : rawYear;
+
+  const date = new Date(`${year}-${month}-${day}T00:00:00Z`);
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getUTCDate() !== Number(day) ||
+    date.getUTCMonth() + 1 !== Number(month) ||
+    date.getUTCFullYear() !== Number(year)
+  ) {
+    return raw;
+  }
+
+  return `${day}/${month}/${year}`;
+}
+
+function displayToIso(value: string) {
+  const normalized = normalizeDateText(value);
+  const match = normalized.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return "";
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+function isoToDisplay(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
+function DateInput({
+  name,
+  onChange,
+  required = false,
+  value,
+}: {
+  name: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  value: string;
+}) {
+  const pickerRef = useRef<HTMLInputElement>(null);
+
+  function commit(nextValue: string) {
+    onChange(normalizeDateText(nextValue));
+  }
+
+  return (
+    <div className="flex h-10 overflow-hidden rounded-lg border border-slate-200 bg-white transition focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100">
+      <input
+        className="min-w-0 flex-1 bg-white px-3 text-sm text-slate-700 outline-none placeholder:text-slate-400"
+        inputMode="numeric"
+        name={name}
+        onBlur={(event) => commit(event.target.value)}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder="dd/mm/yyyy"
+        required={required}
+        type="text"
+        value={value}
+      />
+      <button
+        aria-label="Open calendar"
+        className="relative flex w-10 items-center justify-center border-l border-sky-100 bg-sky-50 text-sky-700"
+        onClick={() => pickerRef.current?.showPicker?.()}
+        type="button"
+      >
+        <CalendarDays className="h-4 w-4" />
+        <input
+          aria-hidden="true"
+          className="pointer-events-none absolute h-px w-px opacity-0"
+          onChange={(event) => onChange(isoToDisplay(event.target.value))}
+          ref={pickerRef}
+          tabIndex={-1}
+          type="date"
+          value={displayToIso(value)}
+        />
+      </button>
+    </div>
+  );
+}
+
+function cleanCode(value: string | null | undefined) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function detailText(record: RiskDetailRecord | Record<string, unknown>, key: string) {
+  const value = record?.[key];
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
+function isFireLike(code: string) {
+  return code === "fire" || code === "home_insurance" || code === "industrial_all_risk";
+}
+
+function isEquipmentLike(code: string) {
+  return code === "equipment_insurance" || code === "equipment_all_risk";
+}
+
+function TextInput({
+  name,
+  placeholder,
+  record,
+  required = false,
+  uppercase = false,
+}: {
+  name: string;
+  placeholder?: string;
+  record: RiskDetailRecord | Record<string, unknown>;
+  required?: boolean;
+  uppercase?: boolean;
+}) {
+  return (
+    <input
+      className={`${fieldClass} ${uppercase ? "uppercase" : ""}`}
+      defaultValue={detailText(record, name)}
+      name={name}
+      placeholder={placeholder}
+      required={required}
+    />
+  );
+}
+
+function TextAreaInput({
+  name,
+  record,
+}: {
+  name: string;
+  record: RiskDetailRecord | Record<string, unknown>;
+}) {
+  return (
+    <textarea
+      className={`${fieldClass} min-h-24 py-2`}
+      defaultValue={detailText(record, name)}
+      name={name}
+    />
+  );
+}
+
 export function PolicyEditForm({
+  client,
   equipmentDetail,
   equipmentJson,
+  fireDetail,
+  genericDetail,
   insurers,
+  insuranceCode,
   isEquipmentPolicy,
+  marineDetail,
+  motorDetail,
   policyTermId,
+  primaryRiskLabel,
   splitPatterns,
   term,
+  travelDetail,
 }: PolicyEditFormProps) {
   const [state, formAction] = useActionState<UpdatePolicyState, FormData>(
     updatePolicy,
     {},
   );
+  const [effectiveDate, setEffectiveDate] = useState(toDdMmYyyy(term.effective_date));
+  const [expiryDate, setExpiryDate] = useState(toDdMmYyyy(term.expiry_date));
+  const code = cleanCode(insuranceCode);
+  const isMotor = code === "motor";
+  const isFire = isFireLike(code);
+  const isMarine = code === "marine_insurance";
+  const isTravel = code === "travel";
+  const isGeneric = Boolean(code) && !isMotor && !isFire && !isEquipmentLike(code) && !isMarine && !isTravel;
+  const motorVehicle = motorDetail?.vehicles && typeof motorDetail.vehicles === "object"
+    ? (motorDetail.vehicles as Record<string, unknown>)
+    : {};
+  const motorDefaults = {
+    vehicle_no: detailText(motorDetail, "vehicle_no_snapshot") || detailText(motorVehicle, "vehicle_no"),
+    motor_type: detailText(motorDetail, "motor_type"),
+    type_of_cover: detailText(motorDetail, "type_of_cover") || "Comprehensive",
+    ncd: detailText(motorDetail, "ncd"),
+    make_model: detailText(motorVehicle, "make_model"),
+    year_of_manufacture: detailText(motorVehicle, "year_of_manufacture"),
+    engine_cc: detailText(motorVehicle, "engine_cc"),
+    engine_no: detailText(motorVehicle, "engine_no"),
+    chassis_no: detailText(motorVehicle, "chassis_no"),
+    bdm: detailText(motorDetail, "bdm"),
+    btm: detailText(motorDetail, "btm"),
+    extra_coverage: detailText(motorDetail, "extra_coverage"),
+    motor_description: detailText(motorDetail, "motor_description"),
+  };
 
   return (
     <form action={formAction} className="space-y-4">
@@ -79,6 +296,50 @@ export function PolicyEditForm({
       <ActionMessage message={state.success} tone="success" />
 
       <input name="policy_term_id" type="hidden" value={policyTermId} />
+      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-emerald-100 bg-emerald-50/50 px-4 py-3">
+          <h1 className="font-semibold text-slate-800">Client</h1>
+          <p className="text-xs text-slate-500">
+            These fields update the linked client record used by this policy.
+          </p>
+        </div>
+        <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+          <Field label="Client Name" required>
+            <input
+              className={fieldClass}
+              defaultValue={client?.client_name ?? ""}
+              name="client_name"
+              required
+            />
+          </Field>
+          <Field label="Client Type">
+            <select className={fieldClass} defaultValue={client?.client_type ?? "individual"} name="client_type">
+              <option value="individual">Individual</option>
+              <option value="company">Company</option>
+              <option value="other">Other</option>
+            </select>
+          </Field>
+          <Field label="IC / Business Reg. No.">
+            <input
+              className={fieldClass}
+              defaultValue={client?.business_registration_no ?? ""}
+              name="business_registration_no"
+            />
+          </Field>
+          <Field label="Phone">
+            <input className={fieldClass} defaultValue={client?.phone ?? ""} name="client_phone" />
+          </Field>
+          <Field label="Email">
+            <input
+              className={fieldClass}
+              defaultValue={client?.email ?? ""}
+              name="client_email"
+              type="email"
+            />
+          </Field>
+        </div>
+      </section>
+
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
           <h1 className="font-semibold text-slate-800">Edit Policy Term</h1>
@@ -93,7 +354,7 @@ export function PolicyEditForm({
               <option value="quotation">Quotation only</option>
             </select>
           </Field>
-          <Field label="Insurer">
+          <Field label="Insurer" required>
             <select className={fieldClass} defaultValue={term.insurer_id ?? ""} name="insurer_id" required>
               <option value="">Select insurer</option>
               {insurers.map((insurer) => (
@@ -106,24 +367,30 @@ export function PolicyEditForm({
           <Field label="Policy Number">
             <input className={fieldClass} defaultValue={term.policy_number ?? ""} name="policy_number" />
           </Field>
-          <Field label="Effective Date">
-            <input
-              className={fieldClass}
-              defaultValue={toDdMmYyyy(term.effective_date)}
-              inputMode="numeric"
+          {!isMotor ? (
+            <Field label="Risk / Subject">
+              <input
+                className={fieldClass}
+                defaultValue={primaryRiskLabel ?? ""}
+                name="risk_label"
+                placeholder="Property name, voyage, person, or insured item"
+              />
+            </Field>
+          ) : null}
+          <Field label="Effective Date" required>
+            <DateInput
               name="effective_date"
-              placeholder="dd/mm/yyyy"
+              onChange={setEffectiveDate}
               required
+              value={effectiveDate}
             />
           </Field>
-          <Field label="Expiry Date">
-            <input
-              className={fieldClass}
-              defaultValue={toDdMmYyyy(term.expiry_date)}
-              inputMode="numeric"
+          <Field label="Expiry Date" required>
+            <DateInput
               name="expiry_date"
-              placeholder="dd/mm/yyyy"
+              onChange={setExpiryDate}
               required
+              value={expiryDate}
             />
           </Field>
           <Field label="Sum Assured">
@@ -193,72 +460,270 @@ export function PolicyEditForm({
         </div>
       </section>
 
+      {isMotor ? <MotorRiskSection defaults={motorDefaults} /> : null}
+      {isFire ? <FireRiskSection detail={fireDetail} /> : null}
       {isEquipmentPolicy ? (
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
-            <h2 className="font-semibold text-slate-800">Equipment Details</h2>
-            <p className="text-xs text-slate-500">
-              Vehicle number, engine number, and chassis number are saved on this equipment risk.
-            </p>
-          </div>
-          <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
-            <Field label="Vehicle No">
-              <input
-                className={`${fieldClass} uppercase`}
-                defaultValue={String(equipmentJson.vehicle_no ?? "")}
-                name="equipment_vehicle_no"
-                placeholder="Optional vehicle no"
-              />
-            </Field>
-            <Field label="Equipment Description">
-              <input
-                className={fieldClass}
-                defaultValue={equipmentDetail?.description ?? ""}
-                name="equipment_description"
-                placeholder="Equipment description"
-              />
-            </Field>
-            <Field label="Make / Model">
-              <input
-                className={fieldClass}
-                defaultValue={String(equipmentJson.make_model ?? "")}
-                name="equipment_make_model"
-                placeholder="Make or model"
-              />
-            </Field>
-            <Field label="Year">
-              <input
-                className={fieldClass}
-                defaultValue={String(equipmentJson.year ?? "")}
-                inputMode="numeric"
-                name="equipment_year"
-                placeholder="2022"
-              />
-            </Field>
-            <Field label="Engine No">
-              <input
-                className={fieldClass}
-                defaultValue={String(equipmentJson.engine_no ?? "")}
-                name="equipment_engine_no"
-                placeholder="Engine number"
-              />
-            </Field>
-            <Field label="Chassis No">
-              <input
-                className={fieldClass}
-                defaultValue={String(equipmentJson.chassis_no ?? "")}
-                name="equipment_chassis_no"
-                placeholder="Chassis number"
-              />
-            </Field>
-          </div>
-        </section>
+        <EquipmentRiskSection
+          detail={equipmentDetail}
+          detailsJson={equipmentJson}
+        />
       ) : null}
+      {isMarine ? <MarineRiskSection detail={marineDetail} /> : null}
+      {isTravel ? <TravelRiskSection detail={travelDetail} /> : null}
+      {isGeneric ? <GenericRiskSection detail={genericDetail} /> : null}
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <SubmitButton />
       </div>
     </form>
+  );
+}
+
+function MotorRiskSection({
+  defaults,
+}: {
+  defaults: Record<string, string>;
+}) {
+  return (
+    <FormSection
+      description="Stable vehicle fields are reused next year. Yearly values like NCD and BDM/BTM stay on this policy term."
+      icon={<Car className="h-5 w-5" />}
+      title="Motor Risk"
+    >
+      <Field label="Vehicle No" required>
+        <input
+          className={`${fieldClass} uppercase`}
+          defaultValue={defaults.vehicle_no}
+          name="vehicle_no"
+          placeholder="QSJ6608"
+          required
+        />
+      </Field>
+      <Field label="Motor Type">
+        <select className={fieldClass} defaultValue={defaults.motor_type} name="motor_type">
+          <option value="">Select motor type</option>
+          <option value="private">Private</option>
+          <option value="company">Company</option>
+          <option value="permit_a">Permit A</option>
+          <option value="permit_c">Permit C</option>
+        </select>
+      </Field>
+      <Field label="Type of Cover">
+        <select className={fieldClass} defaultValue={defaults.type_of_cover} name="type_of_cover">
+          <option value="Comprehensive">Comprehensive</option>
+          <option value="3rd Party, Fire and Theft">3rd Party, Fire and Theft</option>
+          <option value="Third Party">Third Party</option>
+        </select>
+      </Field>
+      <Field label="NCD">
+        <input className={fieldClass} defaultValue={defaults.ncd} inputMode="decimal" name="ncd" placeholder="55%" />
+      </Field>
+      <Field label="Make / Model">
+        <input className={fieldClass} defaultValue={defaults.make_model} name="make_model" placeholder="Toyota Hilux" />
+      </Field>
+      <Field label="Year of Manufacture">
+        <input className={fieldClass} defaultValue={defaults.year_of_manufacture} inputMode="numeric" name="year_of_manufacture" placeholder="2022" />
+      </Field>
+      <Field label="Engine CC">
+        <input className={fieldClass} defaultValue={defaults.engine_cc} inputMode="numeric" name="engine_cc" placeholder="2393" />
+      </Field>
+      <Field label="Engine No">
+        <input className={fieldClass} defaultValue={defaults.engine_no} name="engine_no" placeholder="Engine number" />
+      </Field>
+      <Field label="Chassis No">
+        <input className={fieldClass} defaultValue={defaults.chassis_no} name="chassis_no" placeholder="Chassis number" />
+      </Field>
+      <Field label="BDM">
+        <input className={fieldClass} defaultValue={defaults.bdm} inputMode="decimal" name="bdm" placeholder="Optional" />
+      </Field>
+      <Field label="BTM">
+        <input className={fieldClass} defaultValue={defaults.btm} inputMode="decimal" name="btm" placeholder="Optional" />
+      </Field>
+      <div className="md:col-span-2 xl:col-span-3">
+        <Field label="Extra Coverage">
+          <textarea
+            className={`${fieldClass} min-h-24 py-2`}
+            defaultValue={defaults.extra_coverage}
+            name="extra_coverage"
+          />
+        </Field>
+      </div>
+      <div className="md:col-span-2 xl:col-span-3">
+        <Field label="Motor Description">
+          <textarea
+            className={`${fieldClass} min-h-24 py-2`}
+            defaultValue={defaults.motor_description}
+            name="motor_description"
+          />
+        </Field>
+      </div>
+    </FormSection>
+  );
+}
+
+function FireRiskSection({ detail }: { detail: RiskDetailRecord }) {
+  const address =
+    detailText(detail, "property_address") || detailText(detail, "risk_location");
+
+  return (
+    <FormSection
+      description="Fire-like policies use the main term sum assured. Keep this section for risk details only."
+      icon={<Landmark className="h-5 w-5" />}
+      title="Fire Risk"
+    >
+      <Field label="Risk Location / Property Address">
+        <input
+          className={fieldClass}
+          defaultValue={address}
+          name="property_address"
+          placeholder="Insured property or risk location"
+        />
+      </Field>
+      <Field label="Occupation">
+        <TextInput name="occupation" placeholder="Shop, warehouse, residence" record={detail} />
+      </Field>
+      <Field label="Construction Class">
+        <select
+          className={fieldClass}
+          defaultValue={detailText(detail, "construction_type")}
+          name="construction_type"
+        >
+          <option value="">Select construction class</option>
+          <option value="C1A">C1A</option>
+          <option value="C1B">C1B</option>
+          <option value="C2">C2</option>
+        </select>
+      </Field>
+    </FormSection>
+  );
+}
+
+function EquipmentRiskSection({
+  detail,
+  detailsJson,
+}: {
+  detail: EquipmentDetailRecord | null;
+  detailsJson: Record<string, unknown>;
+}) {
+  return (
+    <FormSection
+      description="Equipment policies track machine identity separately from policy values."
+      icon={<Wrench className="h-5 w-5" />}
+      title="Equipment Risk"
+    >
+      <Field label="Vehicle No">
+        <TextInput name="equipment_vehicle_no" placeholder="Optional vehicle no" record={{ equipment_vehicle_no: detailsJson.vehicle_no }} uppercase />
+      </Field>
+      <Field label="Equipment Description">
+        <input
+          className={fieldClass}
+          defaultValue={detail?.description ?? ""}
+          name="equipment_description"
+          placeholder="Equipment description"
+        />
+      </Field>
+      <Field label="Make / Model">
+        <TextInput name="equipment_make_model" placeholder="Make or model" record={{ equipment_make_model: detailsJson.make_model }} />
+      </Field>
+      <Field label="Year">
+        <TextInput name="equipment_year" placeholder="2022" record={{ equipment_year: detailsJson.year }} />
+      </Field>
+      <Field label="Engine No">
+        <TextInput name="equipment_engine_no" placeholder="Engine number" record={{ equipment_engine_no: detailsJson.engine_no }} />
+      </Field>
+      <Field label="Chassis No">
+        <TextInput name="equipment_chassis_no" placeholder="Chassis number" record={{ equipment_chassis_no: detailsJson.chassis_no }} />
+      </Field>
+    </FormSection>
+  );
+}
+
+function MarineRiskSection({ detail }: { detail: RiskDetailRecord }) {
+  return (
+    <FormSection
+      description="Marine policies track the shipment or voyage details separately."
+      icon={<Ship className="h-5 w-5" />}
+      title="Marine Risk"
+    >
+      <Field label="Marine Type">
+        <TextInput name="marine_type" placeholder="Cargo, hull, open cover" record={detail} />
+      </Field>
+      <Field label="Voyage From">
+        <TextInput name="voyage_from" placeholder="Origin" record={detail} />
+      </Field>
+      <Field label="Voyage To">
+        <TextInput name="voyage_to" placeholder="Destination" record={detail} />
+      </Field>
+      <Field label="Goods Description">
+        <TextInput name="goods_description" placeholder="Goods description" record={detail} />
+      </Field>
+    </FormSection>
+  );
+}
+
+function TravelRiskSection({ detail }: { detail: RiskDetailRecord }) {
+  return (
+    <FormSection
+      description="Travel policies use the term dates above. Add destination and traveller details here."
+      icon={<Plane className="h-5 w-5" />}
+      title="Travel Risk"
+    >
+      <Field label="Destination">
+        <TextInput name="destination" placeholder="Destination" record={detail} />
+      </Field>
+      <Field label="Pax">
+        <TextInput name="pax" placeholder="1" record={detail} />
+      </Field>
+      <Field label="Plan Name">
+        <TextInput name="plan_name" placeholder="Plan name" record={detail} />
+      </Field>
+    </FormSection>
+  );
+}
+
+function GenericRiskSection({ detail }: { detail: RiskDetailRecord }) {
+  return (
+    <FormSection
+      description="Use this for PA, liability, machinery, and other non-motor policies."
+      icon={<ShieldCheck className="h-5 w-5" />}
+      title="Other Risk"
+    >
+      <Field label="Detail Type">
+        <TextInput name="generic_detail_type" placeholder="Liability, machinery, PA, etc." record={{ generic_detail_type: detailText(detail, "detail_type") }} />
+      </Field>
+      <div className="md:col-span-2 xl:col-span-3">
+        <Field label="Description">
+          <TextAreaInput name="generic_description" record={{ generic_description: detailText(detail, "description") }} />
+        </Field>
+      </div>
+    </FormSection>
+  );
+}
+
+function FormSection({
+  children,
+  description,
+  icon,
+  title,
+}: {
+  children: React.ReactNode;
+  description: string;
+  icon?: React.ReactNode;
+  title: string;
+}) {
+  return (
+    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
+        <h2 className="flex items-center gap-2 font-semibold text-slate-800">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-sky-700 shadow-sm">
+            {icon ?? <FileText className="h-5 w-5" />}
+          </span>
+          {title}
+        </h2>
+        <p className="text-xs text-slate-500">{description}</p>
+      </div>
+      <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">{children}</div>
+    </section>
   );
 }
 
@@ -280,13 +745,18 @@ function SubmitButton() {
 function Field({
   children,
   label,
+  required = false,
 }: {
   children: React.ReactNode;
   label: string;
+  required?: boolean;
 }) {
   return (
     <label className="grid gap-2 text-sm font-medium text-slate-700">
-      {label}
+      <span>
+        {label}
+        {required ? <span className="ml-1 text-red-500">*</span> : null}
+      </span>
       {children}
     </label>
   );

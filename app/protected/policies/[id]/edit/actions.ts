@@ -44,6 +44,38 @@ function moneyValue(formData: FormData, key: string) {
   return value;
 }
 
+function integerValue(formData: FormData, key: string) {
+  const raw = textValue(formData, key).replace(/,/g, "");
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`${key.replaceAll("_", " ")} must be a valid whole number.`);
+  }
+  return value;
+}
+
+function ncdValue(formData: FormData, key: string) {
+  const raw = textValue(formData, key).replace("%", "");
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`${key.replaceAll("_", " ")} must be a valid percentage.`);
+  }
+  const normalized = value > 1 ? value / 100 : value;
+  if (normalized > 1) {
+    throw new Error(`${key.replaceAll("_", " ")} cannot be more than 100%.`);
+  }
+  return normalized;
+}
+
+function normalizeVehicleNo(value: string) {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
+function cleanClientType(value: string) {
+  return value === "company" || value === "other" ? value : "individual";
+}
+
 function parseDate(formData: FormData, key: string) {
   const raw = textValue(formData, key);
   if (!raw) return null;
@@ -75,6 +107,36 @@ function percentNumber(value: string | number | null | undefined) {
 
 function isEquipmentLikeInsurance(code: string | null | undefined) {
   return code === "equipment_insurance" || code === "equipment_all_risk";
+}
+
+function isFireLikeInsurance(code: string | null | undefined) {
+  return code === "fire" || code === "home_insurance" || code === "industrial_all_risk";
+}
+
+async function upsertPolicyDetail(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  table: string,
+  policyTermId: string,
+  values: Record<string, unknown>,
+) {
+  const { data: existing, error: lookupError } = await supabase
+    .from(table)
+    .select("id")
+    .eq("policy_term_id", policyTermId)
+    .maybeSingle();
+  if (lookupError) throw lookupError;
+
+  if (existing?.id) {
+    const { error } = await supabase.from(table).update(values).eq("id", existing.id);
+    if (error) throw error;
+    return;
+  }
+
+  const { error } = await supabase.from(table).insert({
+    policy_term_id: policyTermId,
+    ...values,
+  });
+  if (error) throw error;
 }
 
 function readableError(error: unknown, fallback: string) {
@@ -112,6 +174,8 @@ export async function updatePolicy(
   try {
     const policyTermId = textValue(formData, "policy_term_id");
     if (!policyTermId) return { error: "Missing policy record." };
+    const clientName = textValue(formData, "client_name");
+    if (!clientName) return { error: "Client name is required." };
 
     const supabase = await createClient();
     const { data: userData, error: userError } = await supabase.auth.getClaims();
@@ -130,6 +194,10 @@ export async function updatePolicy(
     const grossPremium = moneyValue(formData, "gross_premium");
     const netPremium = moneyValue(formData, "net_premium");
     const primarySumAssured = moneyValue(formData, "primary_sum_assured");
+    const businessRegistrationNo = optionalText(formData, "business_registration_no");
+    const clientType = cleanClientType(textValue(formData, "client_type"));
+    const clientPhone = optionalText(formData, "client_phone");
+    const clientEmail = optionalText(formData, "client_email");
 
     if ((await splitPatternRequiresNetPremium(supabase, splitPatternId)) && netPremium === null) {
       return { error: "Net premium is required for this split pattern." };
@@ -151,6 +219,7 @@ export async function updatePolicy(
         quotation_status: termStage === "quotation" ? textValue(formData, "quotation_status") : null,
         policy_status: termStage === "policy" ? textValue(formData, "policy_status") : null,
         renewal_status: textValue(formData, "renewal_status"),
+        insured_name_snapshot: clientName,
         notes: optionalText(formData, "notes"),
       })
       .eq("id", policyTermId);
@@ -158,15 +227,133 @@ export async function updatePolicy(
 
     const { data: termWithType, error: termLookupError } = await supabase
       .from("policy_terms")
-      .select("policy_series_id, insurance_types(code, name)")
+      .select("client_id, policy_series_id, insurance_types(code, name)")
       .eq("id", policyTermId)
       .single();
     if (termLookupError) throw termLookupError;
 
+    if (termWithType.client_id) {
+      const { error: clientUpdateError } = await supabase
+        .from("clients")
+        .update({
+          business_registration_no: businessRegistrationNo,
+          client_name: clientName,
+          client_type: clientType,
+          email: clientEmail,
+          phone: clientPhone,
+        })
+        .eq("id", termWithType.client_id);
+      if (clientUpdateError) throw clientUpdateError;
+    }
+
     const insuranceType = Array.isArray(termWithType.insurance_types)
       ? termWithType.insurance_types[0]
       : termWithType.insurance_types;
-    if (isEquipmentLikeInsurance(insuranceType?.code)) {
+    const insuranceCode = String(insuranceType?.code ?? "").trim().toLowerCase();
+
+    if (insuranceCode === "motor") {
+      const vehicleNo = textValue(formData, "vehicle_no");
+      if (!vehicleNo) return { error: "Vehicle number is required for motor policies." };
+
+      const normalized = normalizeVehicleNo(vehicleNo);
+      const stableVehicleFields = {
+        make_model: optionalText(formData, "make_model"),
+        year_of_manufacture: integerValue(formData, "year_of_manufacture"),
+        engine_cc: integerValue(formData, "engine_cc"),
+        engine_no: optionalText(formData, "engine_no"),
+        chassis_no: optionalText(formData, "chassis_no"),
+      };
+      const { data: existingVehicle, error: vehicleLookupError } = await supabase
+        .from("vehicles")
+        .select("id")
+        .eq("vehicle_no_normalized", normalized)
+        .maybeSingle();
+      if (vehicleLookupError) throw vehicleLookupError;
+
+      let vehicleId = existingVehicle?.id as string | undefined;
+      if (!vehicleId) {
+        const { data: createdVehicle, error: vehicleError } = await supabase
+          .from("vehicles")
+          .insert({
+            vehicle_no: vehicleNo.toUpperCase(),
+            vehicle_no_normalized: normalized,
+            ...stableVehicleFields,
+          })
+          .select("id")
+          .single();
+        if (vehicleError) throw vehicleError;
+        vehicleId = createdVehicle.id as string;
+      } else {
+        const vehicleUpdate = Object.fromEntries(
+          Object.entries(stableVehicleFields).filter(([, value]) => value !== null),
+        );
+        if (Object.keys(vehicleUpdate).length) {
+          const { error: vehicleUpdateError } = await supabase
+            .from("vehicles")
+            .update(vehicleUpdate)
+            .eq("id", vehicleId);
+          if (vehicleUpdateError) throw vehicleUpdateError;
+        }
+      }
+
+      const motorDetails = {
+        vehicle_id: vehicleId,
+        motor_type: optionalText(formData, "motor_type"),
+        type_of_cover: optionalText(formData, "type_of_cover"),
+        vehicle_no_snapshot: vehicleNo.toUpperCase(),
+        ncd: ncdValue(formData, "ncd"),
+        extra_coverage: optionalText(formData, "extra_coverage"),
+        bdm: moneyValue(formData, "bdm"),
+        btm: moneyValue(formData, "btm"),
+        motor_description: optionalText(formData, "motor_description"),
+      };
+      try {
+        await upsertPolicyDetail(supabase, "motor_policy_details", policyTermId, motorDetails);
+      } catch (error) {
+        const message = readableError(error, "");
+        if (
+          message.includes("type_of_cover") ||
+          message.includes("schema cache")
+        ) {
+          const motorDetailsWithoutCover: Record<string, unknown> = { ...motorDetails };
+          delete motorDetailsWithoutCover.type_of_cover;
+          await upsertPolicyDetail(
+            supabase,
+            "motor_policy_details",
+            policyTermId,
+            motorDetailsWithoutCover,
+          );
+        } else {
+          throw error;
+        }
+      }
+
+      await supabase
+        .from("policy_series")
+        .update({ primary_risk_label: vehicleNo.toUpperCase() })
+        .eq("id", termWithType.policy_series_id);
+    } else if (isFireLikeInsurance(insuranceCode)) {
+      const propertyAddress = optionalText(formData, "property_address");
+      await upsertPolicyDetail(supabase, "fire_policy_details", policyTermId, {
+        property_address: propertyAddress,
+        risk_location: propertyAddress,
+        occupation: optionalText(formData, "occupation"),
+        construction_type: optionalText(formData, "construction_type"),
+      });
+    } else if (insuranceCode === "marine_insurance") {
+      await upsertPolicyDetail(supabase, "marine_policy_details", policyTermId, {
+        marine_type: optionalText(formData, "marine_type"),
+        voyage_from: optionalText(formData, "voyage_from"),
+        voyage_to: optionalText(formData, "voyage_to"),
+        goods_description: optionalText(formData, "goods_description"),
+      });
+    } else if (insuranceCode === "travel") {
+      await upsertPolicyDetail(supabase, "travel_policy_details", policyTermId, {
+        destination: optionalText(formData, "destination"),
+        pax: integerValue(formData, "pax"),
+        plan_name: optionalText(formData, "plan_name"),
+      });
+    } else if (isEquipmentLikeInsurance(insuranceCode)) {
       const equipmentVehicleNo = optionalText(formData, "equipment_vehicle_no");
       const equipmentDescription = optionalText(formData, "equipment_description");
       const detailsJson = {
@@ -177,35 +364,12 @@ export async function updatePolicy(
         chassis_no: optionalText(formData, "equipment_chassis_no"),
       };
 
-      const { data: existingEquipment, error: equipmentLookupError } = await supabase
-        .from("generic_policy_details")
-        .select("id")
-        .eq("policy_term_id", policyTermId)
-        .maybeSingle();
-      if (equipmentLookupError) throw equipmentLookupError;
-
-      if (existingEquipment?.id) {
-        const { error: equipmentUpdateError } = await supabase
-          .from("generic_policy_details")
-          .update({
-            detail_type: insuranceType?.name ?? "Equipment Insurance",
-            description: equipmentDescription,
-            sum_insured: null,
-            details_json: detailsJson,
-          })
-          .eq("id", existingEquipment.id);
-        if (equipmentUpdateError) throw equipmentUpdateError;
-      } else {
-        const { error: equipmentInsertError } = await supabase
-          .from("generic_policy_details")
-          .insert({
-            policy_term_id: policyTermId,
-            detail_type: insuranceType?.name ?? "Equipment Insurance",
-            description: equipmentDescription,
-            details_json: detailsJson,
-          });
-        if (equipmentInsertError) throw equipmentInsertError;
-      }
+      await upsertPolicyDetail(supabase, "generic_policy_details", policyTermId, {
+        detail_type: insuranceType?.name ?? "Equipment Insurance",
+        description: equipmentDescription,
+        sum_insured: null,
+        details_json: detailsJson,
+      });
 
       if (equipmentVehicleNo) {
         await supabase
@@ -213,6 +377,28 @@ export async function updatePolicy(
           .update({ primary_risk_label: equipmentVehicleNo.toUpperCase() })
           .eq("id", termWithType.policy_series_id);
       }
+    } else {
+      await upsertPolicyDetail(supabase, "generic_policy_details", policyTermId, {
+        detail_type: optionalText(formData, "generic_detail_type"),
+        description: optionalText(formData, "generic_description"),
+        sum_insured: null,
+      });
+    }
+
+    if (insuranceCode !== "motor" && !isEquipmentLikeInsurance(insuranceCode)) {
+      const riskLabel =
+        optionalText(formData, "risk_label") ||
+        optionalText(formData, "property_address") ||
+        optionalText(formData, "voyage_from") ||
+        optionalText(formData, "voyage_to") ||
+        optionalText(formData, "goods_description") ||
+        optionalText(formData, "destination") ||
+        optionalText(formData, "policy_number") ||
+        optionalText(formData, "generic_description");
+      await supabase
+        .from("policy_series")
+        .update({ primary_risk_label: riskLabel })
+        .eq("id", termWithType.policy_series_id);
     }
 
     await supabase
