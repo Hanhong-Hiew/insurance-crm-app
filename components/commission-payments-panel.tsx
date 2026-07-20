@@ -1,7 +1,7 @@
 "use client";
 
 import { Download, Eye, Search } from "lucide-react";
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -91,6 +91,18 @@ export function CommissionPaymentsPanel({
       ].some((value) => String(value ?? "").toLowerCase().includes(q)),
     );
   }, [query, rows]);
+  const filteredIds = useMemo(
+    () => filteredRows.map((row) => row.commission_id),
+    [filteredRows],
+  );
+  const selectedFilteredCount = filteredIds.filter((id) =>
+    selectedIds.includes(id),
+  ).length;
+  const allFilteredSelected =
+    filteredIds.length > 0 && selectedFilteredCount === filteredIds.length;
+  const someFilteredSelected =
+    selectedFilteredCount > 0 && selectedFilteredCount < filteredIds.length;
+  const selectAllRef = useRef<HTMLInputElement>(null);
   const statementGroups = useMemo(() => {
     const groups = new Map<string, CommissionPaymentRow[]>();
     for (const row of selectedRows) {
@@ -106,6 +118,22 @@ export function CommissionPaymentsPanel({
         : [...current, id],
     );
   }
+
+  function toggleFilteredRows() {
+    setSelectedIds((current) => {
+      if (allFilteredSelected) {
+        return current.filter((id) => !filteredIds.includes(id));
+      }
+
+      return Array.from(new Set([...current, ...filteredIds]));
+    });
+  }
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = someFilteredSelected;
+    }
+  }, [someFilteredSelected]);
 
   function printStatements() {
     window.print();
@@ -185,7 +213,17 @@ export function CommissionPaymentsPanel({
             <table className="w-full text-left text-sm">
               <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                 <tr>
-                  <th className="px-3 py-3"></th>
+                  <th className="px-3 py-3">
+                    <input
+                      aria-label="Select all visible commissions"
+                      checked={allFilteredSelected}
+                      disabled={!filteredIds.length}
+                      onChange={toggleFilteredRows}
+                      ref={selectAllRef}
+                      title="Select all visible rows"
+                      type="checkbox"
+                    />
+                  </th>
                   <th className="px-3 py-3">Payee</th>
                   <th className="px-3 py-3">Client</th>
                   <th className="px-3 py-3">Policy</th>
