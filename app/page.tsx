@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 
 import { AuthButton } from "@/components/auth-button";
+import { KoverLogo } from "@/components/kover-logo";
 import { Button } from "@/components/ui/button";
 import { hasEnvVars } from "@/lib/utils";
 
@@ -10,9 +11,7 @@ export default function Home() {
     <main className="min-h-screen bg-zinc-50 text-zinc-950">
       <div className="mx-auto flex min-h-screen max-w-4xl flex-col justify-center gap-8 px-4">
         <div>
-          <p className="text-xs font-medium uppercase text-zinc-500">
-            Insurance CRM
-          </p>
+          <KoverLogo size="lg" />
           <h1 className="mt-2 text-4xl font-semibold tracking-normal">
             Policy, renewal, payment, and commission tracking.
           </h1>

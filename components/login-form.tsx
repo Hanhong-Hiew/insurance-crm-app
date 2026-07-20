@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { KoverLogo } from "@/components/kover-logo";
 import { Label } from "@/components/ui/label";
 import Link from "next/link";
 import { useState } from "react";
@@ -48,6 +49,7 @@ export function LoginForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader>
+          <KoverLogo size="md" />
           <CardTitle className="text-2xl">Login</CardTitle>
           <CardDescription>
             Enter your email below to login to your account

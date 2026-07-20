@@ -24,6 +24,7 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { KoverLogo } from "@/components/kover-logo";
 import { PremiumStatusSelect } from "@/components/premium-status-select";
 
 type PolicyRecord = {
@@ -431,10 +432,8 @@ export function CrmMainPanel({
       <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div>
-            <p className="text-xs font-medium uppercase text-sky-700">
-              Insurance CRM
-            </p>
-            <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-normal">
+            <KoverLogo size="sm" />
+            <h1 className="mt-3 flex items-center gap-2 text-2xl font-semibold tracking-normal">
               <span>Operations Dashboard</span>
               <button
                 aria-label={

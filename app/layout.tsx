@@ -8,8 +8,11 @@ const defaultUrl = process.env.VERCEL_URL
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
-  title: "Insurance CRM",
-  description: "Private insurance CRM for policies, renewals, payments, and commissions",
+  title: "Kover",
+  description: "Private insurance workspace for policies, renewals, payments, and commissions",
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export default function RootLayout({
