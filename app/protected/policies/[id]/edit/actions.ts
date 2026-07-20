@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { roundMoney } from "@/lib/commission";
 
 export type UpdatePolicyState = {
   error?: string;
@@ -31,8 +32,19 @@ function optionalText(formData: FormData, key: string) {
   return value || null;
 }
 
+function allTextValues(formData: FormData, key: string) {
+  return formData
+    .getAll(key)
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean);
+}
+
 function moneyValue(formData: FormData, key: string) {
-  const raw = textValue(formData, key)
+  return moneyValueFromText(textValue(formData, key), key);
+}
+
+function moneyValueFromText(rawText: string, key = "amount") {
+  const raw = rawText
     .replace(/rm/gi, "")
     .replace(/,/g, "")
     .replace(/\s/g, "");
@@ -198,6 +210,7 @@ export async function updatePolicy(
     const clientType = cleanClientType(textValue(formData, "client_type"));
     const clientPhone = optionalText(formData, "client_phone");
     const clientEmail = optionalText(formData, "client_email");
+    const clientAddress = optionalText(formData, "client_address");
 
     if ((await splitPatternRequiresNetPremium(supabase, splitPatternId)) && netPremium === null) {
       return { error: "Net premium is required for this split pattern." };
@@ -241,6 +254,7 @@ export async function updatePolicy(
           client_type: clientType,
           email: clientEmail,
           phone: clientPhone,
+          address: clientAddress,
         })
         .eq("id", termWithType.client_id);
       if (clientUpdateError) throw clientUpdateError;
@@ -422,6 +436,7 @@ export async function updatePolicy(
       splitPatternId,
       grossPremium,
       netPremium,
+      formData,
     );
 
     await supabase.from("activity_logs").insert({
@@ -450,6 +465,7 @@ async function recalculateCommissions(
   splitPatternId: string | null,
   grossPremium: number | null,
   netPremium: number | null,
+  formData: FormData,
 ) {
   if (!splitPatternId || grossPremium === null) return;
 
@@ -477,7 +493,47 @@ async function recalculateCommissions(
     throw new Error("Net premium is required for this split pattern.");
   }
 
-  await supabase.from("commissions").delete().eq("policy_term_id", policyTermId);
+  const customCommissionEnabled = textValue(formData, "custom_commission_enabled") === "yes";
+  const customReason = optionalText(formData, "custom_commission_reason");
+  if (customCommissionEnabled && !customReason) {
+    throw new Error("Customization reason is required when commission is customized.");
+  }
+
+  const customPayeeIds = allTextValues(formData, "custom_commission_payee_id");
+  const customAmounts = allTextValues(formData, "custom_commission_amount");
+  const customPercents = allTextValues(formData, "custom_commission_percent");
+  const customByPayee = new Map(
+    customPayeeIds.map((payeeId, index) => [
+      payeeId,
+      {
+        amount: moneyValueFromText(customAmounts[index] ?? ""),
+        percent: Number(customPercents[index] ?? 0),
+      },
+    ]),
+  );
+
+  const { data: lockedRows, error: lockedError } = await supabase
+    .from("commissions")
+    .select("payee_id")
+    .eq("policy_term_id", policyTermId)
+    .or("status.eq.paid,is_custom.eq.true");
+  if (lockedError) throw lockedError;
+  const lockedPayeeIds = new Set((lockedRows ?? []).map((row) => row.payee_id as string));
+
+  if (customCommissionEnabled) {
+    await supabase
+      .from("commissions")
+      .delete()
+      .eq("policy_term_id", policyTermId)
+      .neq("status", "paid");
+  } else {
+    await supabase
+      .from("commissions")
+      .delete()
+      .eq("policy_term_id", policyTermId)
+      .neq("status", "paid")
+      .eq("is_custom", false);
+  }
 
   const equalRuleCount =
     splitRules.filter((rule) => rule.rule_type === "equal_net_share").length || 1;
@@ -489,7 +545,8 @@ async function recalculateCommissions(
       0,
     );
 
-  const commissions = splitRules.map((rule) => {
+  const commissions = splitRules.flatMap((rule) => {
+    if (lockedPayeeIds.has(rule.payee_id)) return [];
     let calculationPercent = 0;
     let amount = 0;
 
@@ -507,16 +564,29 @@ async function recalculateCommissions(
       amount = grossPremium * calculationPercent;
     }
 
-    const roundedAmount = Math.round(amount * 100) / 100;
-    return {
+    const roundedAmount = roundMoney(amount);
+    const custom = customByPayee.get(rule.payee_id);
+    const finalAmount =
+      customCommissionEnabled && custom ? roundMoney(custom.amount ?? 0) : roundedAmount;
+    const finalPercent =
+      customCommissionEnabled && custom
+        ? custom.percent || (grossPremium ? finalAmount / grossPremium : calculationPercent)
+        : calculationPercent;
+
+    return [{
       policy_term_id: policyTermId,
       payee_id: rule.payee_id,
       split_pattern_id: splitPatternId,
-      calculation_percent: calculationPercent,
-      amount: roundedAmount,
-      unpaid_amount: roundedAmount,
+      auto_calculation_percent: calculationPercent,
+      auto_amount: roundedAmount,
+      calculation_percent: finalPercent,
+      amount: finalAmount,
+      unpaid_amount: finalAmount,
+      is_custom: customCommissionEnabled,
+      custom_reason: customCommissionEnabled ? customReason : null,
+      customized_at: customCommissionEnabled ? new Date().toISOString() : null,
       status: "unpaid",
-    };
+    }];
   });
 
   if (commissions.length) {

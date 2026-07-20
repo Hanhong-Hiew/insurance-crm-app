@@ -71,6 +71,7 @@ type CommissionRecord = {
   effective_date: string | null;
   expiry_date: string | null;
   paid_date?: string | null;
+  statement_no?: string | null;
 };
 
 type DashboardSummary = {
@@ -468,6 +469,13 @@ export function CrmMainPanel({
             </Link>
             <Link
               className="inline-flex h-9 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-medium text-sky-700 shadow-sm"
+              href="/protected/commission-payments"
+            >
+              <WalletCards className="h-4 w-4" />
+              Payments
+            </Link>
+            <Link
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-medium text-sky-700 shadow-sm"
               href="/protected/settings"
             >
               <Settings className="h-4 w-4" />
@@ -566,6 +574,8 @@ export function CrmMainPanel({
                       ["Amount", money(selected.amount)],
                       ["Unpaid", money(selected.unpaid_amount)],
                       ["Status", clean(selected.status)],
+                      ["Paid Date", formatDate(selected.paid_date)],
+                      ["Statement", clean(selected.statement_no)],
                       ["Expiry", formatDate(selected.expiry_date)],
                     ]}
                   />
@@ -798,6 +808,8 @@ function DashboardPreviewModal({
                     ["Amount", money(record.amount)],
                     ["Unpaid", money(record.unpaid_amount)],
                     ["Status", clean(record.status)],
+                    ["Paid Date", formatDate(record.paid_date)],
+                    ["Statement", clean(record.statement_no)],
                     ["Effective", formatDate(record.effective_date)],
                     ["Expiry", formatDate(record.expiry_date)],
                   ]
@@ -1034,6 +1046,8 @@ function CommissionTable({
           <th className="px-3 py-3 font-medium">Amount</th>
           <th className="px-3 py-3 font-medium">Unpaid</th>
           <th className="px-3 py-3 font-medium">Status</th>
+          <th className="px-3 py-3 font-medium">Paid Date</th>
+          <th className="px-3 py-3 font-medium">Statement</th>
         </tr>
       </thead>
       <tbody>
@@ -1082,11 +1096,13 @@ function CommissionTable({
               <td className="px-3 py-3">{money(row.amount)}</td>
               <td className="px-3 py-3">{money(row.unpaid_amount)}</td>
               <td className="px-3 py-3">{clean(row.status)}</td>
+              <td className="px-3 py-3">{formatDate(row.paid_date)}</td>
+              <td className="px-3 py-3">{clean(row.statement_no)}</td>
             </tr>
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-zinc-500" colSpan={8}>
+            <td className="px-3 py-8 text-center text-zinc-500" colSpan={10}>
               No matching commission records.
             </td>
           </tr>

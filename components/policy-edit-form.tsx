@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  BadgeDollarSign,
   CalendarDays,
   Car,
   FileText,
@@ -20,6 +21,11 @@ import {
 } from "@/app/protected/policies/[id]/edit/actions";
 import { ActionMessage } from "@/components/action-message";
 import { CurrencyInput } from "@/components/currency-input";
+import {
+  calculateCommissionRows,
+  toNumber,
+  type CommissionRule,
+} from "@/lib/commission";
 
 type OptionRow = {
   id: string;
@@ -29,6 +35,7 @@ type OptionRow = {
 };
 
 type PolicyTermRecord = {
+  insurance_type_id?: string | null;
   insurer_id: string | null;
   split_pattern_id: string | null;
   policy_number: string | null;
@@ -46,6 +53,7 @@ type PolicyTermRecord = {
 };
 
 type ClientRecord = {
+  address?: string | null;
   id: string;
   business_registration_no: string | null;
   client_name: string | null;
@@ -62,8 +70,19 @@ type EquipmentDetailRecord = {
 
 type RiskDetailRecord = Record<string, unknown> | null;
 
+type CommissionRateRow = {
+  gross_commission_percent: number | string | null;
+  insurance_type_id: string | null;
+  net_commission_percent: number | string | null;
+};
+
+type SplitRuleRow = CommissionRule & {
+  split_pattern_id: string;
+};
+
 type PolicyEditFormProps = {
   client: ClientRecord | null;
+  commissionRates: CommissionRateRow[];
   equipmentDetail: EquipmentDetailRecord | null;
   equipmentJson: Record<string, unknown>;
   fireDetail: RiskDetailRecord;
@@ -76,6 +95,7 @@ type PolicyEditFormProps = {
   policyTermId: string;
   primaryRiskLabel: string | null;
   splitPatterns: OptionRow[];
+  splitRules: SplitRuleRow[];
   term: PolicyTermRecord;
   travelDetail: RiskDetailRecord;
 };
@@ -188,6 +208,16 @@ function cleanCode(value: string | null | undefined) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function moneyText(value: number | string | null | undefined) {
+  const amount = toNumber(value);
+  if (!amount) return "-";
+  return new Intl.NumberFormat("en-MY", {
+    style: "currency",
+    currency: "MYR",
+    maximumFractionDigits: 2,
+  }).format(amount);
+}
+
 function detailText(record: RiskDetailRecord | Record<string, unknown>, key: string) {
   const value = record?.[key];
   if (value === null || value === undefined) return "";
@@ -244,6 +274,7 @@ function TextAreaInput({
 
 export function PolicyEditForm({
   client,
+  commissionRates,
   equipmentDetail,
   equipmentJson,
   fireDetail,
@@ -256,6 +287,7 @@ export function PolicyEditForm({
   policyTermId,
   primaryRiskLabel,
   splitPatterns,
+  splitRules,
   term,
   travelDetail,
 }: PolicyEditFormProps) {
@@ -265,6 +297,12 @@ export function PolicyEditForm({
   );
   const [effectiveDate, setEffectiveDate] = useState(toDdMmYyyy(term.effective_date));
   const [expiryDate, setExpiryDate] = useState(toDdMmYyyy(term.expiry_date));
+  const [grossPremium, setGrossPremium] = useState(String(term.gross_premium ?? ""));
+  const [netPremium, setNetPremium] = useState(String(term.net_premium ?? ""));
+  const [selectedSplitId, setSelectedSplitId] = useState(term.split_pattern_id ?? "");
+  const [customCommission, setCustomCommission] = useState(false);
+  const [customReason, setCustomReason] = useState("");
+  const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
   const code = cleanCode(insuranceCode);
   const isMotor = code === "motor";
   const isFire = isFireLike(code);
@@ -289,6 +327,24 @@ export function PolicyEditForm({
     extra_coverage: detailText(motorDetail, "extra_coverage"),
     motor_description: detailText(motorDetail, "motor_description"),
   };
+  const selectedRate = commissionRates.find(
+    (rate) => rate.insurance_type_id === term.insurance_type_id,
+  );
+  const selectedRules = splitRules.filter(
+    (rule) => rule.split_pattern_id === selectedSplitId,
+  );
+  const commissionPreview = calculateCommissionRows({
+    grossPremium: toNumber(grossPremium),
+    netCommissionPercent: toNumber(selectedRate?.net_commission_percent),
+    netPremium: toNumber(netPremium),
+    rules: selectedRules,
+  });
+  const totalCommission = commissionPreview.reduce((sum, row) => {
+    const amount = customCommission
+      ? toNumber(customAmounts[row.payee_id] ?? row.amount)
+      : row.amount;
+    return sum + amount;
+  }, 0);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -337,6 +393,16 @@ export function PolicyEditForm({
               type="email"
             />
           </Field>
+          <div className="md:col-span-2 xl:col-span-3">
+            <Field label="Address">
+              <textarea
+                className={`${fieldClass} min-h-24 py-2`}
+                defaultValue={client?.address ?? ""}
+                name="client_address"
+                placeholder="Client address"
+              />
+            </Field>
+          </div>
         </div>
       </section>
 
@@ -397,13 +463,29 @@ export function PolicyEditForm({
             <CurrencyInput defaultValue={term.primary_sum_assured} name="primary_sum_assured" />
           </Field>
           <Field label="Gross Premium">
-            <CurrencyInput defaultValue={term.gross_premium} name="gross_premium" />
+            <CurrencyInput
+              name="gross_premium"
+              onValueChange={setGrossPremium}
+              value={grossPremium}
+            />
           </Field>
           <Field label="Net Premium">
-            <CurrencyInput defaultValue={term.net_premium} name="net_premium" />
+            <CurrencyInput
+              name="net_premium"
+              onValueChange={setNetPremium}
+              value={netPremium}
+            />
           </Field>
           <Field label="Split Pattern">
-            <select className={fieldClass} defaultValue={term.split_pattern_id ?? ""} name="split_pattern_id">
+            <select
+              className={fieldClass}
+              name="split_pattern_id"
+              onChange={(event) => {
+                setSelectedSplitId(event.target.value);
+                setCustomAmounts({});
+              }}
+              value={selectedSplitId}
+            >
               <option value="">Select split pattern</option>
               {splitPatterns.map((pattern) => (
                 <option key={pattern.id} value={pattern.id}>
@@ -471,6 +553,113 @@ export function PolicyEditForm({
       {isMarine ? <MarineRiskSection detail={marineDetail} /> : null}
       {isTravel ? <TravelRiskSection detail={travelDetail} /> : null}
       {isGeneric ? <GenericRiskSection detail={genericDetail} /> : null}
+
+      <FormSection
+        description="Calculated from settings. Tick customize only for special cases."
+        icon={<BadgeDollarSign className="h-5 w-5" />}
+        title="Commission Preview"
+      >
+        <input
+          name="custom_commission_enabled"
+          type="hidden"
+          value={customCommission ? "yes" : "no"}
+        />
+        <div className="rounded-lg border border-sky-100 bg-sky-50/60 px-3 py-2">
+          <p className="text-xs font-semibold uppercase text-sky-700">Gross Rate</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">
+            {selectedRate ? `${(toNumber(selectedRate.gross_commission_percent) * 100).toFixed(2)}%` : "-"}
+          </p>
+        </div>
+        <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2">
+          <p className="text-xs font-semibold uppercase text-emerald-700">Net Rate</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">
+            {selectedRate ? `${(toNumber(selectedRate.net_commission_percent) * 100).toFixed(2)}%` : "-"}
+          </p>
+        </div>
+        <div className="rounded-lg border border-orange-100 bg-orange-50/60 px-3 py-2">
+          <p className="text-xs font-semibold uppercase text-orange-700">Total</p>
+          <p className="mt-1 text-sm font-semibold text-slate-950">
+            {moneyText(totalCommission)}
+          </p>
+        </div>
+        <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
+          <input
+            checked={customCommission}
+            className="h-4 w-4 rounded border-slate-300"
+            onChange={(event) => setCustomCommission(event.target.checked)}
+            type="checkbox"
+          />
+          Customize commission
+        </label>
+        {commissionPreview.length ? (
+          <div className="md:col-span-2 xl:col-span-3">
+            <div className="overflow-hidden rounded-xl border border-slate-200">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold">Payee</th>
+                    <th className="px-3 py-2 font-semibold">Rate</th>
+                    <th className="px-3 py-2 font-semibold">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {commissionPreview.map((row) => (
+                    <tr className="border-t border-slate-100" key={row.payee_id}>
+                      <td className="px-3 py-2">
+                        <input name="custom_commission_payee_id" type="hidden" value={row.payee_id} />
+                        <input
+                          name="custom_commission_percent"
+                          type="hidden"
+                          value={String(row.calculation_percent)}
+                        />
+                        {row.payee_name}
+                      </td>
+                      <td className="px-3 py-2">{(row.calculation_percent * 100).toFixed(2)}%</td>
+                      <td className="px-3 py-2">
+                        {customCommission ? (
+                          <CurrencyInput
+                            name="custom_commission_amount"
+                            onValueChange={(value) =>
+                              setCustomAmounts((current) => ({
+                                ...current,
+                                [row.payee_id]: value,
+                              }))
+                            }
+                            value={customAmounts[row.payee_id] ?? String(row.amount)}
+                          />
+                        ) : (
+                          <>
+                            <input name="custom_commission_amount" type="hidden" value={String(row.amount)} />
+                            {moneyText(row.amount)}
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500 md:col-span-2 xl:col-span-3">
+            Add premium and split pattern to preview commission.
+          </p>
+        )}
+        {customCommission ? (
+          <div className="md:col-span-2 xl:col-span-3">
+            <Field label="Customization Reason" required>
+              <textarea
+                className={`${fieldClass} min-h-24 py-2`}
+                name="custom_commission_reason"
+                onChange={(event) => setCustomReason(event.target.value)}
+                placeholder="Example: special case, rounded by insurer, Chelsea waived"
+                required
+                value={customReason}
+              />
+            </Field>
+          </div>
+        ) : null}
+      </FormSection>
 
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
         <SubmitButton />

@@ -3,8 +3,10 @@
 type CurrencyInputProps = {
   defaultValue?: number | string | null;
   name: string;
+  onValueChange?: (value: string) => void;
   placeholder?: string;
   required?: boolean;
+  value?: string;
 };
 
 const inputClass =
@@ -30,9 +32,13 @@ function formatMoneyText(value: number | string | null | undefined) {
 export function CurrencyInput({
   defaultValue,
   name,
+  onValueChange,
   placeholder = "0.00",
   required = false,
+  value,
 }: CurrencyInputProps) {
+  const inputValue = value === undefined ? undefined : formatMoneyText(value);
+
   return (
     <div className="flex h-10 overflow-hidden rounded-lg border border-slate-200 bg-white transition focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100">
       <span className="flex items-center border-r border-sky-100 bg-sky-50 px-3 text-sm font-semibold text-sky-700">
@@ -40,22 +46,26 @@ export function CurrencyInput({
       </span>
       <input
         className={inputClass}
-        defaultValue={formatMoneyText(defaultValue)}
+        defaultValue={value === undefined ? formatMoneyText(defaultValue) : undefined}
         inputMode="decimal"
         name={name}
         onBlur={(event) => {
           event.currentTarget.value = formatMoneyText(event.currentTarget.value);
+          onValueChange?.(event.currentTarget.value);
         }}
         onChange={(event) => {
           event.currentTarget.value = normalizeMoneyText(event.currentTarget.value);
+          onValueChange?.(event.currentTarget.value);
         }}
         onFocus={(event) => {
           event.currentTarget.value = normalizeMoneyText(event.currentTarget.value);
+          onValueChange?.(event.currentTarget.value);
         }}
         pattern="[0-9,]+([.][0-9]{0,2})?"
         placeholder={placeholder}
         required={required}
         type="text"
+        value={inputValue}
       />
     </div>
   );

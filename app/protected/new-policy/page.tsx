@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 
 type OptionRow = {
   id: string;
+  address?: string | null;
   name?: string | null;
   client_name?: string | null;
   business_registration_no?: string | null;
@@ -16,6 +17,26 @@ type OptionRow = {
   email?: string | null;
   insurer_name?: string | null;
   code?: string | null;
+};
+
+type CommissionRateRow = {
+  gross_commission_percent: number | string | null;
+  insurance_type_id: string | null;
+  net_commission_percent: number | string | null;
+};
+
+type SplitRuleRow = {
+  fixed_percent: number | string | null;
+  payee_id: string;
+  rule_type:
+    | "net_commission_share"
+    | "fixed_percent_of_gross"
+    | "remaining_net_after_fixed_percent"
+    | "equal_net_share";
+  share_percent: number | string | null;
+  split_pattern_id: string;
+  subtract_percent: number | string | null;
+  commission_payees: { name?: string | null } | Array<{ name?: string | null }> | null;
 };
 
 export default function NewPolicyPage() {
@@ -34,11 +55,11 @@ async function NewPolicyContent() {
     redirect("/auth/login");
   }
 
-  const [clientsResult, typesResult, insurersResult, splitsResult] =
+  const [clientsResult, typesResult, insurersResult, splitsResult, ratesResult, rulesResult] =
     await Promise.all([
       supabase
         .from("clients")
-        .select("id, client_name, business_registration_no, client_type, phone, email")
+        .select("id, client_name, business_registration_no, client_type, phone, email, address")
         .order("client_name", { ascending: true })
         .limit(100),
       supabase
@@ -56,17 +77,35 @@ async function NewPolicyContent() {
         .select("id, code, name")
         .eq("active", true)
         .order("code", { ascending: true }),
+      supabase
+        .from("commission_rate_settings")
+        .select("insurance_type_id, gross_commission_percent, net_commission_percent")
+        .eq("active", true)
+        .is("effective_to", null),
+      supabase
+        .from("commission_split_rules")
+        .select("split_pattern_id, payee_id, rule_type, share_percent, fixed_percent, subtract_percent, commission_payees(name)")
+        .order("sort_order", { ascending: true }),
     ]);
 
   const clients = (clientsResult.data ?? []) as OptionRow[];
   const insuranceTypes = (typesResult.data ?? []) as OptionRow[];
   const insurers = (insurersResult.data ?? []) as OptionRow[];
   const splitPatterns = (splitsResult.data ?? []) as OptionRow[];
+  const commissionRates = (ratesResult.data ?? []) as CommissionRateRow[];
+  const splitRules = ((rulesResult.data ?? []) as SplitRuleRow[]).map((rule) => ({
+    ...rule,
+    payee_name: Array.isArray(rule.commission_payees)
+      ? rule.commission_payees[0]?.name ?? null
+      : rule.commission_payees?.name ?? null,
+  }));
   const errors = [
     clientsResult.error?.message,
     typesResult.error?.message,
     insurersResult.error?.message,
     splitsResult.error?.message,
+    ratesResult.error?.message,
+    rulesResult.error?.message,
   ].filter((message): message is string => Boolean(message));
 
   return (
@@ -79,8 +118,10 @@ async function NewPolicyContent() {
 
       <NewPolicyForm
         clients={clients}
+        commissionRates={commissionRates}
         insuranceTypes={insuranceTypes}
         insurers={insurers}
+        splitRules={splitRules}
         splitPatterns={splitPatterns}
       />
     </PageShell>

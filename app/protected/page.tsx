@@ -12,6 +12,7 @@ type RawCommissionRow = {
   unpaid_amount: number | string | null;
   status: string | null;
   paid_date: string | null;
+  commission_payment_batches?: { statement_no?: string | null } | Array<{ statement_no?: string | null }> | null;
   commission_payees: { name?: string | null } | Array<{ name?: string | null }> | null;
   policy_terms: {
     policy_number?: string | null;
@@ -73,7 +74,7 @@ async function ProtectedContent() {
       supabase
         .from("commissions")
         .select(
-          "id, policy_term_id, calculation_percent, amount, unpaid_amount, status, paid_date, commission_payees(name), policy_terms(policy_number, effective_date, expiry_date, clients(client_name), insurance_types(name))",
+          "id, policy_term_id, calculation_percent, amount, unpaid_amount, status, paid_date, commission_payees(name), commission_payment_batches(statement_no), policy_terms(policy_number, effective_date, expiry_date, clients(client_name), insurance_types(name))",
         )
         .order("created_at", { ascending: false })
         .limit(500),
@@ -91,6 +92,7 @@ async function ProtectedContent() {
     (commission) => {
       const term = commission.policy_terms;
       const payee = firstValue(commission.commission_payees);
+      const batch = firstValue(commission.commission_payment_batches);
       const client = firstValue(term?.clients);
       const insuranceType = firstValue(term?.insurance_types);
 
@@ -108,6 +110,7 @@ async function ProtectedContent() {
         effective_date: term?.effective_date ?? null,
         expiry_date: term?.expiry_date ?? null,
         paid_date: commission.paid_date,
+        statement_no: batch?.statement_no ?? null,
       };
     },
   );

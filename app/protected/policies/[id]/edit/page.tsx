@@ -31,6 +31,8 @@ async function EditPolicyContent({ params }: PageProps) {
     termResult,
     insurersResult,
     splitsResult,
+    ratesResult,
+    rulesResult,
     motorResult,
     fireResult,
     marineResult,
@@ -39,7 +41,7 @@ async function EditPolicyContent({ params }: PageProps) {
   ] = await Promise.all([
     supabase
       .from("policy_terms")
-      .select("*, insurance_types(code, name), clients(id, client_name, business_registration_no, client_type, phone, email)")
+      .select("*, insurance_types(code, name), clients(id, client_name, business_registration_no, client_type, phone, email, address)")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -52,6 +54,15 @@ async function EditPolicyContent({ params }: PageProps) {
       .select("id, code, name")
       .eq("active", true)
       .order("code", { ascending: true }),
+    supabase
+      .from("commission_rate_settings")
+      .select("insurance_type_id, gross_commission_percent, net_commission_percent")
+      .eq("active", true)
+      .is("effective_to", null),
+    supabase
+      .from("commission_split_rules")
+      .select("split_pattern_id, payee_id, rule_type, share_percent, fixed_percent, subtract_percent, commission_payees(name)")
+      .order("sort_order", { ascending: true }),
     supabase
       .from("motor_policy_details")
       .select("*, vehicles(*)")
@@ -68,6 +79,8 @@ async function EditPolicyContent({ params }: PageProps) {
   const setupErrors = [
     insurersResult.error,
     splitsResult.error,
+    ratesResult.error,
+    rulesResult.error,
     motorResult.error,
     fireResult.error,
     marineResult.error,
@@ -102,6 +115,7 @@ async function EditPolicyContent({ params }: PageProps) {
     <PageShell policyTermId={id}>
       <PolicyEditForm
         client={client ?? null}
+        commissionRates={ratesResult.data ?? []}
         equipmentDetail={equipmentDetail}
         equipmentJson={equipmentJson}
         fireDetail={fireResult.data ?? null}
@@ -114,6 +128,18 @@ async function EditPolicyContent({ params }: PageProps) {
         policyTermId={id}
         primaryRiskLabel={seriesResult?.data?.primary_risk_label ?? null}
         splitPatterns={splitsResult.data ?? []}
+        splitRules={(rulesResult.data ?? []).map((rule) => {
+          const payees = rule.commission_payees as
+            | { name?: string | null }
+            | Array<{ name?: string | null }>
+            | null;
+          return {
+            ...rule,
+            payee_name: Array.isArray(payees)
+              ? payees[0]?.name ?? null
+              : payees?.name ?? null,
+          };
+        })}
         term={term}
         travelDetail={travelResult.data ?? null}
       />

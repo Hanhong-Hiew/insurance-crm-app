@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
+import { roundMoney } from "@/lib/commission";
 
 export type SavePolicyState = {
   error?: string;
@@ -32,8 +33,19 @@ function optionalText(formData: FormData, key: string) {
   return value || null;
 }
 
+function allTextValues(formData: FormData, key: string) {
+  return formData
+    .getAll(key)
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean);
+}
+
 function moneyValue(formData: FormData, key: string) {
-  const raw = textValue(formData, key)
+  return moneyValueFromText(textValue(formData, key), key);
+}
+
+function moneyValueFromText(rawText: string, key = "amount") {
+  const raw = rawText
     .replace(/rm/gi, "")
     .replace(/,/g, "")
     .replace(/\s/g, "");
@@ -163,6 +175,7 @@ export async function savePolicy(
     const clientType = cleanClientType(textValue(formData, "client_type"));
     const clientPhone = optionalText(formData, "client_phone");
     const clientEmail = optionalText(formData, "client_email");
+    const clientAddress = optionalText(formData, "client_address");
     const insuranceTypeId = textValue(formData, "insurance_type_id");
     const insurerId = textValue(formData, "insurer_id");
     const splitPatternId = optionalText(formData, "split_pattern_id");
@@ -214,12 +227,13 @@ export async function savePolicy(
       client_type: string | null;
       phone: string | null;
       email: string | null;
+      address: string | null;
     } | null = null;
 
     if (selectedClientId) {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, business_registration_no, client_type, phone, email")
+        .select("id, business_registration_no, client_type, phone, email, address")
         .eq("id", selectedClientId)
         .maybeSingle();
       if (error) throw error;
@@ -229,7 +243,7 @@ export async function savePolicy(
     if (!existingClient && businessRegistrationNo) {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, business_registration_no, client_type, phone, email")
+        .select("id, business_registration_no, client_type, phone, email, address")
         .eq("business_registration_no", businessRegistrationNo)
         .maybeSingle();
       if (error) throw error;
@@ -239,7 +253,7 @@ export async function savePolicy(
     if (!existingClient) {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, business_registration_no, client_type, phone, email")
+        .select("id, business_registration_no, client_type, phone, email, address")
         .eq("client_name", clientName)
         .maybeSingle();
       if (error) throw error;
@@ -257,6 +271,7 @@ export async function savePolicy(
           client_type: clientType,
           phone: clientPhone,
           email: clientEmail,
+          address: clientAddress,
         })
         .select("id")
         .single();
@@ -276,9 +291,11 @@ export async function savePolicy(
         if (existingClient.client_type !== clientType) clientUpdate.client_type = clientType;
         if (clientPhone !== existingClient.phone) clientUpdate.phone = clientPhone;
         if (clientEmail !== existingClient.email) clientUpdate.email = clientEmail;
+        if (clientAddress) clientUpdate.address = clientAddress;
       } else {
         if (clientPhone && !existingClient.phone) clientUpdate.phone = clientPhone;
         if (clientEmail && !existingClient.email) clientUpdate.email = clientEmail;
+        if (clientAddress) clientUpdate.address = clientAddress;
       }
 
       if (Object.keys(clientUpdate).length) {
@@ -526,6 +543,24 @@ export async function savePolicy(
             0,
           );
 
+        const customCommissionEnabled = textValue(formData, "custom_commission_enabled") === "yes";
+        const customReason = optionalText(formData, "custom_commission_reason");
+        const customPayeeIds = allTextValues(formData, "custom_commission_payee_id");
+        const customAmounts = allTextValues(formData, "custom_commission_amount");
+        const customPercents = allTextValues(formData, "custom_commission_percent");
+        if (customCommissionEnabled && !customReason) {
+          throw new Error("Customization reason is required when commission is customized.");
+        }
+        const customByPayee = new Map(
+          customPayeeIds.map((payeeId, index) => [
+            payeeId,
+            {
+              amount: moneyValueFromText(customAmounts[index] ?? ""),
+              percent: Number(customPercents[index] ?? 0),
+            },
+          ]),
+        );
+
         const commissions = splitRules.map((rule) => {
           let calculationPercent = 0;
           let amount = 0;
@@ -544,15 +579,27 @@ export async function savePolicy(
             amount = grossPremium * calculationPercent;
           }
 
-          const roundedAmount = Math.round(amount * 100) / 100;
+          const roundedAmount = roundMoney(amount);
+          const custom = customByPayee.get(rule.payee_id);
+          const finalAmount =
+            customCommissionEnabled && custom ? roundMoney(custom.amount ?? 0) : roundedAmount;
+          const finalPercent =
+            customCommissionEnabled && custom
+              ? custom.percent || (grossPremium ? finalAmount / grossPremium : calculationPercent)
+              : calculationPercent;
 
           return {
             policy_term_id: policyTerm.id,
             payee_id: rule.payee_id,
             split_pattern_id: splitPatternId,
-            calculation_percent: calculationPercent,
-            amount: roundedAmount,
-            unpaid_amount: roundedAmount,
+            auto_calculation_percent: calculationPercent,
+            auto_amount: roundedAmount,
+            calculation_percent: finalPercent,
+            amount: finalAmount,
+            unpaid_amount: finalAmount,
+            is_custom: customCommissionEnabled,
+            custom_reason: customCommissionEnabled ? customReason : null,
+            customized_at: customCommissionEnabled ? new Date().toISOString() : null,
             status: "unpaid",
           };
         });

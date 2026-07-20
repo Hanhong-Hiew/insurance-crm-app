@@ -4,12 +4,20 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { createClient } from "@/lib/supabase/server";
+import {
+  saveCommissionRate,
+  saveInsuranceType,
+  saveInsurer,
+  savePayee,
+  saveSplitPattern,
+} from "./actions";
 
 type InsuranceType = {
   id: string;
   code: string | null;
   name: string | null;
   active: boolean | null;
+  notes?: string | null;
 };
 
 type Insurer = {
@@ -17,6 +25,7 @@ type Insurer = {
   insurer_name: string | null;
   short_name: string | null;
   active: boolean | null;
+  notes?: string | null;
 };
 
 type CommissionRate = {
@@ -25,6 +34,7 @@ type CommissionRate = {
   gross_commission_percent: number | string | null;
   net_commission_percent: number | string | null;
   active: boolean | null;
+  notes?: string | null;
 };
 
 type SplitPattern = {
@@ -32,6 +42,23 @@ type SplitPattern = {
   code: string | null;
   name: string | null;
   active: boolean | null;
+  notes?: string | null;
+};
+
+type Payee = {
+  id: string;
+  name: string | null;
+  active: boolean | null;
+  notes?: string | null;
+};
+
+type SplitRule = {
+  id: string;
+  fixed_percent: number | string | null;
+  rule_type: string | null;
+  share_percent: number | string | null;
+  split_pattern_id: string | null;
+  commission_payees: { name?: string | null } | Array<{ name?: string | null }> | null;
 };
 
 function percent(value: number | string | null) {
@@ -60,36 +87,59 @@ async function SettingsContent() {
     redirect("/auth/login");
   }
 
-  const [typesResult, insurersResult, ratesResult, splitsResult] =
+  const [typesResult, insurersResult, ratesResult, splitsResult, payeesResult, rulesResult] =
     await Promise.all([
       supabase
         .from("insurance_types")
-        .select("id, code, name, active")
+        .select("id, code, name, active, notes")
         .order("name", { ascending: true }),
       supabase
         .from("insurers")
-        .select("id, insurer_name, short_name, active")
+        .select("id, insurer_name, short_name, active, notes")
         .order("insurer_name", { ascending: true }),
       supabase
         .from("commission_rate_settings")
-        .select("id, insurance_type_id, gross_commission_percent, net_commission_percent, active")
+        .select("id, insurance_type_id, gross_commission_percent, net_commission_percent, active, notes")
         .order("created_at", { ascending: true }),
       supabase
         .from("commission_split_patterns")
-        .select("id, code, name, active")
+        .select("id, code, name, active, notes")
         .order("code", { ascending: true }),
+      supabase
+        .from("commission_payees")
+        .select("id, name, active, notes")
+        .order("name", { ascending: true }),
+      supabase
+        .from("commission_split_rules")
+        .select("id, split_pattern_id, rule_type, share_percent, fixed_percent, commission_payees(name)")
+        .order("sort_order", { ascending: true }),
     ]);
 
   const insuranceTypes = (typesResult.data ?? []) as InsuranceType[];
   const insurers = (insurersResult.data ?? []) as Insurer[];
   const rates = (ratesResult.data ?? []) as CommissionRate[];
   const splits = (splitsResult.data ?? []) as SplitPattern[];
+  const payees = (payeesResult.data ?? []) as Payee[];
+  const rules = (rulesResult.data ?? []) as SplitRule[];
   const typeNameById = new Map(insuranceTypes.map((type) => [type.id, type.name]));
+  const rulesBySplitId = new Map<string, string[]>();
+  for (const rule of rules) {
+    const splitId = rule.split_pattern_id ?? "";
+    const payee = Array.isArray(rule.commission_payees)
+      ? rule.commission_payees[0]?.name
+      : rule.commission_payees?.name;
+    const label = `${payee || "Payee"} / ${clean(rule.rule_type)} ${
+      rule.fixed_percent ? percent(rule.fixed_percent) : rule.share_percent ? percent(rule.share_percent) : ""
+    }`;
+    rulesBySplitId.set(splitId, [...(rulesBySplitId.get(splitId) ?? []), label]);
+  }
   const errors = [
     typesResult.error?.message,
     insurersResult.error?.message,
     ratesResult.error?.message,
     splitsResult.error?.message,
+    payeesResult.error?.message,
+    rulesResult.error?.message,
   ].filter((message): message is string => Boolean(message));
 
   return (
@@ -100,44 +150,110 @@ async function SettingsContent() {
         </div>
       ) : null}
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <TableCard
-          columns={["Insurance Type", "Code", "Status"]}
-          rows={insuranceTypes.map((type) => [
-            clean(type.name),
-            clean(type.code),
-            type.active ? "Active" : "Inactive",
-          ])}
-          title="Insurance Types"
-        />
-        <TableCard
-          columns={["Insurer", "Short Name", "Status"]}
-          rows={insurers.map((insurer) => [
-            clean(insurer.insurer_name),
-            clean(insurer.short_name),
-            insurer.active ? "Active" : "Inactive",
-          ])}
-          title="Insurers"
-        />
-        <TableCard
-          columns={["Type", "Commission", "Net", "Status"]}
-          rows={rates.map((rate) => [
-            clean(typeNameById.get(rate.insurance_type_id ?? "") ?? null),
-            percent(rate.gross_commission_percent),
-            percent(rate.net_commission_percent),
-            rate.active ? "Active" : "Inactive",
-          ])}
-          title="Commission Rates"
-        />
-        <TableCard
-          columns={["Pattern", "Name", "Status"]}
-          rows={splits.map((split) => [
-            clean(split.code),
-            clean(split.name),
-            split.active ? "Active" : "Inactive",
-          ])}
-          title="Split Patterns"
-        />
+      <section className="grid gap-4">
+        <SettingsCard title="Insurance Types">
+          {insuranceTypes.map((type) => (
+            <form action={saveInsuranceType} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_1fr_auto_auto]" key={type.id}>
+              <input name="id" type="hidden" value={type.id} />
+              <TextInput defaultValue={clean(type.name)} name="name" placeholder="Name" />
+              <TextInput defaultValue={clean(type.code)} name="code" placeholder="code" />
+              <ActiveCheckbox defaultChecked={Boolean(type.active)} />
+              <SaveButton />
+            </form>
+          ))}
+          <form action={saveInsuranceType} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1fr_1fr_auto_auto]">
+            <TextInput name="name" placeholder="New insurance type" />
+            <TextInput name="code" placeholder="new_code" />
+            <ActiveCheckbox defaultChecked />
+            <SaveButton label="Add" />
+          </form>
+        </SettingsCard>
+
+        <SettingsCard title="Insurers">
+          {insurers.map((insurer) => (
+            <form action={saveInsurer} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_1fr_auto_auto]" key={insurer.id}>
+              <input name="id" type="hidden" value={insurer.id} />
+              <TextInput defaultValue={clean(insurer.insurer_name)} name="insurer_name" placeholder="Insurer" />
+              <TextInput defaultValue={clean(insurer.short_name)} name="short_name" placeholder="Short name" />
+              <ActiveCheckbox defaultChecked={Boolean(insurer.active)} />
+              <SaveButton />
+            </form>
+          ))}
+          <form action={saveInsurer} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1fr_1fr_auto_auto]">
+            <TextInput name="insurer_name" placeholder="New insurer" />
+            <TextInput name="short_name" placeholder="Short name" />
+            <ActiveCheckbox defaultChecked />
+            <SaveButton label="Add" />
+          </form>
+        </SettingsCard>
+
+        <SettingsCard title="Commission Rates">
+          {rates.map((rate) => (
+            <form action={saveCommissionRate} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1.3fr_1fr_1fr_auto_auto]" key={rate.id}>
+              <input name="id" type="hidden" value={rate.id} />
+              <select className={fieldClass} defaultValue={rate.insurance_type_id ?? ""} name="insurance_type_id">
+                {insuranceTypes.map((type) => (
+                  <option key={type.id} value={type.id}>{type.name}</option>
+                ))}
+              </select>
+              <TextInput defaultValue={(Number(rate.gross_commission_percent ?? 0) * 100).toString()} name="gross_commission_percent" placeholder="Gross %" />
+              <TextInput defaultValue={(Number(rate.net_commission_percent ?? 0) * 100).toString()} name="net_commission_percent" placeholder="Net %" />
+              <ActiveCheckbox defaultChecked={Boolean(rate.active)} />
+              <SaveButton />
+            </form>
+          ))}
+          <form action={saveCommissionRate} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1.3fr_1fr_1fr_auto_auto]">
+            <select className={fieldClass} name="insurance_type_id">
+              <option value="">Select type</option>
+              {insuranceTypes.map((type) => (
+                <option key={type.id} value={type.id}>{type.name}</option>
+              ))}
+            </select>
+            <TextInput name="gross_commission_percent" placeholder="Gross %" />
+            <TextInput name="net_commission_percent" placeholder="Net %" />
+            <ActiveCheckbox defaultChecked />
+            <SaveButton label="Add" />
+          </form>
+        </SettingsCard>
+
+        <SettingsCard title="Split Patterns">
+          {splits.map((split) => (
+            <form action={saveSplitPattern} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[0.7fr_1fr_2fr_auto_auto]" key={split.id}>
+              <input name="id" type="hidden" value={split.id} />
+              <TextInput defaultValue={clean(split.code)} name="code" placeholder="Code" />
+              <TextInput defaultValue={clean(split.name)} name="name" placeholder="Name" />
+              <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                {(rulesBySplitId.get(split.id) ?? ["No rules"]).join(", ")}
+              </p>
+              <ActiveCheckbox defaultChecked={Boolean(split.active)} />
+              <SaveButton />
+            </form>
+          ))}
+          <form action={saveSplitPattern} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[0.7fr_1fr_auto_auto]">
+            <TextInput name="code" placeholder="Code" />
+            <TextInput name="name" placeholder="Name" />
+            <ActiveCheckbox defaultChecked />
+            <SaveButton label="Add" />
+          </form>
+        </SettingsCard>
+
+        <SettingsCard title="Commission Payees">
+          {payees.map((payee) => (
+            <form action={savePayee} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_2fr_auto_auto]" key={payee.id}>
+              <input name="id" type="hidden" value={payee.id} />
+              <TextInput defaultValue={clean(payee.name)} name="name" placeholder="Payee" />
+              <TextInput defaultValue={clean(payee.notes)} name="notes" placeholder="Notes" />
+              <ActiveCheckbox defaultChecked={Boolean(payee.active)} />
+              <SaveButton />
+            </form>
+          ))}
+          <form action={savePayee} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1fr_2fr_auto_auto]">
+            <TextInput name="name" placeholder="New payee" />
+            <TextInput name="notes" placeholder="Notes" />
+            <ActiveCheckbox defaultChecked />
+            <SaveButton label="Add" />
+          </form>
+        </SettingsCard>
       </section>
     </PageShell>
   );
@@ -176,13 +292,53 @@ function PageShell({
   );
 }
 
-function TableCard({
-  columns,
-  rows,
+const fieldClass =
+  "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
+
+function TextInput({
+  defaultValue,
+  name,
+  placeholder,
+}: {
+  defaultValue?: string;
+  name: string;
+  placeholder: string;
+}) {
+  return (
+    <input
+      className={fieldClass}
+      defaultValue={defaultValue === "-" ? "" : defaultValue}
+      name={name}
+      placeholder={placeholder}
+    />
+  );
+}
+
+function ActiveCheckbox({ defaultChecked = false }: { defaultChecked?: boolean }) {
+  return (
+    <label className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700">
+      <input defaultChecked={defaultChecked} name="active" type="checkbox" />
+      Active
+    </label>
+  );
+}
+
+function SaveButton({ label = "Save" }: { label?: string }) {
+  return (
+    <button
+      className="h-10 rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
+      type="submit"
+    >
+      {label}
+    </button>
+  );
+}
+
+function SettingsCard({
+  children,
   title,
 }: {
-  columns: string[];
-  rows: string[][];
+  children: React.ReactNode;
   title: string;
 }) {
   return (
@@ -190,41 +346,7 @@ function TableCard({
       <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
         <h2 className="font-semibold text-slate-800">{title}</h2>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-white text-xs uppercase text-slate-500">
-            <tr>
-              {columns.map((column) => (
-                <th className="px-3 py-3 font-medium" key={column}>
-                  {column}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length ? (
-              rows.map((row, rowIndex) => (
-                <tr className="border-t border-slate-100" key={rowIndex}>
-                  {row.map((cell, cellIndex) => (
-                    <td className="px-3 py-3" key={`${rowIndex}-${cellIndex}`}>
-                      {cell}
-                    </td>
-                  ))}
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td
-                  className="px-3 py-8 text-center text-zinc-500"
-                  colSpan={columns.length}
-                >
-                  No records.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+      <div>{children}</div>
     </section>
   );
 }

@@ -41,6 +41,13 @@ function payeeName(value: unknown) {
   return clean((value as { name?: unknown } | null | undefined)?.name);
 }
 
+function statementNo(value: unknown) {
+  if (Array.isArray(value)) {
+    return clean((value[0] as { statement_no?: unknown } | undefined)?.statement_no);
+  }
+  return clean((value as { statement_no?: unknown } | null | undefined)?.statement_no);
+}
+
 function formatDate(value: unknown) {
   if (!value) return "-";
   const parsed = new Date(`${String(value)}T00:00:00`);
@@ -93,7 +100,7 @@ async function PolicyRecordContent({ params }: PageProps) {
     supabase.from("generic_policy_details").select("*").eq("policy_term_id", id).maybeSingle(),
     supabase
       .from("commissions")
-      .select("id, calculation_percent, amount, unpaid_amount, status, paid_date, commission_payees(name)")
+      .select("id, calculation_percent, amount, unpaid_amount, status, paid_date, commission_payees(name), commission_payment_batches(statement_no)")
       .eq("policy_term_id", id)
       .order("created_at", { ascending: true }),
     supabase
@@ -193,6 +200,8 @@ async function PolicyRecordContent({ params }: PageProps) {
                     <th className="px-3 py-3 font-medium">Amount</th>
                     <th className="px-3 py-3 font-medium">Unpaid</th>
                     <th className="px-3 py-3 font-medium">Status</th>
+                    <th className="px-3 py-3 font-medium">Paid Date</th>
+                    <th className="px-3 py-3 font-medium">Statement</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -206,11 +215,15 @@ async function PolicyRecordContent({ params }: PageProps) {
                         <td className="px-3 py-3">{money(commission.amount)}</td>
                         <td className="px-3 py-3">{money(commission.unpaid_amount)}</td>
                         <td className="px-3 py-3">{clean(commission.status)}</td>
+                        <td className="px-3 py-3">{formatDate(commission.paid_date)}</td>
+                        <td className="px-3 py-3">
+                          {statementNo(commission.commission_payment_batches)}
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td className="px-3 py-8 text-center text-slate-500" colSpan={5}>
+                      <td className="px-3 py-8 text-center text-slate-500" colSpan={7}>
                         No commission rows.
                       </td>
                     </tr>
