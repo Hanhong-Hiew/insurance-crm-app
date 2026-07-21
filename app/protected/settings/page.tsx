@@ -69,6 +69,12 @@ function percent(value: number | string | null) {
   return `${(numeric * 100).toFixed(0)}%`;
 }
 
+function percentInputValue(value: number | string | null) {
+  const numeric = Number(value ?? 0);
+  if (!Number.isFinite(numeric) || numeric === 0) return "";
+  return Number((numeric * 100).toFixed(4)).toString();
+}
+
 function clean(value: string | null | undefined) {
   return value || "-";
 }
@@ -216,8 +222,8 @@ async function SettingsContent() {
                   <option key={type.id} value={type.id}>{type.name}</option>
                 ))}
               </select>
-              <TextInput defaultValue={(Number(rate.gross_commission_percent ?? 0) * 100).toString()} name="gross_commission_percent" placeholder="Gross %" />
-              <TextInput defaultValue={(Number(rate.net_commission_percent ?? 0) * 100).toString()} name="net_commission_percent" placeholder="Net %" />
+              <TextInput defaultValue={percentInputValue(rate.gross_commission_percent)} name="gross_commission_percent" placeholder="Gross %" />
+              <TextInput defaultValue={percentInputValue(rate.net_commission_percent)} name="net_commission_percent" placeholder="Net %" />
               <ActiveCheckbox defaultChecked={Boolean(rate.active)} />
             </SettingsRowForm>
           ))}
