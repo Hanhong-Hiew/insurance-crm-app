@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
+import { SettingsRowForm } from "@/components/settings-row-form";
 import { createClient } from "@/lib/supabase/server";
 import {
   saveCommissionRate,
@@ -153,43 +154,39 @@ async function SettingsContent() {
       <section className="grid gap-4">
         <SettingsCard title="Insurance Types">
           {insuranceTypes.map((type) => (
-            <form action={saveInsuranceType} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_1fr_auto_auto]" key={type.id}>
+            <SettingsRowForm action={saveInsuranceType} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_1fr_auto_auto]" key={type.id}>
               <input name="id" type="hidden" value={type.id} />
               <TextInput defaultValue={clean(type.name)} name="name" placeholder="Name" />
               <TextInput defaultValue={clean(type.code)} name="code" placeholder="code" />
               <ActiveCheckbox defaultChecked={Boolean(type.active)} />
-              <SaveButton />
-            </form>
+            </SettingsRowForm>
           ))}
-          <form action={saveInsuranceType} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1fr_1fr_auto_auto]">
+          <SettingsRowForm action={saveInsuranceType} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1fr_1fr_auto_auto]" submitLabel="Add">
             <TextInput name="name" placeholder="New insurance type" />
             <TextInput name="code" placeholder="new_code" />
             <ActiveCheckbox defaultChecked />
-            <SaveButton label="Add" />
-          </form>
+          </SettingsRowForm>
         </SettingsCard>
 
         <SettingsCard title="Insurers">
           {insurers.map((insurer) => (
-            <form action={saveInsurer} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_1fr_auto_auto]" key={insurer.id}>
+            <SettingsRowForm action={saveInsurer} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_1fr_auto_auto]" key={insurer.id}>
               <input name="id" type="hidden" value={insurer.id} />
               <TextInput defaultValue={clean(insurer.insurer_name)} name="insurer_name" placeholder="Insurer" />
               <TextInput defaultValue={clean(insurer.short_name)} name="short_name" placeholder="Short name" />
               <ActiveCheckbox defaultChecked={Boolean(insurer.active)} />
-              <SaveButton />
-            </form>
+            </SettingsRowForm>
           ))}
-          <form action={saveInsurer} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1fr_1fr_auto_auto]">
+          <SettingsRowForm action={saveInsurer} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1fr_1fr_auto_auto]" submitLabel="Add">
             <TextInput name="insurer_name" placeholder="New insurer" />
             <TextInput name="short_name" placeholder="Short name" />
             <ActiveCheckbox defaultChecked />
-            <SaveButton label="Add" />
-          </form>
+          </SettingsRowForm>
         </SettingsCard>
 
         <SettingsCard title="Commission Rates">
           {rates.map((rate) => (
-            <form action={saveCommissionRate} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1.3fr_1fr_1fr_auto_auto]" key={rate.id}>
+            <SettingsRowForm action={saveCommissionRate} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1.3fr_1fr_1fr_auto_auto]" key={rate.id}>
               <input name="id" type="hidden" value={rate.id} />
               <select className={fieldClass} defaultValue={rate.insurance_type_id ?? ""} name="insurance_type_id">
                 {insuranceTypes.map((type) => (
@@ -199,10 +196,9 @@ async function SettingsContent() {
               <TextInput defaultValue={(Number(rate.gross_commission_percent ?? 0) * 100).toString()} name="gross_commission_percent" placeholder="Gross %" />
               <TextInput defaultValue={(Number(rate.net_commission_percent ?? 0) * 100).toString()} name="net_commission_percent" placeholder="Net %" />
               <ActiveCheckbox defaultChecked={Boolean(rate.active)} />
-              <SaveButton />
-            </form>
+            </SettingsRowForm>
           ))}
-          <form action={saveCommissionRate} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1.3fr_1fr_1fr_auto_auto]">
+          <SettingsRowForm action={saveCommissionRate} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1.3fr_1fr_1fr_auto_auto]" submitLabel="Add">
             <select className={fieldClass} name="insurance_type_id">
               <option value="">Select type</option>
               {insuranceTypes.map((type) => (
@@ -212,13 +208,12 @@ async function SettingsContent() {
             <TextInput name="gross_commission_percent" placeholder="Gross %" />
             <TextInput name="net_commission_percent" placeholder="Net %" />
             <ActiveCheckbox defaultChecked />
-            <SaveButton label="Add" />
-          </form>
+          </SettingsRowForm>
         </SettingsCard>
 
         <SettingsCard title="Split Patterns">
           {splits.map((split) => (
-            <form action={saveSplitPattern} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[0.7fr_1fr_2fr_auto_auto]" key={split.id}>
+            <SettingsRowForm action={saveSplitPattern} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[0.7fr_1fr_2fr_auto_auto]" key={split.id}>
               <input name="id" type="hidden" value={split.id} />
               <TextInput defaultValue={clean(split.code)} name="code" placeholder="Code" />
               <TextInput defaultValue={clean(split.name)} name="name" placeholder="Name" />
@@ -226,33 +221,29 @@ async function SettingsContent() {
                 {(rulesBySplitId.get(split.id) ?? ["No rules"]).join(", ")}
               </p>
               <ActiveCheckbox defaultChecked={Boolean(split.active)} />
-              <SaveButton />
-            </form>
+            </SettingsRowForm>
           ))}
-          <form action={saveSplitPattern} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[0.7fr_1fr_auto_auto]">
+          <SettingsRowForm action={saveSplitPattern} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[0.7fr_1fr_auto_auto]" submitLabel="Add">
             <TextInput name="code" placeholder="Code" />
             <TextInput name="name" placeholder="Name" />
             <ActiveCheckbox defaultChecked />
-            <SaveButton label="Add" />
-          </form>
+          </SettingsRowForm>
         </SettingsCard>
 
         <SettingsCard title="Commission Payees">
           {payees.map((payee) => (
-            <form action={savePayee} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_2fr_auto_auto]" key={payee.id}>
+            <SettingsRowForm action={savePayee} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_2fr_auto_auto]" key={payee.id}>
               <input name="id" type="hidden" value={payee.id} />
               <TextInput defaultValue={clean(payee.name)} name="name" placeholder="Payee" />
               <TextInput defaultValue={clean(payee.notes)} name="notes" placeholder="Notes" />
               <ActiveCheckbox defaultChecked={Boolean(payee.active)} />
-              <SaveButton />
-            </form>
+            </SettingsRowForm>
           ))}
-          <form action={savePayee} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1fr_2fr_auto_auto]">
+          <SettingsRowForm action={savePayee} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1fr_2fr_auto_auto]" submitLabel="Add">
             <TextInput name="name" placeholder="New payee" />
             <TextInput name="notes" placeholder="Notes" />
             <ActiveCheckbox defaultChecked />
-            <SaveButton label="Add" />
-          </form>
+          </SettingsRowForm>
         </SettingsCard>
       </section>
     </PageShell>
@@ -320,17 +311,6 @@ function ActiveCheckbox({ defaultChecked = false }: { defaultChecked?: boolean }
       <input defaultChecked={defaultChecked} name="active" type="checkbox" />
       Active
     </label>
-  );
-}
-
-function SaveButton({ label = "Save" }: { label?: string }) {
-  return (
-    <button
-      className="h-10 rounded-lg bg-sky-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
-      type="submit"
-    >
-      {label}
-    </button>
   );
 }
 
