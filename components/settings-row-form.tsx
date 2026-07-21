@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useRouter } from "next/navigation";
+import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 
 import type { SettingsActionState } from "@/app/protected/settings/actions";
@@ -26,6 +27,11 @@ export function SettingsRowForm({
     action,
     {},
   );
+  const router = useRouter();
+
+  useEffect(() => {
+    if (state.success) router.refresh();
+  }, [router, state.success]);
 
   return (
     <form action={formAction} className={className}>

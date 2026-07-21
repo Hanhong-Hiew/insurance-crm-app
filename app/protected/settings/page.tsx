@@ -1,6 +1,7 @@
 import { ArrowLeft, Settings } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { SettingsRowForm } from "@/components/settings-row-form";
@@ -81,6 +82,7 @@ export default function SettingsPage() {
 }
 
 async function SettingsContent() {
+  await connection();
   const supabase = await createClient();
   const { data: userData, error: userError } = await supabase.auth.getClaims();
 
@@ -152,7 +154,14 @@ async function SettingsContent() {
       ) : null}
 
       <section className="grid gap-4">
-        <SettingsCard title="Insurance Types">
+        <SettingsCard
+          description="Dropdown options for policy type. Code is used internally; keep it short and stable."
+          title="Insurance Types"
+        >
+          <SettingsHeader
+            className="md:grid-cols-[1fr_1fr_auto_auto]"
+            labels={["Name", "Code", "Status", "Save"]}
+          />
           {insuranceTypes.map((type) => (
             <SettingsRowForm action={saveInsuranceType} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_1fr_auto_auto]" key={type.id}>
               <input name="id" type="hidden" value={type.id} />
@@ -168,7 +177,14 @@ async function SettingsContent() {
           </SettingsRowForm>
         </SettingsCard>
 
-        <SettingsCard title="Insurers">
+        <SettingsCard
+          description="Insurer dropdown options used in policy entry and records."
+          title="Insurers"
+        >
+          <SettingsHeader
+            className="md:grid-cols-[1fr_1fr_auto_auto]"
+            labels={["Insurer", "Short Name", "Status", "Save"]}
+          />
           {insurers.map((insurer) => (
             <SettingsRowForm action={saveInsurer} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_1fr_auto_auto]" key={insurer.id}>
               <input name="id" type="hidden" value={insurer.id} />
@@ -184,7 +200,14 @@ async function SettingsContent() {
           </SettingsRowForm>
         </SettingsCard>
 
-        <SettingsCard title="Commission Rates">
+        <SettingsCard
+          description="Default gross and net commission percentages by insurance type."
+          title="Commission Rates"
+        >
+          <SettingsHeader
+            className="md:grid-cols-[1.3fr_1fr_1fr_auto_auto]"
+            labels={["Insurance Type", "Gross %", "Net %", "Status", "Save"]}
+          />
           {rates.map((rate) => (
             <SettingsRowForm action={saveCommissionRate} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1.3fr_1fr_1fr_auto_auto]" key={rate.id}>
               <input name="id" type="hidden" value={rate.id} />
@@ -211,7 +234,14 @@ async function SettingsContent() {
           </SettingsRowForm>
         </SettingsCard>
 
-        <SettingsCard title="Split Patterns">
+        <SettingsCard
+          description="Split names shown during policy entry. Rule details are shown for checking."
+          title="Split Patterns"
+        >
+          <SettingsHeader
+            className="md:grid-cols-[0.7fr_1fr_2fr_auto_auto]"
+            labels={["Code", "Name", "Rules", "Status", "Save"]}
+          />
           {splits.map((split) => (
             <SettingsRowForm action={saveSplitPattern} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[0.7fr_1fr_2fr_auto_auto]" key={split.id}>
               <input name="id" type="hidden" value={split.id} />
@@ -230,7 +260,14 @@ async function SettingsContent() {
           </SettingsRowForm>
         </SettingsCard>
 
-        <SettingsCard title="Commission Payees">
+        <SettingsCard
+          description="People who can receive commission."
+          title="Commission Payees"
+        >
+          <SettingsHeader
+            className="md:grid-cols-[1fr_2fr_auto_auto]"
+            labels={["Payee", "Notes", "Status", "Save"]}
+          />
           {payees.map((payee) => (
             <SettingsRowForm action={savePayee} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_2fr_auto_auto]" key={payee.id}>
               <input name="id" type="hidden" value={payee.id} />
@@ -314,17 +351,38 @@ function ActiveCheckbox({ defaultChecked = false }: { defaultChecked?: boolean }
   );
 }
 
+function SettingsHeader({
+  className,
+  labels,
+}: {
+  className: string;
+  labels: string[];
+}) {
+  return (
+    <div
+      className={`hidden gap-2 border-t border-slate-100 bg-slate-50 px-3 py-2 text-xs font-semibold uppercase text-slate-500 md:grid ${className}`}
+    >
+      {labels.map((label) => (
+        <span key={label}>{label}</span>
+      ))}
+    </div>
+  );
+}
+
 function SettingsCard({
   children,
+  description,
   title,
 }: {
   children: React.ReactNode;
+  description: string;
   title: string;
 }) {
   return (
     <section className="rounded-xl border border-slate-200 bg-white/95 shadow-sm">
       <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
         <h2 className="font-semibold text-slate-800">{title}</h2>
+        <p className="mt-1 text-xs text-slate-500">{description}</p>
       </div>
       <div>{children}</div>
     </section>

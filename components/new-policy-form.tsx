@@ -237,6 +237,7 @@ export function NewPolicyForm({
   const [grossPremium, setGrossPremium] = useState("");
   const [netPremium, setNetPremium] = useState("");
   const [customCommission, setCustomCommission] = useState(false);
+  const [customTotalAmount, setCustomTotalAmount] = useState("");
   const [customReason, setCustomReason] = useState("");
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
 
@@ -259,6 +260,7 @@ export function NewPolicyForm({
     setGrossPremium("");
     setNetPremium("");
     setCustomCommission(false);
+    setCustomTotalAmount("");
     setCustomReason("");
     setCustomAmounts({});
   }
@@ -295,6 +297,26 @@ export function NewPolicyForm({
       : row.amount;
     return sum + amount;
   }, 0);
+  function distributeCustomTotal(value: string) {
+    setCustomTotalAmount(value);
+    const total = toNumber(value);
+    if (!commissionPreview.length || !total) {
+      setCustomAmounts({});
+      return;
+    }
+
+    const autoTotal = commissionPreview.reduce((sum, row) => sum + row.amount, 0);
+    const nextAmounts: Record<string, string> = {};
+    let runningTotal = 0;
+    commissionPreview.forEach((row, index) => {
+      const isLast = index === commissionPreview.length - 1;
+      const share = autoTotal ? row.amount / autoTotal : 1 / commissionPreview.length;
+      const amount = isLast ? total - runningTotal : Math.round(total * share * 100) / 100;
+      runningTotal += amount;
+      nextAmounts[row.payee_id] = amount.toFixed(2);
+    });
+    setCustomAmounts(nextAmounts);
+  }
   const selectedCode = typeCode(selectedType?.code);
   const isMotor = selectedCode === "motor";
   const isFire = isFireLike(selectedCode);
@@ -574,6 +596,7 @@ export function NewPolicyForm({
             name="split_pattern_id"
             onChange={(event) => {
               setSelectedSplitId(event.target.value);
+              setCustomTotalAmount("");
               setCustomAmounts({});
             }}
             value={selectedSplitId}
@@ -633,6 +656,21 @@ export function NewPolicyForm({
           />
           Customize commission
         </label>
+        {customCommission ? (
+          <div className="rounded-lg border border-violet-100 bg-violet-50/70 px-3 py-2 md:col-span-2 xl:col-span-3">
+            <Field label="Custom Total Commission Amount">
+              <CurrencyInput
+                name="custom_total_commission_amount"
+                onValueChange={distributeCustomTotal}
+                placeholder="Override total commission"
+                value={customTotalAmount}
+              />
+            </Field>
+            <p className="mt-2 text-xs text-slate-500">
+              This distributes the total across payees based on the selected split. You can still edit each payee amount below.
+            </p>
+          </div>
+        ) : null}
         {commissionPreview.length ? (
           <div className="md:col-span-2 xl:col-span-3">
             <div className="overflow-hidden rounded-xl border border-slate-200">

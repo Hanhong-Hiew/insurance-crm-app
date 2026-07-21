@@ -40,9 +40,13 @@ async function requireSupabase() {
 }
 
 function readableError(error: unknown, fallback: string) {
-  if (error instanceof Error) return error.message;
-  if (typeof error === "object" && error && "message" in error) {
-    return String(error.message);
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === "object") {
+    const record = error as Record<string, unknown>;
+    const parts = [record.message, record.details, record.hint, record.code].filter(
+      (value): value is string => typeof value === "string" && value.length > 0,
+    );
+    if (parts.length) return parts.join(" ");
   }
   return fallback;
 }
