@@ -51,10 +51,40 @@ type SplitRuleRow = CommissionRule & {
 type NewPolicyFormProps = {
   clients: OptionRow[];
   commissionRates: CommissionRateRow[];
+  duplicateSource?: DuplicatePolicySource | null;
   insuranceTypes: OptionRow[];
   insurers: OptionRow[];
   splitRules: SplitRuleRow[];
   splitPatterns: OptionRow[];
+};
+
+export type RiskDefaults = Record<string, number | string | null | undefined>;
+
+export type DuplicatePolicySource = {
+  business_registration_no?: string | null;
+  client_address?: string | null;
+  client_email?: string | null;
+  client_id?: string | null;
+  client_name?: string | null;
+  client_phone?: string | null;
+  client_referral?: string | null;
+  client_type?: string | null;
+  effective_date?: string | null;
+  expiry_date?: string | null;
+  equipment?: RiskDefaults;
+  fire?: RiskDefaults;
+  generic?: RiskDefaults;
+  gross_premium?: number | string | null;
+  insurance_type_id?: string | null;
+  insurer_id?: string | null;
+  marine?: RiskDefaults;
+  motor?: RiskDefaults;
+  net_premium?: number | string | null;
+  primary_risk_label?: string | null;
+  primary_sum_assured?: number | string | null;
+  split_pattern_id?: string | null;
+  term_stage?: string | null;
+  travel?: RiskDefaults;
 };
 
 const fieldClass =
@@ -62,6 +92,11 @@ const fieldClass =
 
 function optionLabel(row: OptionRow) {
   return row.name || row.client_name || row.insurer_name || row.code || "-";
+}
+
+function defaultText(value: number | string | null | undefined) {
+  if (value === null || value === undefined) return "";
+  return String(value);
 }
 
 function clientSearchText(row: OptionRow) {
@@ -210,6 +245,7 @@ function SubmitButton() {
 export function NewPolicyForm({
   clients,
   commissionRates,
+  duplicateSource = null,
   insuranceTypes,
   insurers,
   splitRules,
@@ -219,23 +255,30 @@ export function NewPolicyForm({
     savePolicy,
     {},
   );
+  const initialDuplicate = duplicateSource;
+  const [useDuplicateSource, setUseDuplicateSource] = useState(Boolean(initialDuplicate));
+  const activeDuplicate = useDuplicateSource ? duplicateSource : null;
   const formRef = useRef<HTMLFormElement>(null);
-  const [clientName, setClientName] = useState("");
-  const [selectedClientId, setSelectedClientId] = useState("");
-  const [businessRegistrationNo, setBusinessRegistrationNo] = useState("");
-  const [clientType, setClientType] = useState("individual");
-  const [clientReferral, setClientReferral] = useState("");
-  const [clientPhone, setClientPhone] = useState("");
-  const [clientEmail, setClientEmail] = useState("");
-  const [clientAddress, setClientAddress] = useState("");
+  const [formResetKey, setFormResetKey] = useState(0);
+  const [clientName, setClientName] = useState(initialDuplicate?.client_name ?? "");
+  const [selectedClientId, setSelectedClientId] = useState(initialDuplicate?.client_id ?? "");
+  const [businessRegistrationNo, setBusinessRegistrationNo] = useState(
+    initialDuplicate?.business_registration_no ?? "",
+  );
+  const [clientType, setClientType] = useState(initialDuplicate?.client_type ?? "individual");
+  const [clientReferral, setClientReferral] = useState(initialDuplicate?.client_referral ?? "");
+  const [clientPhone, setClientPhone] = useState(initialDuplicate?.client_phone ?? "");
+  const [clientEmail, setClientEmail] = useState(initialDuplicate?.client_email ?? "");
+  const [clientAddress, setClientAddress] = useState(initialDuplicate?.client_address ?? "");
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
-  const [selectedTypeId, setSelectedTypeId] = useState("");
-  const [selectedSplitId, setSelectedSplitId] = useState("");
-  const [effectiveDate, setEffectiveDate] = useState("");
-  const [expiryDate, setExpiryDate] = useState("");
+  const [showReferralSuggestions, setShowReferralSuggestions] = useState(false);
+  const [selectedTypeId, setSelectedTypeId] = useState(initialDuplicate?.insurance_type_id ?? "");
+  const [selectedSplitId, setSelectedSplitId] = useState(initialDuplicate?.split_pattern_id ?? "");
+  const [effectiveDate, setEffectiveDate] = useState(initialDuplicate?.effective_date ?? "");
+  const [expiryDate, setExpiryDate] = useState(initialDuplicate?.expiry_date ?? "");
   const [expiryTouched, setExpiryTouched] = useState(false);
-  const [grossPremium, setGrossPremium] = useState("");
-  const [netPremium, setNetPremium] = useState("");
+  const [grossPremium, setGrossPremium] = useState(defaultText(initialDuplicate?.gross_premium));
+  const [netPremium, setNetPremium] = useState(defaultText(initialDuplicate?.net_premium));
   const [customCommission, setCustomCommission] = useState(false);
   const [customTotalAmount, setCustomTotalAmount] = useState("");
   const [customReason, setCustomReason] = useState("");
@@ -243,6 +286,8 @@ export function NewPolicyForm({
 
   function resetForm() {
     formRef.current?.reset();
+    setUseDuplicateSource(false);
+    setFormResetKey((current) => current + 1);
     setClientName("");
     setSelectedClientId("");
     setBusinessRegistrationNo("");
@@ -252,6 +297,7 @@ export function NewPolicyForm({
     setClientEmail("");
     setClientAddress("");
     setShowClientSuggestions(false);
+    setShowReferralSuggestions(false);
     setSelectedTypeId("");
     setSelectedSplitId("");
     setEffectiveDate("");
@@ -343,9 +389,16 @@ export function NewPolicyForm({
       ).sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" })),
     [clients],
   );
+  const filteredReferralOptions = useMemo(() => {
+    const q = clientReferral.trim().toLowerCase();
+    const options = q
+      ? referralOptions.filter((referral) => referral.toLowerCase().includes(q))
+      : referralOptions;
+    return options.slice(0, 8);
+  }, [clientReferral, referralOptions]);
 
   return (
-    <form action={formAction} className="space-y-4" ref={formRef}>
+    <form action={formAction} className="space-y-4" key={formResetKey} ref={formRef}>
       <ActionMessage message={state.error} tone="error" />
       <ActionMessage message={state.success} tone="success" />
       <ActionMessage message={state.warning} tone="warning" />
@@ -420,19 +473,41 @@ export function NewPolicyForm({
           </select>
         </Field>
         <Field label="Referral">
-          <input
-            className={fieldClass}
-            list="client-referral-options"
-            name="client_referral"
-            onChange={(event) => setClientReferral(event.target.value)}
-            placeholder="Who referred this client"
-            value={clientReferral}
-          />
-          <datalist id="client-referral-options">
-            {referralOptions.map((referral) => (
-              <option key={referral} value={referral} />
-            ))}
-          </datalist>
+          <div className="relative">
+            <input
+              autoComplete="off"
+              className={fieldClass}
+              name="client_referral"
+              onBlur={() => {
+                window.setTimeout(() => setShowReferralSuggestions(false), 120);
+              }}
+              onChange={(event) => {
+                setClientReferral(event.target.value);
+                setShowReferralSuggestions(true);
+              }}
+              onFocus={() => setShowReferralSuggestions(true)}
+              placeholder="Who referred this client"
+              value={clientReferral}
+            />
+            {showReferralSuggestions && filteredReferralOptions.length ? (
+              <div className="absolute left-0 right-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-lg border border-sky-200 bg-slate-900 py-1 shadow-lg">
+                {filteredReferralOptions.map((referral) => (
+                  <button
+                    className="block w-full px-3 py-2 text-left text-sm text-white transition hover:bg-sky-700"
+                    key={referral}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      setClientReferral(referral);
+                      setShowReferralSuggestions(false);
+                    }}
+                    type="button"
+                  >
+                    {referral}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </Field>
         <Field label="IC / Business Reg. No.">
           <input
@@ -497,14 +572,24 @@ export function NewPolicyForm({
         </Field>
 
         <Field label="Stage" required>
-          <select className={fieldClass} name="term_stage" required>
+          <select
+            className={fieldClass}
+            defaultValue={activeDuplicate?.term_stage === "quotation" ? "quotation" : "policy"}
+            name="term_stage"
+            required
+          >
             <option value="policy">Policy issued</option>
             <option value="quotation">Quotation only</option>
           </select>
         </Field>
 
         <Field label="Insurer" required>
-          <select className={fieldClass} name="insurer_id" required>
+          <select
+            className={fieldClass}
+            defaultValue={activeDuplicate?.insurer_id ?? ""}
+            name="insurer_id"
+            required
+          >
             <option value="">Select insurer</option>
             {insurers.map((insurer) => (
               <option key={insurer.id} value={insurer.id}>
@@ -522,6 +607,7 @@ export function NewPolicyForm({
           <Field label="Risk / Subject">
             <input
               className={fieldClass}
+              defaultValue={activeDuplicate?.primary_risk_label ?? ""}
               name="risk_label"
               placeholder="Property name, voyage, person, or insured item"
             />
@@ -558,16 +644,19 @@ export function NewPolicyForm({
         </Field>
 
         <Field label="Sum Assured">
-          <CurrencyInput name="primary_sum_assured" />
+          <CurrencyInput
+            defaultValue={activeDuplicate?.primary_sum_assured}
+            name="primary_sum_assured"
+          />
         </Field>
       </FormSection>
 
-      {isMotor ? <MotorRiskSection /> : null}
-      {isFire ? <FireRiskSection /> : null}
-      {isEquipment ? <EquipmentRiskSection /> : null}
-      {isMarine ? <MarineRiskSection /> : null}
-      {isTravel ? <TravelRiskSection /> : null}
-      {showGenericRisk ? <GenericRiskSection /> : null}
+      {isMotor ? <MotorRiskSection defaults={activeDuplicate?.motor} /> : null}
+      {isFire ? <FireRiskSection defaults={activeDuplicate?.fire} /> : null}
+      {isEquipment ? <EquipmentRiskSection defaults={activeDuplicate?.equipment} /> : null}
+      {isMarine ? <MarineRiskSection defaults={activeDuplicate?.marine} /> : null}
+      {isTravel ? <TravelRiskSection defaults={activeDuplicate?.travel} /> : null}
+      {showGenericRisk ? <GenericRiskSection defaults={activeDuplicate?.generic} /> : null}
 
       <FormSection
         description="Commission is calculated from settings after selecting the split pattern."
@@ -790,7 +879,7 @@ function moneyText(value: number | string | null | undefined) {
   }).format(amount);
 }
 
-function MotorRiskSection() {
+function MotorRiskSection({ defaults }: { defaults?: RiskDefaults }) {
   return (
     <FormSection
       description="Stable vehicle fields are reused next year. Yearly values like NCD and BDM/BTM stay on this policy term."
@@ -800,13 +889,14 @@ function MotorRiskSection() {
       <Field label="Vehicle No" required>
         <input
           className={`${fieldClass} uppercase`}
+          defaultValue={defaultText(defaults?.vehicle_no)}
           name="vehicle_no"
           placeholder="QSJ6608"
           required
         />
       </Field>
       <Field label="Motor Type">
-        <select className={fieldClass} name="motor_type">
+        <select className={fieldClass} defaultValue={defaultText(defaults?.motor_type)} name="motor_type">
           <option value="">Select motor type</option>
           <option value="private">Private</option>
           <option value="company">Company</option>
@@ -815,51 +905,55 @@ function MotorRiskSection() {
         </select>
       </Field>
       <Field label="Type of Cover">
-        <select className={fieldClass} defaultValue="Comprehensive" name="type_of_cover">
+        <select
+          className={fieldClass}
+          defaultValue={defaultText(defaults?.type_of_cover) || "Comprehensive"}
+          name="type_of_cover"
+        >
           <option value="Comprehensive">Comprehensive</option>
           <option value="3rd Party, Fire and Theft">3rd Party, Fire and Theft</option>
           <option value="Third Party">Third Party</option>
         </select>
       </Field>
       <Field label="NCD">
-        <input className={fieldClass} inputMode="decimal" name="ncd" placeholder="55%" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.ncd)} inputMode="decimal" name="ncd" placeholder="55%" />
       </Field>
       <Field label="Make / Model">
-        <input className={fieldClass} name="make_model" placeholder="Toyota Hilux" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.make_model)} name="make_model" placeholder="Toyota Hilux" />
       </Field>
       <Field label="Year of Manufacture">
-        <input className={fieldClass} inputMode="numeric" name="year_of_manufacture" placeholder="2022" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.year_of_manufacture)} inputMode="numeric" name="year_of_manufacture" placeholder="2022" />
       </Field>
       <Field label="Engine CC">
-        <input className={fieldClass} inputMode="numeric" name="engine_cc" placeholder="2393" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.engine_cc)} inputMode="numeric" name="engine_cc" placeholder="2393" />
       </Field>
       <Field label="Engine No">
-        <input className={fieldClass} name="engine_no" placeholder="Engine number" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.engine_no)} name="engine_no" placeholder="Engine number" />
       </Field>
       <Field label="Chassis No">
-        <input className={fieldClass} name="chassis_no" placeholder="Chassis number" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.chassis_no)} name="chassis_no" placeholder="Chassis number" />
       </Field>
       <Field label="BDM">
-        <input className={fieldClass} inputMode="decimal" name="bdm" placeholder="Optional" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.bdm)} inputMode="decimal" name="bdm" placeholder="Optional" />
       </Field>
       <Field label="BTM">
-        <input className={fieldClass} inputMode="decimal" name="btm" placeholder="Optional" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.btm)} inputMode="decimal" name="btm" placeholder="Optional" />
       </Field>
       <div className="md:col-span-2 xl:col-span-3">
         <Field label="Extra Coverage">
-          <textarea className={`${fieldClass} min-h-24 py-2`} name="extra_coverage" />
+          <textarea className={`${fieldClass} min-h-24 py-2`} defaultValue={defaultText(defaults?.extra_coverage)} name="extra_coverage" />
         </Field>
       </div>
       <div className="md:col-span-2 xl:col-span-3">
         <Field label="Motor Description">
-          <textarea className={`${fieldClass} min-h-24 py-2`} name="motor_description" />
+          <textarea className={`${fieldClass} min-h-24 py-2`} defaultValue={defaultText(defaults?.motor_description)} name="motor_description" />
         </Field>
       </div>
     </FormSection>
   );
 }
 
-function FireRiskSection() {
+function FireRiskSection({ defaults }: { defaults?: RiskDefaults }) {
   return (
     <FormSection
       description="Fire-like policies use the main term sum assured. Keep this section for risk details only."
@@ -867,13 +961,13 @@ function FireRiskSection() {
       title="Fire Risk"
     >
       <Field label="Risk Location / Property Address">
-        <input className={fieldClass} name="property_address" placeholder="Insured property or risk location" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.property_address)} name="property_address" placeholder="Insured property or risk location" />
       </Field>
       <Field label="Occupation">
-        <input className={fieldClass} name="occupation" placeholder="Shop, warehouse, residence" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.occupation)} name="occupation" placeholder="Shop, warehouse, residence" />
       </Field>
       <Field label="Construction Class">
-        <select className={fieldClass} name="construction_type">
+        <select className={fieldClass} defaultValue={defaultText(defaults?.construction_type)} name="construction_type">
           <option value="">Select construction class</option>
           <option value="C1A">C1A</option>
           <option value="C1B">C1B</option>
@@ -884,7 +978,7 @@ function FireRiskSection() {
   );
 }
 
-function EquipmentRiskSection() {
+function EquipmentRiskSection({ defaults }: { defaults?: RiskDefaults }) {
   return (
     <FormSection
       description="Equipment policies track machine identity separately from policy values."
@@ -892,28 +986,28 @@ function EquipmentRiskSection() {
       title="Equipment Risk"
     >
       <Field label="Vehicle No">
-        <input className={`${fieldClass} uppercase`} name="equipment_vehicle_no" placeholder="Optional vehicle no" />
+        <input className={`${fieldClass} uppercase`} defaultValue={defaultText(defaults?.vehicle_no)} name="equipment_vehicle_no" placeholder="Optional vehicle no" />
       </Field>
       <Field label="Equipment Description">
-        <input className={fieldClass} name="generic_description" placeholder="Equipment description" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.description)} name="generic_description" placeholder="Equipment description" />
       </Field>
       <Field label="Make / Model">
-        <input className={fieldClass} name="equipment_make_model" placeholder="Make or model" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.make_model)} name="equipment_make_model" placeholder="Make or model" />
       </Field>
       <Field label="Year">
-        <input className={fieldClass} inputMode="numeric" name="equipment_year" placeholder="2022" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.year)} inputMode="numeric" name="equipment_year" placeholder="2022" />
       </Field>
       <Field label="Engine No">
-        <input className={fieldClass} name="equipment_engine_no" placeholder="Engine number" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.engine_no)} name="equipment_engine_no" placeholder="Engine number" />
       </Field>
       <Field label="Chassis No">
-        <input className={fieldClass} name="equipment_chassis_no" placeholder="Chassis number" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.chassis_no)} name="equipment_chassis_no" placeholder="Chassis number" />
       </Field>
     </FormSection>
   );
 }
 
-function MarineRiskSection() {
+function MarineRiskSection({ defaults }: { defaults?: RiskDefaults }) {
   return (
     <FormSection
       description="Marine policies track the shipment or voyage details separately."
@@ -921,22 +1015,22 @@ function MarineRiskSection() {
       title="Marine Risk"
     >
       <Field label="Marine Type">
-        <input className={fieldClass} name="marine_type" placeholder="Cargo, hull, open cover" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.marine_type)} name="marine_type" placeholder="Cargo, hull, open cover" />
       </Field>
       <Field label="Voyage From">
-        <input className={fieldClass} name="voyage_from" placeholder="Origin" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.voyage_from)} name="voyage_from" placeholder="Origin" />
       </Field>
       <Field label="Voyage To">
-        <input className={fieldClass} name="voyage_to" placeholder="Destination" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.voyage_to)} name="voyage_to" placeholder="Destination" />
       </Field>
       <Field label="Goods Description">
-        <input className={fieldClass} name="goods_description" placeholder="Goods description" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.goods_description)} name="goods_description" placeholder="Goods description" />
       </Field>
     </FormSection>
   );
 }
 
-function TravelRiskSection() {
+function TravelRiskSection({ defaults }: { defaults?: RiskDefaults }) {
   return (
     <FormSection
       description="Travel policies use the term dates above. Add destination and traveller details here."
@@ -944,19 +1038,19 @@ function TravelRiskSection() {
       title="Travel Risk"
     >
       <Field label="Destination">
-        <input className={fieldClass} name="destination" placeholder="Destination" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.destination)} name="destination" placeholder="Destination" />
       </Field>
       <Field label="Pax">
-        <input className={fieldClass} inputMode="numeric" name="pax" placeholder="1" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.pax)} inputMode="numeric" name="pax" placeholder="1" />
       </Field>
       <Field label="Plan Name">
-        <input className={fieldClass} name="plan_name" placeholder="Plan name" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.plan_name)} name="plan_name" placeholder="Plan name" />
       </Field>
     </FormSection>
   );
 }
 
-function GenericRiskSection() {
+function GenericRiskSection({ defaults }: { defaults?: RiskDefaults }) {
   return (
     <FormSection
       description="Use this for PA, liability, machinery, and other non-motor policies."
@@ -964,11 +1058,11 @@ function GenericRiskSection() {
       title="Other Risk"
     >
       <Field label="Detail Type">
-        <input className={fieldClass} name="generic_detail_type" placeholder="Liability, machinery, PA, etc." />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.detail_type)} name="generic_detail_type" placeholder="Liability, machinery, PA, etc." />
       </Field>
       <div className="md:col-span-2 xl:col-span-3">
         <Field label="Description">
-          <textarea className={`${fieldClass} min-h-24 py-2`} name="generic_description" />
+          <textarea className={`${fieldClass} min-h-24 py-2`} defaultValue={defaultText(defaults?.description)} name="generic_description" />
         </Field>
       </div>
     </FormSection>

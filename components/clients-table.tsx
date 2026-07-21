@@ -2,7 +2,7 @@
 
 import { Plus, Search, Trash2, Users } from "lucide-react";
 import Link from "next/link";
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -46,6 +46,8 @@ export function ClientsTable({
     deleteClientRecord,
     {},
   );
+  const [newReferral, setNewReferral] = useState("");
+  const [showReferralSuggestions, setShowReferralSuggestions] = useState(false);
 
   const filteredClients = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -58,6 +60,20 @@ export function ClientsTable({
       ),
     );
   }, [clients, query]);
+  const filteredReferralOptions = useMemo(() => {
+    const q = newReferral.trim().toLowerCase();
+    const options = q
+      ? referralOptions.filter((referral) => referral.toLowerCase().includes(q))
+      : referralOptions;
+    return options.slice(0, 8);
+  }, [newReferral, referralOptions]);
+
+  useEffect(() => {
+    if (createState.success) {
+      setNewReferral("");
+      setShowReferralSuggestions(false);
+    }
+  }, [createState.success]);
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white/95 shadow-sm">
@@ -120,27 +136,50 @@ export function ClientsTable({
             placeholder="Email"
             type="email"
           />
-          <input
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-            list="client-referral-options"
-            name="referral"
-            placeholder="Referral"
-          />
-          <datalist id="client-referral-options">
-            {referralOptions.map((referral) => (
-              <option key={referral} value={referral} />
-            ))}
-          </datalist>
+          <div className="relative">
+            <input
+              autoComplete="off"
+              className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              name="referral"
+              onBlur={() => {
+                window.setTimeout(() => setShowReferralSuggestions(false), 120);
+              }}
+              onChange={(event) => {
+                setNewReferral(event.target.value);
+                setShowReferralSuggestions(true);
+              }}
+              onFocus={() => setShowReferralSuggestions(true)}
+              placeholder="Referral"
+              value={newReferral}
+            />
+            {showReferralSuggestions && filteredReferralOptions.length ? (
+              <div className="absolute left-0 right-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-lg border border-sky-200 bg-slate-900 py-1 shadow-lg">
+                {filteredReferralOptions.map((referral) => (
+                  <button
+                    className="block w-full px-3 py-2 text-left text-sm text-white transition hover:bg-sky-700"
+                    key={referral}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      setNewReferral(referral);
+                      setShowReferralSuggestions(false);
+                    }}
+                    type="button"
+                  >
+                    {referral}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <CreateClientButton />
         </form>
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1120px] text-left text-sm">
+        <table className="w-full min-w-[1040px] text-left text-sm">
           <thead className="border-b border-slate-100 bg-white text-xs uppercase text-slate-500">
             <tr>
               <th className="px-3 py-3 font-medium">Client</th>
-              <th className="px-3 py-3 font-medium">Referral</th>
               <th className="px-3 py-3 font-medium">IC / Business Reg. No.</th>
               <th className="px-3 py-3 font-medium">Type</th>
               <th className="px-3 py-3 font-medium">Phone</th>
@@ -158,8 +197,12 @@ export function ClientsTable({
                     <Link className="hover:text-sky-700" href={`/protected/clients/${client.id}`}>
                       {clean(client.client_name)}
                     </Link>
+                    {client.referral ? (
+                      <p className="mt-1 text-xs font-normal text-slate-500">
+                        Referral: {client.referral}
+                      </p>
+                    ) : null}
                   </td>
-                  <td className="px-3 py-3">{clean(client.referral)}</td>
                   <td className="px-3 py-3">{clean(client.business_registration_no)}</td>
                   <td className="px-3 py-3">{clean(client.client_type)}</td>
                   <td className="px-3 py-3">{clean(client.phone)}</td>
@@ -184,7 +227,7 @@ export function ClientsTable({
               ))
             ) : (
               <tr>
-                <td className="px-3 py-8 text-center text-slate-500" colSpan={9}>
+                <td className="px-3 py-8 text-center text-slate-500" colSpan={8}>
                   No matching clients.
                 </td>
               </tr>

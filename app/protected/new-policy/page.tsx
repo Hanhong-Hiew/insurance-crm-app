@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
-import { NewPolicyForm } from "@/components/new-policy-form";
+import { NewPolicyForm, type DuplicatePolicySource } from "@/components/new-policy-form";
 import { createClient } from "@/lib/supabase/server";
 
 type OptionRow = {
@@ -40,15 +40,23 @@ type SplitRuleRow = {
   commission_payees: { name?: string | null } | Array<{ name?: string | null }> | null;
 };
 
-export default function NewPolicyPage() {
+type PageProps = {
+  searchParams?: Promise<{ duplicate?: string }>;
+};
+
+type JsonRecord = Record<string, unknown>;
+
+export default function NewPolicyPage({ searchParams }: PageProps) {
   return (
     <Suspense fallback={<PageShell>Loading...</PageShell>}>
-      <NewPolicyContent />
+      <NewPolicyContent searchParams={searchParams} />
     </Suspense>
   );
 }
 
-async function NewPolicyContent() {
+async function NewPolicyContent({ searchParams }: PageProps) {
+  const params = await searchParams;
+  const duplicateId = params?.duplicate;
   const supabase = await createClient();
   const { data: userData, error: userError } = await supabase.auth.getClaims();
 
@@ -89,6 +97,10 @@ async function NewPolicyContent() {
         .order("sort_order", { ascending: true }),
     ]);
 
+  const duplicateSource = duplicateId
+    ? await getDuplicatePolicySource(supabase, duplicateId)
+    : null;
+
   const clients = (clientsResult.data ?? []) as OptionRow[];
   const insuranceTypes = (typesResult.data ?? []) as OptionRow[];
   const insurers = (insurersResult.data ?? []) as OptionRow[];
@@ -120,6 +132,7 @@ async function NewPolicyContent() {
       <NewPolicyForm
         clients={clients}
         commissionRates={commissionRates}
+        duplicateSource={duplicateSource}
         insuranceTypes={insuranceTypes}
         insurers={insurers}
         splitRules={splitRules}
@@ -127,6 +140,159 @@ async function NewPolicyContent() {
       />
     </PageShell>
   );
+}
+
+async function getDuplicatePolicySource(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  policyTermId: string,
+): Promise<DuplicatePolicySource | null> {
+  const termResult = await supabase
+    .from("policy_terms")
+    .select(
+      "*, clients(id, client_name, business_registration_no, client_type, referral, phone, email, address), insurance_types(code, name), policy_series(primary_risk_label)",
+    )
+    .eq("id", policyTermId)
+    .maybeSingle();
+
+  if (termResult.error || !termResult.data) return null;
+
+  const term = termResult.data as JsonRecord;
+  const client = firstRelation(term.clients) as JsonRecord | null;
+  const insuranceType = firstRelation(term.insurance_types) as JsonRecord | null;
+  const policySeries = firstRelation(term.policy_series) as JsonRecord | null;
+  const code = String(insuranceType?.code ?? "").trim().toLowerCase();
+
+  const source: DuplicatePolicySource = {
+    business_registration_no: textFrom(client?.business_registration_no),
+    client_address: textFrom(client?.address),
+    client_email: textFrom(client?.email),
+    client_id: textFrom(client?.id),
+    client_name: textFrom(client?.client_name),
+    client_phone: textFrom(client?.phone),
+    client_referral: textFrom(client?.referral),
+    client_type: textFrom(client?.client_type) || "individual",
+    effective_date: toDisplayDate(textFrom(term.effective_date)),
+    expiry_date: toDisplayDate(textFrom(term.expiry_date)),
+    gross_premium: numberLike(term.gross_premium),
+    insurance_type_id: textFrom(term.insurance_type_id),
+    insurer_id: textFrom(term.insurer_id),
+    net_premium: numberLike(term.net_premium),
+    primary_risk_label: textFrom(policySeries?.primary_risk_label),
+    primary_sum_assured: numberLike(term.primary_sum_assured),
+    split_pattern_id: textFrom(term.split_pattern_id),
+    term_stage: textFrom(term.term_stage) || "policy",
+  };
+
+  if (code === "motor") {
+    const { data } = await supabase
+      .from("motor_policy_details")
+      .select("*, vehicles(*)")
+      .eq("policy_term_id", policyTermId)
+      .maybeSingle();
+    const detail = (data ?? {}) as JsonRecord;
+    const vehicle = firstRelation(detail.vehicles) as JsonRecord | null;
+    source.motor = {
+      bdm: numberLike(detail.bdm),
+      btm: numberLike(detail.btm),
+      chassis_no: textFrom(vehicle?.chassis_no),
+      engine_cc: numberLike(vehicle?.engine_cc),
+      engine_no: textFrom(vehicle?.engine_no),
+      extra_coverage: textFrom(detail.extra_coverage),
+      make_model: textFrom(vehicle?.make_model),
+      motor_description: textFrom(detail.motor_description),
+      motor_type: textFrom(detail.motor_type),
+      ncd: numberLike(detail.ncd),
+      type_of_cover: textFrom(detail.type_of_cover) || "Comprehensive",
+      vehicle_no: textFrom(detail.vehicle_no_snapshot) || textFrom(vehicle?.vehicle_no),
+      year_of_manufacture: numberLike(vehicle?.year_of_manufacture),
+    };
+  } else if (code === "fire" || code === "home_insurance" || code === "industrial_all_risk") {
+    const { data } = await supabase
+      .from("fire_policy_details")
+      .select("*")
+      .eq("policy_term_id", policyTermId)
+      .maybeSingle();
+    const detail = (data ?? {}) as JsonRecord;
+    source.fire = {
+      construction_type: textFrom(detail.construction_type),
+      occupation: textFrom(detail.occupation),
+      property_address: textFrom(detail.property_address) || textFrom(detail.risk_location),
+    };
+  } else if (code === "marine_insurance") {
+    const { data } = await supabase
+      .from("marine_policy_details")
+      .select("*")
+      .eq("policy_term_id", policyTermId)
+      .maybeSingle();
+    const detail = (data ?? {}) as JsonRecord;
+    source.marine = {
+      goods_description: textFrom(detail.goods_description),
+      marine_type: textFrom(detail.marine_type),
+      voyage_from: textFrom(detail.voyage_from),
+      voyage_to: textFrom(detail.voyage_to),
+    };
+  } else if (code === "travel") {
+    const { data } = await supabase
+      .from("travel_policy_details")
+      .select("*")
+      .eq("policy_term_id", policyTermId)
+      .maybeSingle();
+    const detail = (data ?? {}) as JsonRecord;
+    source.travel = {
+      destination: textFrom(detail.destination),
+      pax: numberLike(detail.pax),
+      plan_name: textFrom(detail.plan_name),
+    };
+  } else {
+    const { data } = await supabase
+      .from("generic_policy_details")
+      .select("*")
+      .eq("policy_term_id", policyTermId)
+      .maybeSingle();
+    const detail = (data ?? {}) as JsonRecord;
+    const detailsJson =
+      detail.details_json && typeof detail.details_json === "object"
+        ? (detail.details_json as JsonRecord)
+        : {};
+
+    if (code === "equipment_insurance" || code === "equipment_all_risk") {
+      source.equipment = {
+        chassis_no: textFrom(detailsJson.chassis_no),
+        description: textFrom(detail.description),
+        engine_no: textFrom(detailsJson.engine_no),
+        make_model: textFrom(detailsJson.make_model),
+        vehicle_no: textFrom(detailsJson.vehicle_no),
+        year: numberLike(detailsJson.year),
+      };
+    } else {
+      source.generic = {
+        description: textFrom(detail.description),
+        detail_type: textFrom(detail.detail_type),
+      };
+    }
+  }
+
+  return source;
+}
+
+function firstRelation(value: unknown) {
+  return Array.isArray(value) ? value[0] ?? null : value ?? null;
+}
+
+function textFrom(value: unknown) {
+  if (value === null || value === undefined) return "";
+  return String(value);
+}
+
+function numberLike(value: unknown) {
+  if (typeof value === "number" || typeof value === "string") return value;
+  return null;
+}
+
+function toDisplayDate(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  return `${match[3]}/${match[2]}/${match[1]}`;
 }
 
 function PageShell({ children }: { children: React.ReactNode }) {
