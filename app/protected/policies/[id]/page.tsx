@@ -120,6 +120,11 @@ async function PolicyRecordContent({ params }: PageProps) {
   if (!recordResult.data) notFound();
 
   const record = recordResult.data as Record<string, unknown>;
+  const commissions = commissionsResult.data ?? [];
+  const hasCommissions = commissions.length > 0;
+  const allCommissionsPaid =
+    hasCommissions &&
+    commissions.every((commission) => commission.status === "paid");
   const typeDetail =
     (motorResult.data as DetailRow) ??
     (fireResult.data as DetailRow) ??
@@ -205,8 +210,8 @@ async function PolicyRecordContent({ params }: PageProps) {
                   </tr>
                 </thead>
                 <tbody>
-                  {(commissionsResult.data ?? []).length ? (
-                    (commissionsResult.data ?? []).map((commission) => (
+                  {commissions.length ? (
+                    commissions.map((commission) => (
                       <tr className="border-b border-slate-100" key={commission.id}>
                         <td className="px-3 py-3 font-medium">
                           {payeeName(commission.commission_payees)}
@@ -235,7 +240,12 @@ async function PolicyRecordContent({ params }: PageProps) {
         </section>
 
         <aside className="space-y-4">
-          <PolicyActionsCard policyTermId={id} />
+          <PolicyActionsCard
+            allCommissionsPaid={allCommissionsPaid}
+            hasCommissions={hasCommissions}
+            policyTermId={id}
+            premiumStatus={String(record.premium_status ?? "")}
+          />
           <ListCard
             empty="No documents yet."
             items={(documentsResult.data ?? []).map((document) => [

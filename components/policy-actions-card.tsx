@@ -13,11 +13,22 @@ import {
 } from "@/app/protected/policies/[id]/actions";
 import { ActionMessage } from "@/components/action-message";
 
-export function PolicyActionsCard({ policyTermId }: { policyTermId: string }) {
+export function PolicyActionsCard({
+  allCommissionsPaid,
+  hasCommissions,
+  policyTermId,
+  premiumStatus,
+}: {
+  allCommissionsPaid: boolean;
+  hasCommissions: boolean;
+  policyTermId: string;
+  premiumStatus: string | null | undefined;
+}) {
   const [deleteState, deleteAction] = useActionState<DeletePolicyState, FormData>(
     deletePolicy,
     {},
   );
+  const premiumPaid = premiumStatus === "paid";
 
   return (
     <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -32,17 +43,30 @@ export function PolicyActionsCard({ policyTermId }: { policyTermId: string }) {
         </form>
         <form action={markPremiumPaid}>
           <input name="policy_term_id" type="hidden" value={policyTermId} />
-          <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50">
-            <CheckCircle2 className="h-4 w-4" />
-            Toggle Premium Paid
-          </button>
+          <PaymentActionButton
+            isPaid={premiumPaid}
+            paidLabel="Premium Paid"
+            pendingLabel="Updating premium..."
+            title={premiumPaid ? "Click to mark premium unpaid" : "Mark premium paid"}
+            unpaidLabel="Mark Premium Paid"
+          />
         </form>
         <form action={markCommissionsPaid}>
           <input name="policy_term_id" type="hidden" value={policyTermId} />
-          <button className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
-            <CheckCircle2 className="h-4 w-4" />
-            Toggle Commission Paid
-          </button>
+          <PaymentActionButton
+            disabled={!hasCommissions}
+            isPaid={allCommissionsPaid}
+            paidLabel="Commission Paid"
+            pendingLabel="Updating commission..."
+            title={
+              hasCommissions
+                ? allCommissionsPaid
+                  ? "Click to mark commissions unpaid"
+                  : "Mark all commissions paid"
+                : "No commission rows to update"
+            }
+            unpaidLabel="Mark Commission Paid"
+          />
         </form>
         <form action={deleteAction} className="rounded-lg border border-red-200 bg-red-50 p-3">
           <input name="policy_term_id" type="hidden" value={policyTermId} />
@@ -61,6 +85,42 @@ export function PolicyActionsCard({ policyTermId }: { policyTermId: string }) {
         </form>
       </div>
     </section>
+  );
+}
+
+function PaymentActionButton({
+  disabled = false,
+  isPaid,
+  paidLabel,
+  pendingLabel,
+  title,
+  unpaidLabel,
+}: {
+  disabled?: boolean;
+  isPaid: boolean;
+  paidLabel: string;
+  pendingLabel: string;
+  title: string;
+  unpaidLabel: string;
+}) {
+  const { pending } = useFormStatus();
+  const label = pending ? pendingLabel : isPaid ? paidLabel : unpaidLabel;
+  const className = isPaid
+    ? "border-emerald-200 bg-emerald-600 text-white hover:bg-emerald-700"
+    : "border-sky-200 bg-white text-sky-700 hover:bg-sky-50";
+
+  return (
+    <button
+      className={`inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border px-3 text-sm font-semibold shadow-sm transition disabled:cursor-not-allowed disabled:opacity-60 ${
+        pending ? "animate-pulse ring-2 ring-sky-100" : ""
+      } ${className}`}
+      disabled={disabled || pending}
+      title={title}
+      type="submit"
+    >
+      <CheckCircle2 className="h-4 w-4" />
+      {label}
+    </button>
   );
 }
 

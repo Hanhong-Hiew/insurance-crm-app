@@ -121,15 +121,15 @@ export async function markCommissionsPaid(formData: FormData) {
   const paidDate = nextStatus === "paid" ? new Date().toISOString().slice(0, 10) : null;
 
   if (nextStatus === "paid") {
-  const { error } = await supabase
-    .from("commissions")
-    .update({
-      status: "paid",
-      unpaid_amount: 0,
-      paid_date: paidDate,
-    })
-    .eq("policy_term_id", policyTermId);
-  if (error) throw error;
+    const { error } = await supabase
+      .from("commissions")
+      .update({
+        status: "paid",
+        unpaid_amount: 0,
+        paid_date: paidDate,
+      })
+      .eq("policy_term_id", policyTermId);
+    if (error) throw error;
   } else {
     const updates = await Promise.all(
       (commissionRows ?? []).map((commission) =>
@@ -155,6 +155,7 @@ export async function markCommissionsPaid(formData: FormData) {
     `Marked commissions as ${nextStatus}.`,
   );
   revalidatePath("/protected");
+  revalidatePath("/protected/records");
   revalidatePath(`/protected/policies/${policyTermId}`);
 }
 

@@ -31,6 +31,7 @@ export function PremiumStatusSelect({
   const currentStatus = normalizedStatus(status);
   const [selectedStatus, setSelectedStatus] = useState<PremiumStatus>(currentStatus);
   const [hasError, setHasError] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -38,9 +39,16 @@ export function PremiumStatusSelect({
     setSelectedStatus(currentStatus);
   }, [currentStatus]);
 
+  useEffect(() => {
+    if (!saved) return;
+    const timer = window.setTimeout(() => setSaved(false), 1400);
+    return () => window.clearTimeout(timer);
+  }, [saved]);
+
   function updateStatus(nextStatus: PremiumStatus) {
     setSelectedStatus(nextStatus);
     setHasError(false);
+    setSaved(false);
 
     const formData = new FormData();
     formData.set("policy_term_id", policyTermId);
@@ -49,6 +57,7 @@ export function PremiumStatusSelect({
     startTransition(async () => {
       try {
         await setPremiumStatus(formData);
+        setSaved(true);
         router.refresh();
       } catch {
         setSelectedStatus(currentStatus);
@@ -65,7 +74,9 @@ export function PremiumStatusSelect({
     >
       <select
         aria-label="Premium payment status"
-        className={`h-8 min-w-28 rounded-full border px-2 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-sky-100 disabled:cursor-wait disabled:opacity-70 ${statusClass(
+        className={`h-8 min-w-28 rounded-full border px-2 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-sky-100 disabled:cursor-wait ${
+          isPending ? "animate-pulse ring-2 ring-sky-100" : ""
+        } ${statusClass(
           selectedStatus,
         )}`}
         disabled={isPending}
@@ -76,6 +87,12 @@ export function PremiumStatusSelect({
         <option value="partial">Partial</option>
         <option value="paid">Paid</option>
       </select>
+      {isPending ? (
+        <span className="ml-2 text-xs font-semibold text-sky-700">Saving...</span>
+      ) : null}
+      {saved && !isPending && !hasError ? (
+        <span className="ml-2 text-xs font-semibold text-emerald-700">Saved</span>
+      ) : null}
       {hasError ? (
         <span className="ml-2 text-xs font-semibold text-red-700">Failed</span>
       ) : null}
