@@ -286,6 +286,7 @@ export function CrmMainPanel({
   const [view, setView] = useState<ViewMode>("renewals");
   const [query, setQuery] = useState("");
   const [hideDashboardValues, setHideDashboardValues] = useState(false);
+  const [newestLimit, setNewestLimit] = useState(5);
   const [recordSort, setRecordSort] = useState<RecordSort>("expiry_month");
   const [recordSortDirection, setRecordSortDirection] = useState<SortDirection>("asc");
   const [selected, setSelected] = useState<PolicyRecord | CommissionRecord | null>(
@@ -424,8 +425,8 @@ export function CrmMainPanel({
         .sort((a, b) =>
           String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")),
         )
-        .slice(0, 8),
-    [policies],
+        .slice(0, newestLimit),
+    [newestLimit, policies],
   );
 
   return (
@@ -533,12 +534,28 @@ export function CrmMainPanel({
                 Latest policies added to the CRM.
               </p>
             </div>
-            <Link
-              className="inline-flex h-9 items-center justify-center rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm"
-              href="/protected/records"
-            >
-              Analyse Records
-            </Link>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
+                Show
+                <select
+                  className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                  onChange={(event) => setNewestLimit(Number(event.target.value))}
+                  value={newestLimit}
+                >
+                  {[5, 10, 20, 50].map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <Link
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm"
+                href="/protected/records"
+              >
+                Analyse Records
+              </Link>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <PolicyTable
@@ -550,84 +567,7 @@ export function CrmMainPanel({
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-[360px_1fr]">
-          <aside className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm">
-            <p className="text-xs font-medium uppercase text-emerald-700">
-              Preview
-            </p>
-            {selected ? (
-              "payee_name" in selected ? (
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-orange-50 text-orange-700">
-                      <BadgeDollarSign className="h-5 w-5" />
-                    </span>
-                    <h2 className="text-xl font-semibold">{clean(selected.client_name)}</h2>
-                    <p className="text-sm text-slate-500">
-                      {clean(selected.insurance_type)} commission
-                    </p>
-                  </div>
-                  <PreviewGrid
-                    rows={[
-                      ["Payee", clean(selected.payee_name)],
-                      ["Policy No", clean(selected.policy_number)],
-                      ["Amount", money(selected.amount)],
-                      ["Unpaid", money(selected.unpaid_amount)],
-                      ["Status", clean(selected.status)],
-                      ["Paid Date", formatDate(selected.paid_date)],
-                      ["Statement", clean(selected.statement_no)],
-                      ["Expiry", formatDate(selected.expiry_date)],
-                    ]}
-                  />
-                </div>
-              ) : (
-                <div className="mt-4 space-y-4">
-                  <div>
-                    <span className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-sky-50 text-sky-700">
-                      <RiskIcon record={selected} />
-                    </span>
-                    <h2 className="text-xl font-semibold">
-                      {clean(selected.client_name)}
-                    </h2>
-                    <p className="text-sm text-slate-500">
-                      {riskType(selected)} / {riskLabel(selected)}
-                    </p>
-                  </div>
-                  <PreviewGrid
-                    rows={[
-                      ["Policy No", clean(selected.policy_number)],
-                      ["Vehicle No", vehicleNo(selected)],
-                      ["Insurer", clean(selected.insurer_name)],
-                      ["Effective", formatDate(selected.effective_date)],
-                      ["Expiry", formatDate(selected.expiry_date)],
-                      ["Sum Assured", money(selected.primary_sum_assured)],
-                      ["Gross Premium", money(selected.gross_premium)],
-                      ["Net Premium", money(selected.net_premium)],
-                      [
-                        "Premium",
-                        <PremiumStatusSelect
-                          key="premium-status"
-                          policyTermId={selected.policy_term_id}
-                          status={selected.premium_status}
-                        />,
-                      ],
-                      ["Stage", clean(selected.term_stage)],
-                      ["Renewal", clean(selected.renewal_status)],
-                      ["Type of Cover", clean(selected.type_of_cover)],
-                      ["Make / Model", clean(selected.make_model)],
-                      ["Year", clean(selected.year_of_manufacture)],
-                      ["Motor Type", clean(selected.motor_type)],
-                      ["NCD", percent(selected.ncd)],
-                    ]}
-                  />
-                </div>
-              )
-            ) : (
-              <p className="mt-4 text-sm text-slate-500">No records yet.</p>
-            )}
-          </aside>
-
-          <section className="min-w-0 rounded-xl border border-slate-200 bg-white/95 shadow-sm">
+        <section className="min-w-0 rounded-xl border border-slate-200 bg-white/95 shadow-sm">
             <div className="flex flex-col gap-3 border-b border-slate-100 p-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap gap-2">
                 {viewOptions.map((option) => {
@@ -725,7 +665,6 @@ export function CrmMainPanel({
                 />
               )}
             </div>
-          </section>
         </section>
       </main>
       {previewRecord ? (
@@ -897,18 +836,18 @@ function PolicyTable({
     <table className="w-full min-w-[980px] text-left text-sm">
       <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
         <tr>
-          <th className="px-3 py-3 font-medium">Client</th>
-          <th className="px-3 py-3 font-medium">Risk Type</th>
-          <th className="px-3 py-3 font-medium">Vehicle No</th>
-          <th className="px-3 py-3 font-medium">Type</th>
-          <th className="px-3 py-3 font-medium">Policy No</th>
-          <th className="px-3 py-3 font-medium">Insurer</th>
-          <th className="px-3 py-3 font-medium">Effective</th>
-          <th className="px-3 py-3 font-medium">Expiry</th>
-          <th className="px-3 py-3 font-medium">Stage</th>
-          <th className="px-3 py-3 font-medium">Gross</th>
-          <th className="px-3 py-3 font-medium">Premium</th>
-          <th className="px-3 py-3 font-medium">Renewal</th>
+          <th className="px-3 py-2 font-medium">Client</th>
+          <th className="px-3 py-2 font-medium">Risk Type</th>
+          <th className="px-3 py-2 font-medium">Vehicle No</th>
+          <th className="px-3 py-2 font-medium">Type</th>
+          <th className="px-3 py-2 font-medium">Policy No</th>
+          <th className="px-3 py-2 font-medium">Insurer</th>
+          <th className="px-3 py-2 font-medium">Effective</th>
+          <th className="px-3 py-2 font-medium">Expiry</th>
+          <th className="px-3 py-2 font-medium">Stage</th>
+          <th className="px-3 py-2 font-medium">Gross</th>
+          <th className="px-3 py-2 font-medium">Premium</th>
+          <th className="px-3 py-2 font-medium">Renewal</th>
         </tr>
       </thead>
       <tbody>
@@ -928,11 +867,11 @@ function PolicyTable({
                 window.location.href = `/protected/policies/${row.policy_term_id}`;
               }}
             >
-              <td className="px-3 py-3 font-medium">
+              <td className="px-3 py-2 font-medium">
                 <span className="flex items-center gap-2">
                   <button
                     aria-label={`Preview ${clean(row.client_name)}`}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 transition hover:border-sky-200 hover:bg-sky-50"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 transition hover:border-sky-200 hover:bg-sky-50"
                     onClick={(event) => {
                       event.stopPropagation();
                       setPreviewRecord(row);
@@ -950,30 +889,30 @@ function PolicyTable({
                   </Link>
                 </span>
               </td>
-              <td className="px-3 py-3">
-                <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">
+              <td className="px-3 py-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
                   <RiskIcon record={row} />
                   {riskType(row)}
                 </span>
               </td>
-              <td className="px-3 py-3">{vehicleNo(row)}</td>
-              <td className="px-3 py-3">{clean(row.insurance_type)}</td>
-              <td className="px-3 py-3">{clean(row.policy_number)}</td>
-              <td className="px-3 py-3">{clean(row.insurer_name)}</td>
-              <td className="px-3 py-3">{formatDate(row.effective_date)}</td>
-              <td className="px-3 py-3">{formatDate(row.expiry_date)}</td>
-              <td className="px-3 py-3">
+              <td className="px-3 py-2">{vehicleNo(row)}</td>
+              <td className="px-3 py-2">{clean(row.insurance_type)}</td>
+              <td className="px-3 py-2">{clean(row.policy_number)}</td>
+              <td className="px-3 py-2">{clean(row.insurer_name)}</td>
+              <td className="px-3 py-2">{formatDate(row.effective_date)}</td>
+              <td className="px-3 py-2">{formatDate(row.expiry_date)}</td>
+              <td className="px-3 py-2">
                 <StageBadge record={row} />
-                <p className="mt-1 text-xs text-slate-500">{stageMeta(row)}</p>
+                <p className="text-xs text-slate-500">{stageMeta(row)}</p>
               </td>
-              <td className="px-3 py-3">{money(row.gross_premium)}</td>
-              <td className="px-3 py-3">
+              <td className="px-3 py-2">{money(row.gross_premium)}</td>
+              <td className="px-3 py-2">
                 <PremiumStatusSelect
                   policyTermId={row.policy_term_id}
                   status={row.premium_status}
                 />
               </td>
-              <td className="px-3 py-3">{clean(row.renewal_status)}</td>
+              <td className="px-3 py-2">{clean(row.renewal_status)}</td>
             </tr>
           ))
         ) : (
@@ -1038,16 +977,16 @@ function CommissionTable({
     <table className="w-full min-w-[820px] text-left text-sm">
       <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
         <tr>
-          <th className="px-3 py-3 font-medium">Client</th>
-          <th className="px-3 py-3 font-medium">Type</th>
-          <th className="px-3 py-3 font-medium">Policy No</th>
-          <th className="px-3 py-3 font-medium">Payee</th>
-          <th className="px-3 py-3 font-medium">Rate</th>
-          <th className="px-3 py-3 font-medium">Amount</th>
-          <th className="px-3 py-3 font-medium">Unpaid</th>
-          <th className="px-3 py-3 font-medium">Status</th>
-          <th className="px-3 py-3 font-medium">Paid Date</th>
-          <th className="px-3 py-3 font-medium">Statement</th>
+          <th className="px-3 py-2 font-medium">Client</th>
+          <th className="px-3 py-2 font-medium">Type</th>
+          <th className="px-3 py-2 font-medium">Policy No</th>
+          <th className="px-3 py-2 font-medium">Payee</th>
+          <th className="px-3 py-2 font-medium">Rate</th>
+          <th className="px-3 py-2 font-medium">Amount</th>
+          <th className="px-3 py-2 font-medium">Unpaid</th>
+          <th className="px-3 py-2 font-medium">Status</th>
+          <th className="px-3 py-2 font-medium">Paid Date</th>
+          <th className="px-3 py-2 font-medium">Statement</th>
         </tr>
       </thead>
       <tbody>
@@ -1067,11 +1006,11 @@ function CommissionTable({
                 window.location.href = `/protected/policies/${row.policy_term_id}`;
               }}
             >
-              <td className="px-3 py-3 font-medium">
+              <td className="px-3 py-2 font-medium">
                 <span className="flex items-center gap-2">
                   <button
                     aria-label={`Preview ${clean(row.client_name)}`}
-                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 transition hover:border-sky-200 hover:bg-sky-50"
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 transition hover:border-sky-200 hover:bg-sky-50"
                     onClick={(event) => {
                       event.stopPropagation();
                       setPreviewRecord(row);
@@ -1089,15 +1028,15 @@ function CommissionTable({
                   </Link>
                 </span>
               </td>
-              <td className="px-3 py-3">{clean(row.insurance_type)}</td>
-              <td className="px-3 py-3">{clean(row.policy_number)}</td>
-              <td className="px-3 py-3">{clean(row.payee_name)}</td>
-              <td className="px-3 py-3">{percent(row.calculation_percent)}</td>
-              <td className="px-3 py-3">{money(row.amount)}</td>
-              <td className="px-3 py-3">{money(row.unpaid_amount)}</td>
-              <td className="px-3 py-3">{clean(row.status)}</td>
-              <td className="px-3 py-3">{formatDate(row.paid_date)}</td>
-              <td className="px-3 py-3">{clean(row.statement_no)}</td>
+              <td className="px-3 py-2">{clean(row.insurance_type)}</td>
+              <td className="px-3 py-2">{clean(row.policy_number)}</td>
+              <td className="px-3 py-2">{clean(row.payee_name)}</td>
+              <td className="px-3 py-2">{percent(row.calculation_percent)}</td>
+              <td className="px-3 py-2">{money(row.amount)}</td>
+              <td className="px-3 py-2">{money(row.unpaid_amount)}</td>
+              <td className="px-3 py-2">{clean(row.status)}</td>
+              <td className="px-3 py-2">{formatDate(row.paid_date)}</td>
+              <td className="px-3 py-2">{clean(row.statement_no)}</td>
             </tr>
           ))
         ) : (

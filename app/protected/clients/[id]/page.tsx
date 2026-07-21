@@ -53,10 +53,10 @@ async function ClientDetailContent({ params }: PageProps) {
     redirect("/auth/login");
   }
 
-  const [clientResult, policiesResult] = await Promise.all([
+  const [clientResult, policiesResult, referralsResult] = await Promise.all([
     supabase
       .from("clients")
-      .select("id, client_code, client_name, business_registration_no, client_type, phone, email, address, notes")
+      .select("id, referral, client_name, business_registration_no, client_type, phone, email, address, notes")
       .eq("id", id)
       .maybeSingle(),
     supabase
@@ -64,6 +64,12 @@ async function ClientDetailContent({ params }: PageProps) {
       .select("*")
       .eq("client_id", id)
       .order("expiry_date", { ascending: false }),
+    supabase
+      .from("clients")
+      .select("referral")
+      .not("referral", "is", null)
+      .order("referral", { ascending: true })
+      .limit(500),
   ]);
 
   if (clientResult.error) throw clientResult.error;
@@ -71,6 +77,13 @@ async function ClientDetailContent({ params }: PageProps) {
 
   const client = clientResult.data;
   const policies = policiesResult.data ?? [];
+  const referralOptions = Array.from(
+    new Set(
+      (referralsResult.data ?? [])
+        .map((row) => String(row.referral ?? "").trim())
+        .filter(Boolean),
+    ),
+  );
 
   return (
     <PageShell>
@@ -82,7 +95,7 @@ async function ClientDetailContent({ params }: PageProps) {
               This is the master client record used by linked policies.
             </p>
           </div>
-          <ClientDetailForm client={client} />
+          <ClientDetailForm client={client} referralOptions={referralOptions} />
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">

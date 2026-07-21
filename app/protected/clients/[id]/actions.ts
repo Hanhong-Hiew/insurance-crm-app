@@ -51,10 +51,10 @@ export async function updateClient(
     const { error } = await supabase
       .from("clients")
       .update({
-        client_code: optionalText(formData, "client_code"),
         client_name: clientName,
         business_registration_no: optionalText(formData, "business_registration_no"),
         client_type: textValue(formData, "client_type") || "individual",
+        referral: optionalText(formData, "referral"),
         phone: optionalText(formData, "phone"),
         email: optionalText(formData, "email"),
         address: optionalText(formData, "address"),

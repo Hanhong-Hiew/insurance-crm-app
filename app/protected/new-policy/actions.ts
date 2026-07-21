@@ -173,6 +173,7 @@ export async function savePolicy(
     const selectedClientId = optionalText(formData, "selected_client_id");
     const businessRegistrationNo = optionalText(formData, "business_registration_no");
     const clientType = cleanClientType(textValue(formData, "client_type"));
+    const clientReferral = optionalText(formData, "client_referral");
     const clientPhone = optionalText(formData, "client_phone");
     const clientEmail = optionalText(formData, "client_email");
     const clientAddress = optionalText(formData, "client_address");
@@ -225,6 +226,7 @@ export async function savePolicy(
       id: string;
       business_registration_no: string | null;
       client_type: string | null;
+      referral: string | null;
       phone: string | null;
       email: string | null;
       address: string | null;
@@ -233,7 +235,7 @@ export async function savePolicy(
     if (selectedClientId) {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, business_registration_no, client_type, phone, email, address")
+        .select("id, business_registration_no, client_type, referral, phone, email, address")
         .eq("id", selectedClientId)
         .maybeSingle();
       if (error) throw error;
@@ -243,7 +245,7 @@ export async function savePolicy(
     if (!existingClient && businessRegistrationNo) {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, business_registration_no, client_type, phone, email, address")
+        .select("id, business_registration_no, client_type, referral, phone, email, address")
         .eq("business_registration_no", businessRegistrationNo)
         .maybeSingle();
       if (error) throw error;
@@ -253,7 +255,7 @@ export async function savePolicy(
     if (!existingClient) {
       const { data, error } = await supabase
         .from("clients")
-        .select("id, business_registration_no, client_type, phone, email, address")
+        .select("id, business_registration_no, client_type, referral, phone, email, address")
         .eq("client_name", clientName)
         .maybeSingle();
       if (error) throw error;
@@ -269,6 +271,7 @@ export async function savePolicy(
           client_name: clientName,
           business_registration_no: businessRegistrationNo,
           client_type: clientType,
+          referral: clientReferral,
           phone: clientPhone,
           email: clientEmail,
           address: clientAddress,
@@ -280,7 +283,7 @@ export async function savePolicy(
       createdClientId = clientId;
     } else if (
       existingClient &&
-      (businessRegistrationNo || clientPhone || clientEmail || selectedClientId)
+      (businessRegistrationNo || clientReferral || clientPhone || clientEmail || selectedClientId)
     ) {
       const clientUpdate: Record<string, string | null> = {};
       if (businessRegistrationNo && existingClientRegistrationNo !== businessRegistrationNo) {
@@ -289,12 +292,14 @@ export async function savePolicy(
 
       if (selectedClientId) {
         if (existingClient.client_type !== clientType) clientUpdate.client_type = clientType;
+        if (clientReferral !== existingClient.referral) clientUpdate.referral = clientReferral;
         if (clientPhone !== existingClient.phone) clientUpdate.phone = clientPhone;
         if (clientEmail !== existingClient.email) clientUpdate.email = clientEmail;
         if (clientAddress) clientUpdate.address = clientAddress;
       } else {
         if (clientPhone && !existingClient.phone) clientUpdate.phone = clientPhone;
         if (clientEmail && !existingClient.email) clientUpdate.email = clientEmail;
+        if (clientReferral && !existingClient.referral) clientUpdate.referral = clientReferral;
         if (clientAddress) clientUpdate.address = clientAddress;
       }
 
@@ -548,9 +553,7 @@ export async function savePolicy(
         const customPayeeIds = allTextValues(formData, "custom_commission_payee_id");
         const customAmounts = allTextValues(formData, "custom_commission_amount");
         const customPercents = allTextValues(formData, "custom_commission_percent");
-        if (customCommissionEnabled && !customReason) {
-          throw new Error("Customization reason is required when commission is customized.");
-        }
+        const customReasonSnapshot = customReason ?? "Manual commission override";
         const customByPayee = new Map(
           customPayeeIds.map((payeeId, index) => [
             payeeId,
@@ -598,7 +601,7 @@ export async function savePolicy(
             amount: finalAmount,
             unpaid_amount: finalAmount,
             is_custom: customCommissionEnabled,
-            custom_reason: customCommissionEnabled ? customReason : null,
+            custom_reason: customCommissionEnabled ? customReasonSnapshot : null,
             customized_at: customCommissionEnabled ? new Date().toISOString() : null,
             status: "unpaid",
           };

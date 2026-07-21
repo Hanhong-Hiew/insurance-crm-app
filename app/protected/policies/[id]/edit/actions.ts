@@ -208,6 +208,7 @@ export async function updatePolicy(
     const primarySumAssured = moneyValue(formData, "primary_sum_assured");
     const businessRegistrationNo = optionalText(formData, "business_registration_no");
     const clientType = cleanClientType(textValue(formData, "client_type"));
+    const clientReferral = optionalText(formData, "client_referral");
     const clientPhone = optionalText(formData, "client_phone");
     const clientEmail = optionalText(formData, "client_email");
     const clientAddress = optionalText(formData, "client_address");
@@ -254,6 +255,7 @@ export async function updatePolicy(
           client_type: clientType,
           email: clientEmail,
           phone: clientPhone,
+          referral: clientReferral,
           address: clientAddress,
         })
         .eq("id", termWithType.client_id);
@@ -495,9 +497,7 @@ async function recalculateCommissions(
 
   const customCommissionEnabled = textValue(formData, "custom_commission_enabled") === "yes";
   const customReason = optionalText(formData, "custom_commission_reason");
-  if (customCommissionEnabled && !customReason) {
-    throw new Error("Customization reason is required when commission is customized.");
-  }
+  const customReasonSnapshot = customReason ?? "Manual commission override";
 
   const customPayeeIds = allTextValues(formData, "custom_commission_payee_id");
   const customAmounts = allTextValues(formData, "custom_commission_amount");
@@ -583,7 +583,7 @@ async function recalculateCommissions(
       amount: finalAmount,
       unpaid_amount: finalAmount,
       is_custom: customCommissionEnabled,
-      custom_reason: customCommissionEnabled ? customReason : null,
+      custom_reason: customCommissionEnabled ? customReasonSnapshot : null,
       customized_at: customCommissionEnabled ? new Date().toISOString() : null,
       status: "unpaid",
     }];

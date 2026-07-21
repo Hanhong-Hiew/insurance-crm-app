@@ -14,7 +14,7 @@ import { ActionMessage } from "@/components/action-message";
 
 export type ClientTableRow = {
   id: string;
-  client_code: string | null;
+  referral: string | null;
   client_name: string | null;
   business_registration_no: string | null;
   client_type: string | null;
@@ -30,7 +30,13 @@ function clean(value: string | number | null | undefined) {
   return String(value).replaceAll("_", " ");
 }
 
-export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
+export function ClientsTable({
+  clients,
+  referralOptions,
+}: {
+  clients: ClientTableRow[];
+  referralOptions: string[];
+}) {
   const [query, setQuery] = useState("");
   const [createState, createAction] = useActionState<ClientActionState, FormData>(
     createClientRecord,
@@ -82,7 +88,7 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
 
         <form
           action={createAction}
-          className="grid gap-3 rounded-xl border border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1.4fr_1fr_0.9fr_1fr_1fr_auto]"
+          className="grid gap-3 rounded-xl border border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1.3fr_1fr_0.8fr_1fr_1fr_1fr_auto]"
         >
           <input
             className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
@@ -114,6 +120,17 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
             placeholder="Email"
             type="email"
           />
+          <input
+            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            list="client-referral-options"
+            name="referral"
+            placeholder="Referral"
+          />
+          <datalist id="client-referral-options">
+            {referralOptions.map((referral) => (
+              <option key={referral} value={referral} />
+            ))}
+          </datalist>
           <CreateClientButton />
         </form>
       </div>
@@ -123,6 +140,7 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
           <thead className="border-b border-slate-100 bg-white text-xs uppercase text-slate-500">
             <tr>
               <th className="px-3 py-3 font-medium">Client</th>
+              <th className="px-3 py-3 font-medium">Referral</th>
               <th className="px-3 py-3 font-medium">IC / Business Reg. No.</th>
               <th className="px-3 py-3 font-medium">Type</th>
               <th className="px-3 py-3 font-medium">Phone</th>
@@ -140,10 +158,8 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
                     <Link className="hover:text-sky-700" href={`/protected/clients/${client.id}`}>
                       {clean(client.client_name)}
                     </Link>
-                    <p className="text-xs font-normal text-slate-500">
-                      {clean(client.client_code)}
-                    </p>
                   </td>
+                  <td className="px-3 py-3">{clean(client.referral)}</td>
                   <td className="px-3 py-3">{clean(client.business_registration_no)}</td>
                   <td className="px-3 py-3">{clean(client.client_type)}</td>
                   <td className="px-3 py-3">{clean(client.phone)}</td>
@@ -168,7 +184,7 @@ export function ClientsTable({ clients }: { clients: ClientTableRow[] }) {
               ))
             ) : (
               <tr>
-                <td className="px-3 py-8 text-center text-slate-500" colSpan={8}>
+                <td className="px-3 py-8 text-center text-slate-500" colSpan={9}>
                   No matching clients.
                 </td>
               </tr>

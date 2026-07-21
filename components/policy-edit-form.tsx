@@ -60,6 +60,7 @@ type ClientRecord = {
   client_type: string | null;
   email: string | null;
   phone: string | null;
+  referral?: string | null;
 };
 
 type EquipmentDetailRecord = {
@@ -382,6 +383,14 @@ export function PolicyEditForm({
               name="business_registration_no"
             />
           </Field>
+          <Field label="Referral">
+            <input
+              className={fieldClass}
+              defaultValue={client?.referral ?? ""}
+              name="client_referral"
+              placeholder="Who referred this client"
+            />
+          </Field>
           <Field label="Phone">
             <input className={fieldClass} defaultValue={client?.phone ?? ""} name="client_phone" />
           </Field>
@@ -555,7 +564,7 @@ export function PolicyEditForm({
       {isGeneric ? <GenericRiskSection detail={genericDetail} /> : null}
 
       <FormSection
-        description="Calculated from settings. Tick customize only for special cases."
+        description="Auto-calculated from settings. Tick customize to override the RM amount for each payee."
         icon={<BadgeDollarSign className="h-5 w-5" />}
         title="Commission Preview"
       >
@@ -598,8 +607,10 @@ export function PolicyEditForm({
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-3 py-2 font-semibold">Payee</th>
-                    <th className="px-3 py-2 font-semibold">Rate</th>
-                    <th className="px-3 py-2 font-semibold">Amount</th>
+                    <th className="px-3 py-2 font-semibold">Auto Rate</th>
+                    <th className="px-3 py-2 font-semibold">
+                      {customCommission ? "Custom Amount" : "Auto Amount"}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -617,16 +628,21 @@ export function PolicyEditForm({
                       <td className="px-3 py-2">{(row.calculation_percent * 100).toFixed(2)}%</td>
                       <td className="px-3 py-2">
                         {customCommission ? (
-                          <CurrencyInput
-                            name="custom_commission_amount"
-                            onValueChange={(value) =>
-                              setCustomAmounts((current) => ({
-                                ...current,
-                                [row.payee_id]: value,
-                              }))
-                            }
-                            value={customAmounts[row.payee_id] ?? String(row.amount)}
-                          />
+                          <div className="grid gap-1">
+                            <CurrencyInput
+                              name="custom_commission_amount"
+                              onValueChange={(value) =>
+                                setCustomAmounts((current) => ({
+                                  ...current,
+                                  [row.payee_id]: value,
+                                }))
+                              }
+                              value={customAmounts[row.payee_id] ?? String(row.amount)}
+                            />
+                            <span className="text-xs text-slate-500">
+                              Auto: {moneyText(row.amount)}
+                            </span>
+                          </div>
                         ) : (
                           <>
                             <input name="custom_commission_amount" type="hidden" value={String(row.amount)} />
@@ -647,13 +663,12 @@ export function PolicyEditForm({
         )}
         {customCommission ? (
           <div className="md:col-span-2 xl:col-span-3">
-            <Field label="Customization Reason" required>
+            <Field label="Customization Reason">
               <textarea
                 className={`${fieldClass} min-h-24 py-2`}
                 name="custom_commission_reason"
                 onChange={(event) => setCustomReason(event.target.value)}
-                placeholder="Example: special case, rounded by insurer, Chelsea waived"
-                required
+                placeholder="Optional. Example: special case, rounded by insurer, Chelsea waived"
                 value={customReason}
               />
             </Field>

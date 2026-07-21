@@ -825,18 +825,17 @@ function PolicyTable({
     <table className="w-full min-w-[1120px] text-left text-sm">
       <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
         <tr>
-          <th className="px-3 py-3 font-medium">Client</th>
-          <th className="px-3 py-3 font-medium">Risk Type</th>
-          <th className="px-3 py-3 font-medium">Vehicle No</th>
-          <th className="px-3 py-3 font-medium">Policy No</th>
-          <th className="px-3 py-3 font-medium">Insurer</th>
-          <th className="px-3 py-3 font-medium">Effective</th>
-          <th className="px-3 py-3 font-medium">Expiry</th>
-          <th className="px-3 py-3 font-medium">Stage</th>
-          <th className="px-3 py-3 font-medium">Gross</th>
-          <th className="px-3 py-3 font-medium">Premium</th>
-          <th className="px-3 py-3 font-medium">Renewal</th>
-          <th className="px-3 py-3 font-medium">Preview</th>
+          <th className="px-3 py-2 font-medium">Client</th>
+          <th className="px-3 py-2 font-medium">Risk Type</th>
+          <th className="px-3 py-2 font-medium">Vehicle No</th>
+          <th className="px-3 py-2 font-medium">Policy No</th>
+          <th className="px-3 py-2 font-medium">Insurer</th>
+          <th className="px-3 py-2 font-medium">Effective</th>
+          <th className="px-3 py-2 font-medium">Expiry</th>
+          <th className="px-3 py-2 font-medium">Stage</th>
+          <th className="px-3 py-2 font-medium">Gross</th>
+          <th className="px-3 py-2 font-medium">Premium</th>
+          <th className="px-3 py-2 font-medium">Renewal</th>
         </tr>
       </thead>
       <tbody>
@@ -849,58 +848,58 @@ function PolicyTable({
                 window.location.href = `/protected/policies/${row.policy_term_id}`;
               }}
             >
-              <td className="px-3 py-3 font-medium">
-                <Link
-                  className="text-slate-950 hover:text-sky-700"
-                  href={`/protected/policies/${row.policy_term_id}`}
-                  onClick={(event) => event.stopPropagation()}
-                >
-                  {clean(row.client_name)}
-                </Link>
+              <td className="px-3 py-2 font-medium">
+                <span className="flex items-center gap-2">
+                  <button
+                    aria-label={`Preview ${clean(row.client_name)}`}
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 transition hover:border-sky-200 hover:bg-sky-50"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      setPreviewRecord(row);
+                    }}
+                    type="button"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </button>
+                  <Link
+                    className="text-slate-950 hover:text-sky-700"
+                    href={`/protected/policies/${row.policy_term_id}`}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {clean(row.client_name)}
+                  </Link>
+                </span>
               </td>
-              <td className="px-3 py-3">
-                <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700">
+              <td className="px-3 py-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
                   <RiskIcon record={row} />
                   {riskType(row)}
                 </span>
               </td>
-              <td className="px-3 py-3 text-slate-700">{vehicleNo(row)}</td>
-              <td className="px-3 py-3 text-slate-700">{clean(row.policy_number)}</td>
-              <td className="px-3 py-3 text-slate-700">{clean(row.insurer_name)}</td>
-              <td className="px-3 py-3 text-slate-700">
+              <td className="px-3 py-2 text-slate-700">{vehicleNo(row)}</td>
+              <td className="px-3 py-2 text-slate-700">{clean(row.policy_number)}</td>
+              <td className="px-3 py-2 text-slate-700">{clean(row.insurer_name)}</td>
+              <td className="px-3 py-2 text-slate-700">
                 {formatDate(row.effective_date)}
               </td>
-              <td className="px-3 py-3 text-slate-700">{formatDate(row.expiry_date)}</td>
-              <td className="px-3 py-3">
+              <td className="px-3 py-2 text-slate-700">{formatDate(row.expiry_date)}</td>
+              <td className="px-3 py-2">
                 <StageBadge record={row} />
-                <p className="mt-1 text-xs text-slate-500">{stageMeta(row)}</p>
+                <p className="text-xs text-slate-500">{stageMeta(row)}</p>
               </td>
-              <td className="px-3 py-3 text-slate-700">{money(row.gross_premium)}</td>
-              <td className="px-3 py-3 text-slate-700">
+              <td className="px-3 py-2 text-slate-700">{money(row.gross_premium)}</td>
+              <td className="px-3 py-2 text-slate-700">
                 <PremiumStatusSelect
                   policyTermId={row.policy_term_id}
                   status={row.premium_status}
                 />
               </td>
-              <td className="px-3 py-3 text-slate-700">{clean(row.renewal_status)}</td>
-              <td className="px-3 py-3">
-                <button
-                  aria-label={`Preview ${clean(row.client_name)}`}
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 transition hover:border-sky-200 hover:bg-sky-50"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setPreviewRecord(row);
-                  }}
-                  type="button"
-                >
-                  <Eye className="h-4 w-4" />
-                </button>
-              </td>
+              <td className="px-3 py-2 text-slate-700">{clean(row.renewal_status)}</td>
             </tr>
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-slate-500" colSpan={12}>
+            <td className="px-3 py-8 text-center text-slate-500" colSpan={11}>
               No matching records.
             </td>
           </tr>

@@ -8,7 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 
 type ClientRow = {
   id: string;
-  client_code: string | null;
+  referral: string | null;
   client_name: string | null;
   business_registration_no: string | null;
   client_type: string | null;
@@ -42,7 +42,7 @@ async function ClientsContent() {
   const [clientsResult, policiesResult] = await Promise.all([
     supabase
       .from("clients")
-      .select("id, client_code, client_name, business_registration_no, client_type, phone, email, address, notes")
+      .select("id, referral, client_name, business_registration_no, client_type, phone, email, address, notes")
       .order("client_name", { ascending: true })
       .limit(500),
     supabase.from("main_policy_view").select("client_id, policy_term_id").limit(2000),
@@ -66,6 +66,13 @@ async function ClientsContent() {
     ...client,
     policy_count: policyCountByClient.get(client.id) ?? 0,
   }));
+  const referralOptions = Array.from(
+    new Set(
+      clients
+        .map((client) => client.referral?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  ).sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" }));
 
   return (
     <PageShell>
@@ -75,7 +82,7 @@ async function ClientsContent() {
         </div>
       ) : null}
 
-      <ClientsTable clients={tableRows} />
+      <ClientsTable clients={tableRows} referralOptions={referralOptions} />
     </PageShell>
   );
 }

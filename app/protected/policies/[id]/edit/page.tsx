@@ -41,7 +41,7 @@ async function EditPolicyContent({ params }: PageProps) {
   ] = await Promise.all([
     supabase
       .from("policy_terms")
-      .select("*, insurance_types(code, name), clients(id, client_name, business_registration_no, client_type, phone, email, address)")
+      .select("*, insurance_types(code, name), clients(id, client_name, business_registration_no, client_type, referral, phone, email, address)")
       .eq("id", id)
       .maybeSingle(),
     supabase

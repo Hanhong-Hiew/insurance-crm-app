@@ -57,6 +57,7 @@ export async function createClientRecord(
         client_name: clientName,
         business_registration_no: optionalText(formData, "business_registration_no"),
         client_type: textValue(formData, "client_type") || "individual",
+        referral: optionalText(formData, "referral"),
         phone: optionalText(formData, "phone"),
         email: optionalText(formData, "email"),
       })

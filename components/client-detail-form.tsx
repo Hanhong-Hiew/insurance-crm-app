@@ -12,7 +12,7 @@ import { ActionMessage } from "@/components/action-message";
 
 type ClientFormRecord = {
   id: string;
-  client_code: string | null;
+  referral: string | null;
   client_name: string | null;
   business_registration_no: string | null;
   client_type: string | null;
@@ -25,7 +25,13 @@ type ClientFormRecord = {
 const fieldClass =
   "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
 
-export function ClientDetailForm({ client }: { client: ClientFormRecord }) {
+export function ClientDetailForm({
+  client,
+  referralOptions,
+}: {
+  client: ClientFormRecord;
+  referralOptions: string[];
+}) {
   const [state, formAction] = useActionState<UpdateClientState, FormData>(
     updateClient,
     {},
@@ -45,13 +51,19 @@ export function ClientDetailForm({ client }: { client: ClientFormRecord }) {
           required
         />
       </Field>
-      <Field label="Client Code">
+      <Field label="Referral">
         <input
           className={fieldClass}
-          defaultValue={client.client_code ?? ""}
-          name="client_code"
-          placeholder="Optional"
+          defaultValue={client.referral ?? ""}
+          list="client-referral-options"
+          name="referral"
+          placeholder="Who referred this client"
         />
+        <datalist id="client-referral-options">
+          {referralOptions.map((referral) => (
+            <option key={referral} value={referral} />
+          ))}
+        </datalist>
       </Field>
       <Field label="IC / Business Reg. No.">
         <input

@@ -31,6 +31,7 @@ type OptionRow = {
   client_name?: string | null;
   business_registration_no?: string | null;
   client_type?: string | null;
+  referral?: string | null;
   phone?: string | null;
   email?: string | null;
   insurer_name?: string | null;
@@ -64,7 +65,7 @@ function optionLabel(row: OptionRow) {
 }
 
 function clientSearchText(row: OptionRow) {
-  return `${row.client_name ?? ""} ${row.business_registration_no ?? ""} ${row.phone ?? ""} ${row.email ?? ""}`.toLowerCase();
+  return `${row.client_name ?? ""} ${row.business_registration_no ?? ""} ${row.referral ?? ""} ${row.phone ?? ""} ${row.email ?? ""}`.toLowerCase();
 }
 
 function typeCode(value: string | null | undefined) {
@@ -223,6 +224,7 @@ export function NewPolicyForm({
   const [selectedClientId, setSelectedClientId] = useState("");
   const [businessRegistrationNo, setBusinessRegistrationNo] = useState("");
   const [clientType, setClientType] = useState("individual");
+  const [clientReferral, setClientReferral] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientAddress, setClientAddress] = useState("");
@@ -244,6 +246,7 @@ export function NewPolicyForm({
     setSelectedClientId("");
     setBusinessRegistrationNo("");
     setClientType("individual");
+    setClientReferral("");
     setClientPhone("");
     setClientEmail("");
     setClientAddress("");
@@ -307,6 +310,17 @@ export function NewPolicyForm({
       .filter((client) => clientSearchText(client).includes(q))
       .slice(0, 8);
   }, [clientName, clients]);
+  const referralOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          clients
+            .map((client) => client.referral?.trim())
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ).sort((a, b) => a.localeCompare(b, "en", { sensitivity: "base" })),
+    [clients],
+  );
 
   return (
     <form action={formAction} className="space-y-4" ref={formRef}>
@@ -350,6 +364,7 @@ export function NewPolicyForm({
                       setClientName(client.client_name ?? "");
                       setBusinessRegistrationNo(client.business_registration_no ?? "");
                       setClientType(client.client_type ?? "individual");
+                      setClientReferral(client.referral ?? "");
                       setClientPhone(client.phone ?? "");
                       setClientEmail(client.email ?? "");
                       setClientAddress(client.address ?? "");
@@ -381,6 +396,21 @@ export function NewPolicyForm({
             <option value="company">Company</option>
             <option value="other">Other</option>
           </select>
+        </Field>
+        <Field label="Referral">
+          <input
+            className={fieldClass}
+            list="client-referral-options"
+            name="client_referral"
+            onChange={(event) => setClientReferral(event.target.value)}
+            placeholder="Who referred this client"
+            value={clientReferral}
+          />
+          <datalist id="client-referral-options">
+            {referralOptions.map((referral) => (
+              <option key={referral} value={referral} />
+            ))}
+          </datalist>
         </Field>
         <Field label="IC / Business Reg. No.">
           <input
@@ -567,7 +597,7 @@ export function NewPolicyForm({
       </FormSection>
 
       <FormSection
-        description="Calculated from settings. Tick customize only for special cases."
+        description="Auto-calculated from settings. Tick customize to override the RM amount for each payee."
         icon={<BadgeDollarSign className="h-5 w-5" />}
         title="Commission Preview"
       >
@@ -610,8 +640,10 @@ export function NewPolicyForm({
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                   <tr>
                     <th className="px-3 py-2 font-semibold">Payee</th>
-                    <th className="px-3 py-2 font-semibold">Rate</th>
-                    <th className="px-3 py-2 font-semibold">Amount</th>
+                    <th className="px-3 py-2 font-semibold">Auto Rate</th>
+                    <th className="px-3 py-2 font-semibold">
+                      {customCommission ? "Custom Amount" : "Auto Amount"}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -629,16 +661,21 @@ export function NewPolicyForm({
                       <td className="px-3 py-2">{(row.calculation_percent * 100).toFixed(2)}%</td>
                       <td className="px-3 py-2">
                         {customCommission ? (
-                          <CurrencyInput
-                            name="custom_commission_amount"
-                            onValueChange={(value) =>
-                              setCustomAmounts((current) => ({
-                                ...current,
-                                [row.payee_id]: value,
-                              }))
-                            }
-                            value={customAmounts[row.payee_id] ?? String(row.amount)}
-                          />
+                          <div className="grid gap-1">
+                            <CurrencyInput
+                              name="custom_commission_amount"
+                              onValueChange={(value) =>
+                                setCustomAmounts((current) => ({
+                                  ...current,
+                                  [row.payee_id]: value,
+                                }))
+                              }
+                              value={customAmounts[row.payee_id] ?? String(row.amount)}
+                            />
+                            <span className="text-xs text-slate-500">
+                              Auto: {moneyText(row.amount)}
+                            </span>
+                          </div>
                         ) : (
                           <>
                             <input name="custom_commission_amount" type="hidden" value={String(row.amount)} />
@@ -659,13 +696,12 @@ export function NewPolicyForm({
         )}
         {customCommission ? (
           <div className="md:col-span-2 xl:col-span-3">
-            <Field label="Customization Reason" required>
+            <Field label="Customization Reason">
               <textarea
                 className={`${fieldClass} min-h-24 py-2`}
                 name="custom_commission_reason"
                 onChange={(event) => setCustomReason(event.target.value)}
-                placeholder="Example: special case, rounded by insurer, Chelsea waived"
-                required
+                placeholder="Optional. Example: special case, rounded by insurer, Chelsea waived"
                 value={customReason}
               />
             </Field>
