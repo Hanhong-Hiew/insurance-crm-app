@@ -21,6 +21,7 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { InsurerBadge } from "@/components/insurer-badge";
 import { PremiumStatusSelect } from "@/components/premium-status-select";
 
 export type PolicyRecord = {
@@ -44,6 +45,8 @@ export type PolicyRecord = {
   quotation_status: string | null;
   policy_status: string | null;
   renewal_status: string | null;
+  split_pattern_code?: string | null;
+  split_pattern_name?: string | null;
   vehicle_no: string | null;
   make_model?: string | null;
   year_of_manufacture?: number | string | null;
@@ -136,11 +139,34 @@ function formatDate(value: string | null | undefined) {
   if (!value) return "-";
   const parsed = new Date(`${value}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(parsed);
+  return new Intl.DateTimeFormat("en-GB").format(parsed);
+}
+
+function dateHighlightClass(value: string | null | undefined) {
+  const parsed = parseDate(value);
+  if (!parsed) return "bg-slate-50 text-slate-600 ring-slate-100";
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+
+  if (sameMonth(parsed, today)) {
+    return "bg-emerald-50 text-emerald-800 ring-emerald-100";
+  }
+  if (sameMonth(parsed, nextMonth)) {
+    return "bg-yellow-50 text-yellow-800 ring-yellow-100";
+  }
+  return "bg-slate-50 text-slate-600 ring-slate-100";
+}
+
+function DateBadge({ value }: { value: string | null | undefined }) {
+  return (
+    <span
+      className={`inline-flex min-w-24 justify-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${dateHighlightClass(value)}`}
+    >
+      {formatDate(value)}
+    </span>
+  );
 }
 
 function formatMonth(value: string | null | undefined) {
@@ -230,6 +256,10 @@ function RiskIcon({ record }: { record: PolicyRecord }) {
 }
 
 function stageLabel(record: PolicyRecord) {
+  return record.term_stage === "quotation" ? "Q" : "P";
+}
+
+function stageFullLabel(record: PolicyRecord) {
   return record.term_stage === "quotation" ? "Quotation" : "Policy";
 }
 
@@ -243,15 +273,20 @@ function StageBadge({ record }: { record: PolicyRecord }) {
   const isQuotation = record.term_stage === "quotation";
   return (
     <span
-      className={`inline-flex min-w-24 items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+      className={`inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 text-xs font-semibold ${
         isQuotation
           ? "bg-orange-50 text-orange-800 ring-1 ring-orange-200"
           : "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
       }`}
+      title={`${stageFullLabel(record)} / ${stageMeta(record)}`}
     >
       {stageLabel(record)}
     </span>
   );
+}
+
+function splitCode(record: PolicyRecord) {
+  return clean(record.split_pattern_code);
 }
 
 function compareValues(a: string | number, b: string | number) {
@@ -409,6 +444,8 @@ export function RecordsPanel({
         record.policy_number,
         record.insurer_name,
         record.insurance_type,
+        record.split_pattern_code,
+        record.split_pattern_name,
         record.vehicle_no,
         record.primary_risk_label,
         record.make_model,
@@ -788,8 +825,9 @@ function RecordPreviewModal({
           <PreviewGrid
             rows={[
               ["Policy No", clean(record.policy_number)],
-              ["Insurer", clean(record.insurer_name)],
+              ["Insurer", <InsurerBadge key="insurer" name={record.insurer_name} />],
               ["Insurance Type", clean(record.insurance_type)],
+              ["Split", splitCode(record)],
               ["Sum Assured", money(record.primary_sum_assured)],
               ["Net Premium", money(record.net_premium)],
               ["Renewal", clean(record.renewal_status)],
@@ -823,20 +861,19 @@ function PolicyTable({
   setPreviewRecord: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="w-full min-w-[1120px] text-left text-sm">
+    <table className="w-full min-w-[1040px] text-left text-sm">
       <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
         <tr>
+          <th className="px-3 py-2 font-medium">Effective</th>
+          <th className="px-3 py-2 font-medium">Expiry</th>
           <th className="px-3 py-2 font-medium">Client</th>
           <th className="px-3 py-2 font-medium">Risk Type</th>
           <th className="px-3 py-2 font-medium">Vehicle No</th>
-          <th className="px-3 py-2 font-medium">Policy No</th>
           <th className="px-3 py-2 font-medium">Insurer</th>
-          <th className="px-3 py-2 font-medium">Effective</th>
-          <th className="px-3 py-2 font-medium">Expiry</th>
           <th className="px-3 py-2 font-medium">Stage</th>
+          <th className="px-3 py-2 font-medium">Split</th>
           <th className="px-3 py-2 font-medium">Gross</th>
           <th className="px-3 py-2 font-medium">Premium</th>
-          <th className="px-3 py-2 font-medium">Renewal</th>
         </tr>
       </thead>
       <tbody>
@@ -849,6 +886,12 @@ function PolicyTable({
                 window.location.href = `/protected/policies/${row.policy_term_id}`;
               }}
             >
+              <td className="px-3 py-2 text-slate-700">
+                <DateBadge value={row.effective_date} />
+              </td>
+              <td className="px-3 py-2 text-slate-700">
+                <DateBadge value={row.expiry_date} />
+              </td>
               <td className="px-3 py-2 font-medium">
                 <span className="flex items-center gap-2">
                   <button
@@ -887,16 +930,13 @@ function PolicyTable({
                 </span>
               </td>
               <td className="px-3 py-2 text-slate-700">{vehicleNo(row)}</td>
-              <td className="px-3 py-2 text-slate-700">{clean(row.policy_number)}</td>
-              <td className="px-3 py-2 text-slate-700">{clean(row.insurer_name)}</td>
               <td className="px-3 py-2 text-slate-700">
-                {formatDate(row.effective_date)}
+                <InsurerBadge name={row.insurer_name} />
               </td>
-              <td className="px-3 py-2 text-slate-700">{formatDate(row.expiry_date)}</td>
               <td className="px-3 py-2">
                 <StageBadge record={row} />
-                <p className="text-xs text-slate-500">{stageMeta(row)}</p>
               </td>
+              <td className="px-3 py-2 text-slate-700">{splitCode(row)}</td>
               <td className="px-3 py-2 text-slate-700">{money(row.gross_premium)}</td>
               <td className="px-3 py-2 text-slate-700">
                 <PremiumStatusSelect
@@ -904,12 +944,11 @@ function PolicyTable({
                   status={row.premium_status}
                 />
               </td>
-              <td className="px-3 py-2 text-slate-700">{clean(row.renewal_status)}</td>
             </tr>
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-slate-500" colSpan={11}>
+            <td className="px-3 py-8 text-center text-slate-500" colSpan={10}>
               No matching records.
             </td>
           </tr>

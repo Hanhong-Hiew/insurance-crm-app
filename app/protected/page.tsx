@@ -23,6 +23,12 @@ type RawCommissionRow = {
   } | null;
 };
 
+type SplitPatternLookupRow = {
+  id: string;
+  commission_split_patterns?: { code?: string | null; name?: string | null } | Array<{ code?: string | null; name?: string | null }> | null;
+  split_pattern_id?: string | null;
+};
+
 function firstValue<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -60,6 +66,7 @@ async function ProtectedContent() {
     premiumResult,
     commissionResult,
     allCommissionResult,
+    splitPatternsResult,
   ] =
     await Promise.all([
       supabase.from("dashboard_summary_view").select("*").maybeSingle(),
@@ -67,7 +74,7 @@ async function ProtectedContent() {
         .from("main_policy_view")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(8),
+        .limit(50),
       supabase.from("renewals_due_view").select("*").limit(40),
       supabase.from("unpaid_premium_view").select("*").limit(40),
       supabase.from("unpaid_commission_view").select("*").limit(40),
@@ -78,6 +85,10 @@ async function ProtectedContent() {
         )
         .order("created_at", { ascending: false })
         .limit(500),
+      supabase
+        .from("policy_terms")
+        .select("id, split_pattern_id, commission_split_patterns(code, name)")
+        .limit(5000),
     ]);
 
   const errors = [
@@ -87,7 +98,32 @@ async function ProtectedContent() {
     premiumResult.error?.message,
     commissionResult.error?.message,
     allCommissionResult.error?.message,
+    splitPatternsResult.error?.message,
   ].filter((message): message is string => Boolean(message));
+  const splitLookup = new Map(
+    ((splitPatternsResult.data ?? []) as SplitPatternLookupRow[]).map((row) => {
+      const pattern = firstValue(row.commission_split_patterns);
+      return [
+        row.id,
+        {
+          split_pattern_code: pattern?.code ?? null,
+          split_pattern_name: pattern?.name ?? null,
+        },
+      ];
+    }),
+  );
+  const policies = (policiesResult.data ?? []).map((policy) => ({
+    ...policy,
+    ...(splitLookup.get(policy.policy_term_id) ?? {}),
+  }));
+  const renewals = (renewalsResult.data ?? []).map((policy) => ({
+    ...policy,
+    ...(splitLookup.get(policy.policy_term_id) ?? {}),
+  }));
+  const unpaidPremium = (premiumResult.data ?? []).map((policy) => ({
+    ...policy,
+    ...(splitLookup.get(policy.policy_term_id) ?? {}),
+  }));
   const commissions = ((allCommissionResult.data ?? []) as RawCommissionRow[]).map(
     (commission) => {
       const term = commission.policy_terms;
@@ -119,11 +155,11 @@ async function ProtectedContent() {
     <CrmMainPanel
       commissions={commissions}
       errors={errors}
-      policies={policiesResult.data ?? []}
-      renewals={renewalsResult.data ?? []}
+      policies={policies}
+      renewals={renewals}
       summary={summaryResult.data ?? null}
       unpaidCommission={commissionResult.data ?? []}
-      unpaidPremium={premiumResult.data ?? []}
+      unpaidPremium={unpaidPremium}
     />
   );
 }

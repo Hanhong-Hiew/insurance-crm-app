@@ -693,7 +693,7 @@ export function NewPolicyForm({
             <option value="">Select split pattern</option>
             {splitPatterns.map((pattern) => (
               <option key={pattern.id} value={pattern.id}>
-                {pattern.code} - {pattern.name}
+                {pattern.code}
               </option>
             ))}
           </select>

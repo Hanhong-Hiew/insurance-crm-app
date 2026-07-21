@@ -9,6 +9,7 @@ import {
   type CommissionPaymentState,
 } from "@/app/protected/commission-payments/actions";
 import { ActionMessage } from "@/components/action-message";
+import { InsurerBadge } from "@/components/insurer-badge";
 
 export type CommissionPaymentRow = {
   amount: number | string | null;
@@ -52,11 +53,7 @@ function formatDate(value: string | null | undefined) {
   if (!value) return "-";
   const parsed = new Date(`${value}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(parsed);
+  return new Intl.DateTimeFormat("en-GB").format(parsed);
 }
 
 function clean(value: string | null | undefined) {
@@ -246,7 +243,9 @@ export function CommissionPaymentsPanel({
                     </td>
                     <td className="px-3 py-3">{clean(row.payee_name)}</td>
                     <td className="px-3 py-3">{clean(row.client_name)}</td>
-                    <td className="px-3 py-3">{clean(row.insurer_name)}</td>
+                    <td className="px-3 py-3">
+                      <InsurerBadge name={row.insurer_name} />
+                    </td>
                     <td className="px-3 py-3">{clean(row.policy_number)}</td>
                     <td className="px-3 py-3">{formatDate(row.expiry_date)}</td>
                     <td className="px-3 py-3 text-right font-semibold">
@@ -331,7 +330,9 @@ function StatementPreview({
                       <td className="px-2 py-2">{clean(row.client_name)}</td>
                       <td className="px-2 py-2">{clean(row.policy_number)}</td>
                       <td className="px-2 py-2">{clean(row.insurance_type)}</td>
-                      <td className="px-2 py-2">{clean(row.insurer_name)}</td>
+                      <td className="px-2 py-2">
+                        <InsurerBadge name={row.insurer_name} />
+                      </td>
                       <td className="px-2 py-2">{formatDate(row.effective_date)}</td>
                       <td className="px-2 py-2">{formatDate(row.expiry_date)}</td>
                       <td className="px-2 py-2 text-right">{money(row.gross_premium)}</td>

@@ -11,6 +11,15 @@ type CommissionTotalRow = {
   amount: number | string | null;
 };
 
+type SplitPatternLookupRow = {
+  id: string;
+  commission_split_patterns?: { code?: string | null; name?: string | null } | Array<{ code?: string | null; name?: string | null }> | null;
+};
+
+function firstValue<T>(value: T | T[] | null | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export default function RecordsPage() {
   return (
     <Suspense fallback={<PageShell>Loading records...</PageShell>}>
@@ -27,18 +36,40 @@ async function RecordsContent() {
     redirect("/auth/login");
   }
 
-  const [recordsResult, commissionsResult] = await Promise.all([
+  const [recordsResult, commissionsResult, splitPatternsResult] = await Promise.all([
     supabase
       .from("main_policy_view")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(2000),
     supabase.from("commissions").select("policy_term_id, amount").limit(5000),
+    supabase
+      .from("policy_terms")
+      .select("id, split_pattern_id, commission_split_patterns(code, name)")
+      .limit(5000),
   ]);
 
-  const errors = [recordsResult.error?.message, commissionsResult.error?.message].filter(
-    (message): message is string => Boolean(message),
+  const errors = [
+    recordsResult.error?.message,
+    commissionsResult.error?.message,
+    splitPatternsResult.error?.message,
+  ].filter((message): message is string => Boolean(message));
+  const splitLookup = new Map(
+    ((splitPatternsResult.data ?? []) as SplitPatternLookupRow[]).map((row) => {
+      const pattern = firstValue(row.commission_split_patterns);
+      return [
+        row.id,
+        {
+          split_pattern_code: pattern?.code ?? null,
+          split_pattern_name: pattern?.name ?? null,
+        },
+      ];
+    }),
   );
+  const policies = ((recordsResult.data ?? []) as PolicyRecord[]).map((policy) => ({
+    ...policy,
+    ...(splitLookup.get(policy.policy_term_id) ?? {}),
+  }));
 
   return (
     <PageShell>
@@ -49,7 +80,7 @@ async function RecordsContent() {
       ) : null}
       <RecordsPanel
         commissionTotals={(commissionsResult.data ?? []) as CommissionTotalRow[]}
-        policies={(recordsResult.data ?? []) as PolicyRecord[]}
+        policies={policies}
       />
     </PageShell>
   );

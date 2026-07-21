@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { PolicyActionsCard } from "@/components/policy-actions-card";
+import { InsurerBadge } from "@/components/insurer-badge";
 import { PremiumStatusSelect } from "@/components/premium-status-select";
 import { createClient } from "@/lib/supabase/server";
 
@@ -52,11 +53,7 @@ function formatDate(value: unknown) {
   if (!value) return "-";
   const parsed = new Date(`${String(value)}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return String(value);
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(parsed);
+  return new Intl.DateTimeFormat("en-GB").format(parsed);
 }
 
 export default function PolicyRecordPage({ params }: PageProps) {
@@ -168,7 +165,7 @@ async function PolicyRecordContent({ params }: PageProps) {
           <InfoCard
             rows={[
               ["Policy No", clean(record.policy_number)],
-              ["Insurer", clean(record.insurer_name)],
+              ["Insurer", <InsurerBadge key="insurer" name={String(record.insurer_name ?? "")} />],
               ["Effective", formatDate(record.effective_date)],
               ["Expiry", formatDate(record.expiry_date)],
               ["Stage", clean(record.term_stage)],

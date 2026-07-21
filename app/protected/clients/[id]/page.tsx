@@ -29,11 +29,7 @@ function formatDate(value: unknown) {
   if (!value) return "-";
   const parsed = new Date(`${String(value)}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return String(value);
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(parsed);
+  return new Intl.DateTimeFormat("en-GB").format(parsed);
 }
 
 export default function ClientDetailPage({ params }: PageProps) {

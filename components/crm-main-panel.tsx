@@ -25,6 +25,7 @@ import {
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
+import { InsurerBadge } from "@/components/insurer-badge";
 import { KoverLogo } from "@/components/kover-logo";
 import { PremiumStatusSelect } from "@/components/premium-status-select";
 
@@ -49,6 +50,8 @@ type PolicyRecord = {
   quotation_status: string | null;
   policy_status: string | null;
   renewal_status: string | null;
+  split_pattern_code?: string | null;
+  split_pattern_name?: string | null;
   vehicle_no: string | null;
   make_model?: string | null;
   year_of_manufacture?: number | string | null;
@@ -152,16 +155,49 @@ function formatDate(value: string | null | undefined) {
   if (!value) return "-";
   const parsed = new Date(`${value}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(parsed);
+  return new Intl.DateTimeFormat("en-GB").format(parsed);
 }
 
 function clean(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "-";
   return String(value).replaceAll("_", " ");
+}
+
+function parseDate(value: string | null | undefined) {
+  if (!value) return null;
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function sameMonth(a: Date, b: Date) {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
+}
+
+function dateHighlightClass(value: string | null | undefined) {
+  const parsed = parseDate(value);
+  if (!parsed) return "bg-slate-50 text-slate-600 ring-slate-100";
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+
+  if (sameMonth(parsed, today)) {
+    return "bg-emerald-50 text-emerald-800 ring-emerald-100";
+  }
+  if (sameMonth(parsed, nextMonth)) {
+    return "bg-yellow-50 text-yellow-800 ring-yellow-100";
+  }
+  return "bg-slate-50 text-slate-600 ring-slate-100";
+}
+
+function DateBadge({ value }: { value: string | null | undefined }) {
+  return (
+    <span
+      className={`inline-flex min-w-24 justify-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${dateHighlightClass(value)}`}
+    >
+      {formatDate(value)}
+    </span>
+  );
 }
 
 function count(value: number | string | null | undefined) {
@@ -225,6 +261,10 @@ function RiskIcon({ record }: { record: PolicyRecord }) {
 }
 
 function stageLabel(record: PolicyRecord) {
+  return record.term_stage === "quotation" ? "Q" : "P";
+}
+
+function stageFullLabel(record: PolicyRecord) {
   return record.term_stage === "quotation" ? "Quotation" : "Policy";
 }
 
@@ -238,15 +278,20 @@ function StageBadge({ record }: { record: PolicyRecord }) {
   const isQuotation = record.term_stage === "quotation";
   return (
     <span
-      className={`inline-flex min-w-24 items-center justify-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+      className={`inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 text-xs font-semibold ${
         isQuotation
           ? "bg-orange-50 text-orange-800 ring-1 ring-orange-200"
           : "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
       }`}
+      title={`${stageFullLabel(record)} / ${stageMeta(record)}`}
     >
       {stageLabel(record)}
     </span>
   );
+}
+
+function splitCode(record: PolicyRecord) {
+  return clean(record.split_pattern_code);
 }
 
 function isCommissionRecord(
@@ -756,14 +801,15 @@ function DashboardPreviewModal({
                 : [
                     ["Policy No", clean(record.policy_number)],
                     ["Vehicle No", vehicleNo(record)],
-                    ["Insurer", clean(record.insurer_name)],
+                    ["Insurer", <InsurerBadge key="insurer" name={record.insurer_name} />],
+                    ["Split", splitCode(record)],
                     ["Effective", formatDate(record.effective_date)],
                     ["Expiry", formatDate(record.expiry_date)],
                     ["Sum Assured", money(record.primary_sum_assured)],
                     ["Gross Premium", money(record.gross_premium)],
                     ["Net Premium", money(record.net_premium)],
                     ["Premium", clean(record.premium_status)],
-                    ["Stage", `${stageLabel(record)} / ${stageMeta(record)}`],
+                    ["Stage", `${stageFullLabel(record)} / ${stageMeta(record)}`],
                     ["Renewal", clean(record.renewal_status)],
                     ["Type of Cover", clean(record.type_of_cover)],
                     ["Make / Model", clean(record.make_model)],
@@ -834,21 +880,20 @@ function PolicyTable({
   setSelected: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="w-full min-w-[980px] text-left text-sm">
+    <table className="w-full min-w-[1040px] text-left text-sm">
       <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
         <tr>
+          <th className="px-3 py-2 font-medium">Effective</th>
+          <th className="px-3 py-2 font-medium">Expiry</th>
           <th className="px-3 py-2 font-medium">Client</th>
           <th className="px-3 py-2 font-medium">Risk Type</th>
           <th className="px-3 py-2 font-medium">Vehicle No</th>
           <th className="px-3 py-2 font-medium">Type</th>
-          <th className="px-3 py-2 font-medium">Policy No</th>
           <th className="px-3 py-2 font-medium">Insurer</th>
-          <th className="px-3 py-2 font-medium">Effective</th>
-          <th className="px-3 py-2 font-medium">Expiry</th>
           <th className="px-3 py-2 font-medium">Stage</th>
+          <th className="px-3 py-2 font-medium">Split</th>
           <th className="px-3 py-2 font-medium">Gross</th>
           <th className="px-3 py-2 font-medium">Premium</th>
-          <th className="px-3 py-2 font-medium">Renewal</th>
         </tr>
       </thead>
       <tbody>
@@ -868,6 +913,12 @@ function PolicyTable({
                 window.location.href = `/protected/policies/${row.policy_term_id}`;
               }}
             >
+              <td className="px-3 py-2">
+                <DateBadge value={row.effective_date} />
+              </td>
+              <td className="px-3 py-2">
+                <DateBadge value={row.expiry_date} />
+              </td>
               <td className="px-3 py-2 font-medium">
                 <span className="flex items-center gap-2">
                   <button
@@ -907,14 +958,13 @@ function PolicyTable({
               </td>
               <td className="px-3 py-2">{vehicleNo(row)}</td>
               <td className="px-3 py-2">{clean(row.insurance_type)}</td>
-              <td className="px-3 py-2">{clean(row.policy_number)}</td>
-              <td className="px-3 py-2">{clean(row.insurer_name)}</td>
-              <td className="px-3 py-2">{formatDate(row.effective_date)}</td>
-              <td className="px-3 py-2">{formatDate(row.expiry_date)}</td>
+              <td className="px-3 py-2">
+                <InsurerBadge name={row.insurer_name} />
+              </td>
               <td className="px-3 py-2">
                 <StageBadge record={row} />
-                <p className="text-xs text-slate-500">{stageMeta(row)}</p>
               </td>
+              <td className="px-3 py-2">{splitCode(row)}</td>
               <td className="px-3 py-2">{money(row.gross_premium)}</td>
               <td className="px-3 py-2">
                 <PremiumStatusSelect
@@ -922,12 +972,11 @@ function PolicyTable({
                   status={row.premium_status}
                 />
               </td>
-              <td className="px-3 py-2">{clean(row.renewal_status)}</td>
             </tr>
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-zinc-500" colSpan={12}>
+            <td className="px-3 py-8 text-center text-zinc-500" colSpan={11}>
               No matching records.
             </td>
           </tr>
@@ -987,6 +1036,8 @@ function CommissionTable({
     <table className="w-full min-w-[820px] text-left text-sm">
       <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
         <tr>
+          <th className="px-3 py-2 font-medium">Effective</th>
+          <th className="px-3 py-2 font-medium">Expiry</th>
           <th className="px-3 py-2 font-medium">Client</th>
           <th className="px-3 py-2 font-medium">Type</th>
           <th className="px-3 py-2 font-medium">Policy No</th>
@@ -995,7 +1046,6 @@ function CommissionTable({
           <th className="px-3 py-2 font-medium">Amount</th>
           <th className="px-3 py-2 font-medium">Unpaid</th>
           <th className="px-3 py-2 font-medium">Status</th>
-          <th className="px-3 py-2 font-medium">Paid Date</th>
           <th className="px-3 py-2 font-medium">Statement</th>
         </tr>
       </thead>
@@ -1016,6 +1066,12 @@ function CommissionTable({
                 window.location.href = `/protected/policies/${row.policy_term_id}`;
               }}
             >
+              <td className="px-3 py-2">
+                <DateBadge value={row.effective_date} />
+              </td>
+              <td className="px-3 py-2">
+                <DateBadge value={row.expiry_date} />
+              </td>
               <td className="px-3 py-2 font-medium">
                 <span className="flex items-center gap-2">
                   <button
@@ -1045,13 +1101,12 @@ function CommissionTable({
               <td className="px-3 py-2">{money(row.amount)}</td>
               <td className="px-3 py-2">{money(row.unpaid_amount)}</td>
               <td className="px-3 py-2">{clean(row.status)}</td>
-              <td className="px-3 py-2">{formatDate(row.paid_date)}</td>
               <td className="px-3 py-2">{clean(row.statement_no)}</td>
             </tr>
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-zinc-500" colSpan={10}>
+            <td className="px-3 py-8 text-center text-zinc-500" colSpan={11}>
               No matching commission records.
             </td>
           </tr>
