@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 type ActionMessageProps = {
   message?: string;
+  messageKey?: number | string;
   tone: "error" | "success" | "warning";
 };
 
@@ -13,7 +14,7 @@ const toneClass = {
   warning: "border-amber-200 bg-amber-50 text-amber-900",
 };
 
-export function ActionMessage({ message, tone }: ActionMessageProps) {
+export function ActionMessage({ message, messageKey, tone }: ActionMessageProps) {
   const [visible, setVisible] = useState(Boolean(message));
 
   useEffect(() => {
@@ -25,7 +26,7 @@ export function ActionMessage({ message, tone }: ActionMessageProps) {
     setVisible(true);
     const timer = window.setTimeout(() => setVisible(false), 8000);
     return () => window.clearTimeout(timer);
-  }, [message]);
+  }, [message, messageKey]);
 
   if (!message || !visible) return null;
 

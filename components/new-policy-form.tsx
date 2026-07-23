@@ -313,7 +313,7 @@ export function NewPolicyForm({
 
   useEffect(() => {
     if (state.success) resetForm();
-  }, [state.success]);
+  }, [state.resultId, state.success]);
 
   const selectedType = useMemo(
     () => insuranceTypes.find((type) => type.id === selectedTypeId),
@@ -398,9 +398,9 @@ export function NewPolicyForm({
 
   return (
     <form action={formAction} className="space-y-4" key={formResetKey} ref={formRef}>
-      <ActionMessage message={state.error} tone="error" />
-      <ActionMessage message={state.success} tone="success" />
-      <ActionMessage message={state.warning} tone="warning" />
+      <ActionMessage message={state.error} messageKey={state.resultId} tone="error" />
+      <ActionMessage message={state.success} messageKey={state.resultId} tone="success" />
+      <ActionMessage message={state.warning} messageKey={state.resultId} tone="warning" />
 
       <FormSection
         description="Choose an existing client or create a new one while saving the policy."

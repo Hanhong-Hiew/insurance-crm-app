@@ -7,6 +7,7 @@ import { roundMoney } from "@/lib/commission";
 
 export type SavePolicyState = {
   error?: string;
+  resultId?: string;
   success?: string;
   warning?: string;
 };
@@ -628,6 +629,7 @@ export async function savePolicy(
     revalidatePath("/protected/new-policy");
 
     return {
+      resultId: crypto.randomUUID(),
       success: "Policy saved.",
       warning: warnings.length ? warnings.join(" ") : undefined,
     };
@@ -646,6 +648,7 @@ export async function savePolicy(
 
     return {
       error: readableError(error, "Policy could not be saved."),
+      resultId: crypto.randomUUID(),
     };
   }
 }
