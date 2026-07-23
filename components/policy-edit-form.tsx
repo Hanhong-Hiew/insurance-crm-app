@@ -744,6 +744,7 @@ function MotorRiskSection({
           <option value="">Select motor type</option>
           <option value="private">Private</option>
           <option value="company">Company</option>
+          <option value="motorcycle">Motorcycle</option>
           <option value="permit_a">Permit A</option>
           <option value="permit_c">Permit C</option>
         </select>
