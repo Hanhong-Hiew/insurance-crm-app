@@ -332,10 +332,9 @@ export function NewPolicyForm({
       calculateCommissionRows({
         grossPremium: toNumber(grossPremium),
         netCommissionPercent: toNumber(selectedRate?.net_commission_percent),
-        netPremium: toNumber(netPremium),
         rules: selectedRules,
       }),
-    [grossPremium, netPremium, selectedRate?.net_commission_percent, selectedRules],
+    [grossPremium, selectedRate?.net_commission_percent, selectedRules],
   );
   const totalCommission = commissionPreview.reduce((sum, row) => {
     const amount = customCommission

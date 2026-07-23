@@ -162,23 +162,6 @@ function readableError(error: unknown, fallback: string) {
   return fallback;
 }
 
-async function splitPatternRequiresNetPremium(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  splitPatternId: string | null,
-) {
-  if (!splitPatternId) return false;
-
-  const { data, error } = await supabase
-    .from("commission_split_rules")
-    .select("id")
-    .eq("split_pattern_id", splitPatternId)
-    .eq("rule_type", "fixed_percent_of_gross")
-    .limit(1);
-  if (error) throw error;
-
-  return Boolean(data?.length);
-}
-
 export async function updatePolicy(
   _previousState: UpdatePolicyState,
   formData: FormData,
@@ -212,10 +195,6 @@ export async function updatePolicy(
     const clientPhone = optionalText(formData, "client_phone");
     const clientEmail = optionalText(formData, "client_email");
     const clientAddress = optionalText(formData, "client_address");
-
-    if ((await splitPatternRequiresNetPremium(supabase, splitPatternId)) && netPremium === null) {
-      return { error: "Net premium is required for this split pattern." };
-    }
 
     const { error: updateError } = await supabase
       .from("policy_terms")
@@ -437,7 +416,6 @@ export async function updatePolicy(
       policyTermId,
       splitPatternId,
       grossPremium,
-      netPremium,
       formData,
     );
 
@@ -466,7 +444,6 @@ async function recalculateCommissions(
   policyTermId: string,
   splitPatternId: string | null,
   grossPremium: number | null,
-  netPremium: number | null,
   formData: FormData,
 ) {
   if (!splitPatternId || grossPremium === null) return;
@@ -488,12 +465,6 @@ async function recalculateCommissions(
   if (rulesError) throw rulesError;
 
   const splitRules = (rules ?? []) as SplitRule[];
-  const hasNetPremiumFixedRule = splitRules.some(
-    (rule) => rule.rule_type === "fixed_percent_of_gross",
-  );
-  if (hasNetPremiumFixedRule && netPremium === null) {
-    throw new Error("Net premium is required for this split pattern.");
-  }
 
   const customCommissionEnabled = textValue(formData, "custom_commission_enabled") === "yes";
   const customReason = optionalText(formData, "custom_commission_reason");
@@ -538,10 +509,10 @@ async function recalculateCommissions(
   const equalRuleCount =
     splitRules.filter((rule) => rule.rule_type === "equal_net_share").length || 1;
   const totalNetCommissionAmount = grossPremium * netPercent;
-  const fixedNetPremiumAmount = splitRules
+  const fixedGrossPremiumAmount = splitRules
     .filter((rule) => rule.rule_type === "fixed_percent_of_gross")
     .reduce(
-      (total, rule) => total + (netPremium ?? 0) * percentNumber(rule.fixed_percent),
+      (total, rule) => total + grossPremium * percentNumber(rule.fixed_percent),
       0,
     );
 
@@ -555,9 +526,9 @@ async function recalculateCommissions(
       amount = grossPremium * calculationPercent;
     } else if (rule.rule_type === "fixed_percent_of_gross") {
       calculationPercent = percentNumber(rule.fixed_percent);
-      amount = (netPremium ?? 0) * calculationPercent;
+      amount = grossPremium * calculationPercent;
     } else if (rule.rule_type === "remaining_net_after_fixed_percent") {
-      amount = Math.max(totalNetCommissionAmount - fixedNetPremiumAmount, 0);
+      amount = Math.max(totalNetCommissionAmount - fixedGrossPremiumAmount, 0);
       calculationPercent = grossPremium ? amount / grossPremium : 0;
     } else if (rule.rule_type === "equal_net_share") {
       calculationPercent = netPercent / equalRuleCount;
