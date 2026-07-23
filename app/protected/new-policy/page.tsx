@@ -100,6 +100,10 @@ async function NewPolicyContent({ searchParams }: PageProps) {
   const duplicateSource = duplicateId
     ? await getDuplicatePolicySource(supabase, duplicateId)
     : null;
+  const duplicateWarning =
+    duplicateId && !duplicateSource
+      ? "The selected record could not be duplicated. Check that the record still exists and try again."
+      : null;
 
   const clients = (clientsResult.data ?? []) as OptionRow[];
   const insuranceTypes = (typesResult.data ?? []) as OptionRow[];
@@ -128,6 +132,11 @@ async function NewPolicyContent({ searchParams }: PageProps) {
           {errors.join(" ")}
         </div>
       ) : null}
+      {duplicateWarning ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {duplicateWarning}
+        </div>
+      ) : null}
 
       <NewPolicyForm
         clients={clients}
@@ -148,18 +157,39 @@ async function getDuplicatePolicySource(
 ): Promise<DuplicatePolicySource | null> {
   const termResult = await supabase
     .from("policy_terms")
-    .select(
-      "*, clients(id, client_name, business_registration_no, client_type, referral, phone, email, address), insurance_types(code, name), policy_series(primary_risk_label)",
-    )
+    .select("*")
     .eq("id", policyTermId)
     .maybeSingle();
 
   if (termResult.error || !termResult.data) return null;
 
   const term = termResult.data as JsonRecord;
-  const client = firstRelation(term.clients) as JsonRecord | null;
-  const insuranceType = firstRelation(term.insurance_types) as JsonRecord | null;
-  const policySeries = firstRelation(term.policy_series) as JsonRecord | null;
+  const [clientResult, insuranceTypeResult, policySeriesResult] = await Promise.all([
+    term.client_id
+      ? supabase
+          .from("clients")
+          .select("id, client_name, business_registration_no, client_type, referral, phone, email, address")
+          .eq("id", String(term.client_id))
+          .maybeSingle()
+      : null,
+    term.insurance_type_id
+      ? supabase
+          .from("insurance_types")
+          .select("id, code, name")
+          .eq("id", String(term.insurance_type_id))
+          .maybeSingle()
+      : null,
+    term.policy_series_id
+      ? supabase
+          .from("policy_series")
+          .select("id, primary_risk_label")
+          .eq("id", String(term.policy_series_id))
+          .maybeSingle()
+      : null,
+  ]);
+  const client = (clientResult?.data ?? null) as JsonRecord | null;
+  const insuranceType = (insuranceTypeResult?.data ?? null) as JsonRecord | null;
+  const policySeries = (policySeriesResult?.data ?? null) as JsonRecord | null;
   const code = String(insuranceType?.code ?? "").trim().toLowerCase();
 
   const source: DuplicatePolicySource = {
