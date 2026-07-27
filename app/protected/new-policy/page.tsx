@@ -20,6 +20,14 @@ type OptionRow = {
   code?: string | null;
 };
 
+type ClientAddressRow = {
+  id: string;
+  address: string | null;
+  address_label: string | null;
+  client_id: string | null;
+  is_default: boolean | null;
+};
+
 type CommissionRateRow = {
   gross_commission_percent: number | string | null;
   insurance_type_id: string | null;
@@ -64,13 +72,27 @@ async function NewPolicyContent({ searchParams }: PageProps) {
     redirect("/auth/login");
   }
 
-  const [clientsResult, typesResult, insurersResult, splitsResult, ratesResult, rulesResult] =
+  const [
+    clientsResult,
+    clientAddressesResult,
+    typesResult,
+    insurersResult,
+    splitsResult,
+    ratesResult,
+    rulesResult,
+  ] =
     await Promise.all([
       supabase
         .from("clients")
         .select("id, client_name, business_registration_no, client_type, referral, phone, email, address")
         .order("client_name", { ascending: true })
         .limit(100),
+      supabase
+        .from("client_addresses")
+        .select("id, client_id, address_label, address, is_default")
+        .order("is_default", { ascending: false })
+        .order("address_label", { ascending: true })
+        .limit(500),
       supabase
         .from("insurance_types")
         .select("id, code, name")
@@ -106,6 +128,7 @@ async function NewPolicyContent({ searchParams }: PageProps) {
       : null;
 
   const clients = (clientsResult.data ?? []) as OptionRow[];
+  const clientAddresses = (clientAddressesResult.data ?? []) as ClientAddressRow[];
   const insuranceTypes = (typesResult.data ?? []) as OptionRow[];
   const insurers = (insurersResult.data ?? []) as OptionRow[];
   const splitPatterns = (splitsResult.data ?? []) as OptionRow[];
@@ -118,6 +141,7 @@ async function NewPolicyContent({ searchParams }: PageProps) {
   }));
   const errors = [
     clientsResult.error?.message,
+    clientAddressesResult.error?.message,
     typesResult.error?.message,
     insurersResult.error?.message,
     splitsResult.error?.message,
@@ -140,6 +164,7 @@ async function NewPolicyContent({ searchParams }: PageProps) {
 
       <NewPolicyForm
         clients={clients}
+        clientAddresses={clientAddresses}
         commissionRates={commissionRates}
         duplicateSource={duplicateSource}
         insuranceTypes={insuranceTypes}
@@ -164,12 +189,24 @@ async function getDuplicatePolicySource(
   if (termResult.error || !termResult.data) return null;
 
   const term = termResult.data as JsonRecord;
-  const [clientResult, insuranceTypeResult, policySeriesResult] = await Promise.all([
+  const [
+    clientResult,
+    clientAddressResult,
+    insuranceTypeResult,
+    policySeriesResult,
+  ] = await Promise.all([
     term.client_id
       ? supabase
           .from("clients")
           .select("id, client_name, business_registration_no, client_type, referral, phone, email, address")
           .eq("id", String(term.client_id))
+          .maybeSingle()
+      : null,
+    term.client_address_id
+      ? supabase
+          .from("client_addresses")
+          .select("id, client_id, address_label, address, is_default")
+          .eq("id", String(term.client_address_id))
           .maybeSingle()
       : null,
     term.insurance_type_id
@@ -188,13 +225,16 @@ async function getDuplicatePolicySource(
       : null,
   ]);
   const client = (clientResult?.data ?? null) as JsonRecord | null;
+  const clientAddress = (clientAddressResult?.data ?? null) as JsonRecord | null;
   const insuranceType = (insuranceTypeResult?.data ?? null) as JsonRecord | null;
   const policySeries = (policySeriesResult?.data ?? null) as JsonRecord | null;
   const code = String(insuranceType?.code ?? "").trim().toLowerCase();
 
   const source: DuplicatePolicySource = {
     business_registration_no: textFrom(client?.business_registration_no),
-    client_address: textFrom(client?.address),
+    client_address: textFrom(clientAddress?.address) || textFrom(client?.address),
+    client_address_id: textFrom(clientAddress?.id) || textFrom(term.client_address_id),
+    client_address_label: textFrom(clientAddress?.address_label),
     client_email: textFrom(client?.email),
     client_id: textFrom(client?.id),
     client_name: textFrom(client?.client_name),

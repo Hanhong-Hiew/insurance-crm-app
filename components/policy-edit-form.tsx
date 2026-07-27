@@ -6,13 +6,14 @@ import {
   Car,
   FileText,
   Landmark,
+  MapPin,
   Plane,
   Save,
   ShieldCheck,
   Ship,
   Wrench,
 } from "lucide-react";
-import { useActionState, useRef, useState } from "react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -34,7 +35,16 @@ type OptionRow = {
   insurer_name?: string | null;
 };
 
+type ClientAddressRow = {
+  id: string;
+  address: string | null;
+  address_label: string | null;
+  client_id: string | null;
+  is_default: boolean | null;
+};
+
 type PolicyTermRecord = {
+  client_address_id?: string | null;
   insurance_type_id?: string | null;
   insurer_id: string | null;
   split_pattern_id: string | null;
@@ -83,6 +93,7 @@ type SplitRuleRow = CommissionRule & {
 
 type PolicyEditFormProps = {
   client: ClientRecord | null;
+  clientAddresses: ClientAddressRow[];
   commissionRates: CommissionRateRow[];
   equipmentDetail: EquipmentDetailRecord | null;
   equipmentJson: Record<string, unknown>;
@@ -275,6 +286,7 @@ function TextAreaInput({
 
 export function PolicyEditForm({
   client,
+  clientAddresses,
   commissionRates,
   equipmentDetail,
   equipmentJson,
@@ -301,6 +313,18 @@ export function PolicyEditForm({
   const [grossPremium, setGrossPremium] = useState(String(term.gross_premium ?? ""));
   const [netPremium, setNetPremium] = useState(String(term.net_premium ?? ""));
   const [selectedSplitId, setSelectedSplitId] = useState(term.split_pattern_id ?? "");
+  const initialClientAddress = clientAddresses.find(
+    (address) => address.id === term.client_address_id,
+  );
+  const [selectedClientAddressId, setSelectedClientAddressId] = useState(
+    initialClientAddress?.id ?? "",
+  );
+  const [clientAddressLabel, setClientAddressLabel] = useState(
+    initialClientAddress?.address_label ?? "",
+  );
+  const [clientAddress, setClientAddress] = useState(
+    initialClientAddress?.address ?? client?.address ?? "",
+  );
   const [customCommission, setCustomCommission] = useState(false);
   const [customTotalAmount, setCustomTotalAmount] = useState("");
   const [customReason, setCustomReason] = useState("");
@@ -329,6 +353,18 @@ export function PolicyEditForm({
     extra_coverage: detailText(motorDetail, "extra_coverage"),
     motor_description: detailText(motorDetail, "motor_description"),
   };
+  const selectedClientAddresses = useMemo(
+    () =>
+      client?.id
+        ? clientAddresses.filter((address) => address.client_id === client.id)
+        : [],
+    [client?.id, clientAddresses],
+  );
+  function applyClientAddress(address: ClientAddressRow | null, fallbackAddress = "") {
+    setSelectedClientAddressId(address?.id ?? "");
+    setClientAddressLabel(address?.address_label ?? "");
+    setClientAddress(address?.address ?? fallbackAddress);
+  }
   const selectedRate = commissionRates.find(
     (rate) => rate.insurance_type_id === term.insurance_type_id,
   );
@@ -423,14 +459,48 @@ export function PolicyEditForm({
             />
           </Field>
           <div className="md:col-span-2 xl:col-span-3">
-            <Field label="Address">
-              <textarea
-                className={`${fieldClass} min-h-24 py-2`}
-                defaultValue={client?.address ?? ""}
-                name="client_address"
-                placeholder="Client address"
-              />
-            </Field>
+            <FormSectionBlock icon={<MapPin className="h-4 w-4" />} title="Client Addresses">
+              <Field label="Saved Address / Location">
+                <select
+                  className={fieldClass}
+                  name="selected_client_address_id"
+                  onChange={(event) => {
+                    const addressId = event.target.value;
+                    const address =
+                      selectedClientAddresses.find((item) => item.id === addressId) ?? null;
+                    applyClientAddress(address);
+                  }}
+                  value={selectedClientAddressId}
+                >
+                  <option value="">Add new address</option>
+                  {selectedClientAddresses.map((address) => (
+                    <option key={address.id} value={address.id}>
+                      {address.address_label || address.address || "Saved address"}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Address Label">
+                <input
+                  className={fieldClass}
+                  name="client_address_label"
+                  onChange={(event) => setClientAddressLabel(event.target.value)}
+                  placeholder="HQ, Shoplot, Warehouse, Home"
+                  value={clientAddressLabel}
+                />
+              </Field>
+              <div className="md:col-span-2 xl:col-span-3">
+                <Field label="Address">
+                  <textarea
+                    className={`${fieldClass} min-h-24 py-2`}
+                    name="client_address"
+                    onChange={(event) => setClientAddress(event.target.value)}
+                    placeholder="Client or risk location address"
+                    value={clientAddress}
+                  />
+                </Field>
+              </div>
+            </FormSectionBlock>
           </div>
         </div>
       </section>
@@ -573,7 +643,7 @@ export function PolicyEditForm({
       </section>
 
       {isMotor ? <MotorRiskSection defaults={motorDefaults} /> : null}
-      {isFire ? <FireRiskSection detail={fireDetail} /> : null}
+      {isFire ? <FireRiskSection detail={fireDetail} selectedAddress={clientAddress} /> : null}
       {isEquipmentPolicy ? (
         <EquipmentRiskSection
           detail={equipmentDetail}
@@ -802,9 +872,15 @@ function MotorRiskSection({
   );
 }
 
-function FireRiskSection({ detail }: { detail: RiskDetailRecord }) {
+function FireRiskSection({
+  detail,
+  selectedAddress,
+}: {
+  detail: RiskDetailRecord;
+  selectedAddress: string;
+}) {
   const address =
-    detailText(detail, "property_address") || detailText(detail, "risk_location");
+    detailText(detail, "property_address") || detailText(detail, "risk_location") || selectedAddress;
 
   return (
     <FormSection
@@ -965,6 +1041,28 @@ function FormSection({
       </div>
       <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">{children}</div>
     </section>
+  );
+}
+
+function FormSectionBlock({
+  children,
+  icon,
+  title,
+}: {
+  children: React.ReactNode;
+  icon: React.ReactNode;
+  title: string;
+}) {
+  return (
+    <div className="grid gap-4 rounded-xl border border-sky-100 bg-sky-50/40 p-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="flex items-center gap-2 text-sm font-semibold text-sky-800 md:col-span-2 xl:col-span-3">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-sky-700 shadow-sm">
+          {icon}
+        </span>
+        {title}
+      </div>
+      {children}
+    </div>
   );
 }
 

@@ -6,6 +6,7 @@ import {
   Car,
   FileText,
   Landmark,
+  MapPin,
   Plane,
   RefreshCcw,
   Ship,
@@ -38,6 +39,14 @@ type OptionRow = {
   code?: string | null;
 };
 
+type ClientAddressRow = {
+  id: string;
+  address: string | null;
+  address_label: string | null;
+  client_id: string | null;
+  is_default: boolean | null;
+};
+
 type CommissionRateRow = {
   gross_commission_percent: number | string | null;
   insurance_type_id: string | null;
@@ -49,6 +58,7 @@ type SplitRuleRow = CommissionRule & {
 };
 
 type NewPolicyFormProps = {
+  clientAddresses: ClientAddressRow[];
   clients: OptionRow[];
   commissionRates: CommissionRateRow[];
   duplicateSource?: DuplicatePolicySource | null;
@@ -63,6 +73,8 @@ export type RiskDefaults = Record<string, number | string | null | undefined>;
 export type DuplicatePolicySource = {
   business_registration_no?: string | null;
   client_address?: string | null;
+  client_address_id?: string | null;
+  client_address_label?: string | null;
   client_email?: string | null;
   client_id?: string | null;
   client_name?: string | null;
@@ -243,6 +255,7 @@ function SubmitButton() {
 }
 
 export function NewPolicyForm({
+  clientAddresses,
   clients,
   commissionRates,
   duplicateSource = null,
@@ -270,6 +283,12 @@ export function NewPolicyForm({
   const [clientPhone, setClientPhone] = useState(initialDuplicate?.client_phone ?? "");
   const [clientEmail, setClientEmail] = useState(initialDuplicate?.client_email ?? "");
   const [clientAddress, setClientAddress] = useState(initialDuplicate?.client_address ?? "");
+  const [selectedClientAddressId, setSelectedClientAddressId] = useState(
+    initialDuplicate?.client_address_id ?? "",
+  );
+  const [clientAddressLabel, setClientAddressLabel] = useState(
+    initialDuplicate?.client_address_label ?? "",
+  );
   const [showClientSuggestions, setShowClientSuggestions] = useState(false);
   const [showReferralSuggestions, setShowReferralSuggestions] = useState(false);
   const [selectedTypeId, setSelectedTypeId] = useState(initialDuplicate?.insurance_type_id ?? "");
@@ -296,6 +315,8 @@ export function NewPolicyForm({
     setClientPhone("");
     setClientEmail("");
     setClientAddress("");
+    setSelectedClientAddressId("");
+    setClientAddressLabel("");
     setShowClientSuggestions(false);
     setShowReferralSuggestions(false);
     setSelectedTypeId("");
@@ -377,6 +398,26 @@ export function NewPolicyForm({
       .filter((client) => clientSearchText(client).includes(q))
       .slice(0, 8);
   }, [clientName, clients]);
+  const selectedClientAddresses = useMemo(
+    () =>
+      selectedClientId
+        ? clientAddresses.filter((address) => address.client_id === selectedClientId)
+        : [],
+    [clientAddresses, selectedClientId],
+  );
+  function applyClientAddress(address: ClientAddressRow | null, fallbackAddress = "") {
+    setSelectedClientAddressId(address?.id ?? "");
+    setClientAddressLabel(address?.address_label ?? "");
+    setClientAddress(address?.address ?? fallbackAddress);
+  }
+  function defaultAddressForClient(clientId: string) {
+    const addresses = clientAddresses.filter((address) => address.client_id === clientId);
+    return (
+      addresses.find((address) => address.is_default) ??
+      addresses.find((address) => address.address) ??
+      null
+    );
+  }
   const referralOptions = useMemo(
     () =>
       Array.from(
@@ -419,6 +460,7 @@ export function NewPolicyForm({
               onChange={(event) => {
                 setClientName(event.target.value);
                 setSelectedClientId("");
+                setSelectedClientAddressId("");
                 setShowClientSuggestions(true);
               }}
               onFocus={() => setShowClientSuggestions(true)}
@@ -441,7 +483,7 @@ export function NewPolicyForm({
                       setClientReferral(client.referral ?? "");
                       setClientPhone(client.phone ?? "");
                       setClientEmail(client.email ?? "");
-                      setClientAddress(client.address ?? "");
+                      applyClientAddress(defaultAddressForClient(client.id), client.address ?? "");
                       setShowClientSuggestions(false);
                     }}
                     type="button"
@@ -536,17 +578,48 @@ export function NewPolicyForm({
             value={clientEmail}
           />
         </Field>
-        <div className="md:col-span-2 xl:col-span-3">
-          <Field label="Address">
-            <textarea
-              className={`${fieldClass} min-h-24 py-2`}
-              name="client_address"
-              onChange={(event) => setClientAddress(event.target.value)}
-              placeholder="Client address"
-              value={clientAddress}
+        <FormSectionBlock icon={<MapPin className="h-4 w-4" />} title="Client Addresses">
+          <Field label="Saved Address / Location">
+            <select
+              className={fieldClass}
+              name="selected_client_address_id"
+              onChange={(event) => {
+                const addressId = event.target.value;
+                const address =
+                  selectedClientAddresses.find((item) => item.id === addressId) ?? null;
+                applyClientAddress(address);
+              }}
+              value={selectedClientAddressId}
+            >
+              <option value="">Add new address</option>
+              {selectedClientAddresses.map((address) => (
+                <option key={address.id} value={address.id}>
+                  {address.address_label || address.address || "Saved address"}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Address Label">
+            <input
+              className={fieldClass}
+              name="client_address_label"
+              onChange={(event) => setClientAddressLabel(event.target.value)}
+              placeholder="HQ, Shoplot, Warehouse, Home"
+              value={clientAddressLabel}
             />
           </Field>
-        </div>
+          <div className="md:col-span-2 xl:col-span-3">
+            <Field label="Address">
+              <textarea
+                className={`${fieldClass} min-h-24 py-2`}
+                name="client_address"
+                onChange={(event) => setClientAddress(event.target.value)}
+                placeholder="Client or risk location address"
+                value={clientAddress}
+              />
+            </Field>
+          </div>
+        </FormSectionBlock>
       </FormSection>
 
       <FormSection
@@ -651,7 +724,12 @@ export function NewPolicyForm({
       </FormSection>
 
       {isMotor ? <MotorRiskSection defaults={activeDuplicate?.motor} /> : null}
-      {isFire ? <FireRiskSection defaults={activeDuplicate?.fire} /> : null}
+      {isFire ? (
+        <FireRiskSection
+          defaults={activeDuplicate?.fire}
+          selectedAddress={clientAddress}
+        />
+      ) : null}
       {isEquipment ? <EquipmentRiskSection defaults={activeDuplicate?.equipment} /> : null}
       {isMarine ? <MarineRiskSection defaults={activeDuplicate?.marine} /> : null}
       {isTravel ? <TravelRiskSection defaults={activeDuplicate?.travel} /> : null}
@@ -953,7 +1031,13 @@ function MotorRiskSection({ defaults }: { defaults?: RiskDefaults }) {
   );
 }
 
-function FireRiskSection({ defaults }: { defaults?: RiskDefaults }) {
+function FireRiskSection({
+  defaults,
+  selectedAddress,
+}: {
+  defaults?: RiskDefaults;
+  selectedAddress: string;
+}) {
   return (
     <FormSection
       description="Fire-like policies use the main term sum assured. Keep this section for risk details only."
@@ -961,7 +1045,7 @@ function FireRiskSection({ defaults }: { defaults?: RiskDefaults }) {
       title="Fire Risk"
     >
       <Field label="Risk Location / Property Address">
-        <input className={fieldClass} defaultValue={defaultText(defaults?.property_address)} name="property_address" placeholder="Insured property or risk location" />
+        <input className={fieldClass} defaultValue={defaultText(defaults?.property_address) || selectedAddress} name="property_address" placeholder="Insured property or risk location" />
       </Field>
       <Field label="Occupation">
         <input className={fieldClass} defaultValue={defaultText(defaults?.occupation)} name="occupation" placeholder="Shop, warehouse, residence" />
@@ -1095,6 +1179,28 @@ function FormSection({
         {children}
       </div>
     </section>
+  );
+}
+
+function FormSectionBlock({
+  children,
+  icon,
+  title,
+}: {
+  children: React.ReactNode;
+  icon: React.ReactNode;
+  title: string;
+}) {
+  return (
+    <div className="grid gap-4 rounded-xl border border-sky-100 bg-sky-50/40 p-3 md:col-span-2 md:grid-cols-2 xl:col-span-3 xl:grid-cols-3">
+      <div className="flex items-center gap-2 text-sm font-semibold text-sky-800 md:col-span-2 xl:col-span-3">
+        <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-sky-700 shadow-sm">
+          {icon}
+        </span>
+        {title}
+      </div>
+      {children}
+    </div>
   );
 }
 

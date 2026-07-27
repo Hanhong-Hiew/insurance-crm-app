@@ -29,6 +29,7 @@ async function EditPolicyContent({ params }: PageProps) {
 
   const [
     termResult,
+    clientAddressesResult,
     insurersResult,
     splitsResult,
     ratesResult,
@@ -44,6 +45,12 @@ async function EditPolicyContent({ params }: PageProps) {
       .select("*, insurance_types(code, name), clients(id, client_name, business_registration_no, client_type, referral, phone, email, address)")
       .eq("id", id)
       .maybeSingle(),
+    supabase
+      .from("client_addresses")
+      .select("id, client_id, address_label, address, is_default")
+      .order("is_default", { ascending: false })
+      .order("address_label", { ascending: true })
+      .limit(500),
     supabase
       .from("insurers")
       .select("id, insurer_name")
@@ -77,6 +84,7 @@ async function EditPolicyContent({ params }: PageProps) {
   if (termResult.error) throw termResult.error;
   if (!termResult.data) notFound();
   const setupErrors = [
+    clientAddressesResult.error,
     insurersResult.error,
     splitsResult.error,
     ratesResult.error,
@@ -115,6 +123,7 @@ async function EditPolicyContent({ params }: PageProps) {
     <PageShell policyTermId={id}>
       <PolicyEditForm
         client={client ?? null}
+        clientAddresses={clientAddressesResult.data ?? []}
         commissionRates={ratesResult.data ?? []}
         equipmentDetail={equipmentDetail}
         equipmentJson={equipmentJson}

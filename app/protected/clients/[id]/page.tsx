@@ -49,12 +49,18 @@ async function ClientDetailContent({ params }: PageProps) {
     redirect("/auth/login");
   }
 
-  const [clientResult, policiesResult, referralsResult] = await Promise.all([
+  const [clientResult, clientAddressesResult, policiesResult, referralsResult] = await Promise.all([
     supabase
       .from("clients")
       .select("id, referral, client_name, business_registration_no, client_type, phone, email, address, notes")
       .eq("id", id)
       .maybeSingle(),
+    supabase
+      .from("client_addresses")
+      .select("id, client_id, address_label, address, is_default")
+      .eq("client_id", id)
+      .order("is_default", { ascending: false })
+      .order("address_label", { ascending: true }),
     supabase
       .from("main_policy_view")
       .select("*")
@@ -69,9 +75,11 @@ async function ClientDetailContent({ params }: PageProps) {
   ]);
 
   if (clientResult.error) throw clientResult.error;
+  if (clientAddressesResult.error) throw clientAddressesResult.error;
   if (!clientResult.data) notFound();
 
   const client = clientResult.data;
+  const clientAddresses = clientAddressesResult.data ?? [];
   const policies = policiesResult.data ?? [];
   const referralOptions = Array.from(
     new Set(
@@ -91,7 +99,11 @@ async function ClientDetailContent({ params }: PageProps) {
               This is the master client record used by linked policies.
             </p>
           </div>
-          <ClientDetailForm client={client} referralOptions={referralOptions} />
+          <ClientDetailForm
+            client={client}
+            clientAddresses={clientAddresses}
+            referralOptions={referralOptions}
+          />
         </section>
 
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">

@@ -178,6 +178,8 @@ export async function savePolicy(
     const clientPhone = optionalText(formData, "client_phone");
     const clientEmail = optionalText(formData, "client_email");
     const clientAddress = optionalText(formData, "client_address");
+    const selectedClientAddressId = optionalText(formData, "selected_client_address_id");
+    const clientAddressLabel = optionalText(formData, "client_address_label");
     const insuranceTypeId = textValue(formData, "insurance_type_id");
     const insurerId = textValue(formData, "insurer_id");
     const splitPatternId = optionalText(formData, "split_pattern_id");
@@ -264,6 +266,7 @@ export async function savePolicy(
     }
 
     let clientId = existingClient?.id as string | undefined;
+    let clientAddressId: string | null = null;
     const existingClientRegistrationNo = existingClient?.business_registration_no ?? null;
     if (!clientId) {
       const { data: createdClient, error: clientError } = await supabase
@@ -313,6 +316,53 @@ export async function savePolicy(
       }
     }
 
+    if (clientId && clientAddress) {
+      if (selectedClientAddressId) {
+        const { data: existingAddress, error: addressLookupError } = await supabase
+          .from("client_addresses")
+          .select("id")
+          .eq("id", selectedClientAddressId)
+          .eq("client_id", clientId)
+          .maybeSingle();
+        if (addressLookupError) throw addressLookupError;
+
+        if (existingAddress?.id) {
+          const { error: addressUpdateError } = await supabase
+            .from("client_addresses")
+            .update({
+              address: clientAddress,
+              address_label: clientAddressLabel,
+            })
+            .eq("id", existingAddress.id);
+          if (addressUpdateError) throw addressUpdateError;
+          clientAddressId = existingAddress.id as string;
+        }
+      }
+
+      if (!clientAddressId) {
+        const { data: createdAddress, error: addressCreateError } = await supabase
+          .from("client_addresses")
+          .insert({
+            client_id: clientId,
+            address: clientAddress,
+            address_label: clientAddressLabel,
+            is_default: !existingClient?.address,
+          })
+          .select("id")
+          .single();
+        if (addressCreateError) throw addressCreateError;
+        clientAddressId = createdAddress.id as string;
+      }
+
+      if (!existingClient?.address) {
+        const { error: mainAddressError } = await supabase
+          .from("clients")
+          .update({ address: clientAddress })
+          .eq("id", clientId);
+        if (mainAddressError) throw mainAddressError;
+      }
+    }
+
     const { data: policySeries, error: seriesError } = await supabase
       .from("policy_series")
       .insert({
@@ -347,6 +397,7 @@ export async function savePolicy(
         insurance_type_id: insuranceTypeId,
         insurer_id: insurerId,
         commission_rate_setting_id: rateSetting?.id ?? null,
+        client_address_id: clientAddressId,
         split_pattern_id: splitPatternId,
         policy_number: policyNumber,
         effective_date: effectiveDate,
@@ -458,7 +509,7 @@ export async function savePolicy(
         if (motorError) throw motorError;
       }
     } else if (isFireLikeInsurance(insuranceCode)) {
-      const propertyAddress = optionalText(formData, "property_address");
+      const propertyAddress = optionalText(formData, "property_address") || clientAddress;
       const { error: fireError } = await supabase
         .from("fire_policy_details")
         .insert({

@@ -19,6 +19,13 @@ function optionalText(formData: FormData, key: string) {
   return value || null;
 }
 
+function allTextValues(formData: FormData, key: string) {
+  return formData
+    .getAll(key)
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean);
+}
+
 function readableError(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message;
   if (error && typeof error === "object") {
@@ -62,6 +69,72 @@ export async function updateClient(
       })
       .eq("id", clientId);
     if (error) throw error;
+
+    const defaultAddressId = textValue(formData, "default_address_id");
+    const addressIds = allTextValues(formData, "address_id");
+    const addressLabels = formData
+      .getAll("address_label")
+      .map((value) => (typeof value === "string" ? value.trim() : ""));
+    const addressTexts = formData
+      .getAll("address_text")
+      .map((value) => (typeof value === "string" ? value.trim() : ""));
+
+    for (const [index, addressId] of addressIds.entries()) {
+      const { error: addressUpdateError } = await supabase
+        .from("client_addresses")
+        .update({
+          address_label: addressLabels[index] || null,
+          address: addressTexts[index] || null,
+          is_default: defaultAddressId === addressId,
+        })
+        .eq("id", addressId)
+        .eq("client_id", clientId);
+      if (addressUpdateError) throw addressUpdateError;
+    }
+
+    const newAddressText = optionalText(formData, "new_address_text");
+    let newAddressId: string | null = null;
+    if (newAddressText) {
+      const { data: createdAddress, error: addressCreateError } = await supabase
+        .from("client_addresses")
+        .insert({
+          client_id: clientId,
+          address_label: optionalText(formData, "new_address_label"),
+          address: newAddressText,
+          is_default: defaultAddressId === "__new" || addressIds.length === 0,
+        })
+        .select("id")
+        .single();
+      if (addressCreateError) throw addressCreateError;
+      newAddressId = createdAddress.id as string;
+    }
+
+    const selectedDefaultAddressId = defaultAddressId === "__new" ? newAddressId : defaultAddressId;
+    if (selectedDefaultAddressId) {
+      const { error: clearDefaultError } = await supabase
+        .from("client_addresses")
+        .update({ is_default: false })
+        .eq("client_id", clientId)
+        .neq("id", selectedDefaultAddressId);
+      if (clearDefaultError) throw clearDefaultError;
+
+      const { error: setDefaultError } = await supabase
+        .from("client_addresses")
+        .update({ is_default: true })
+        .eq("id", selectedDefaultAddressId)
+        .eq("client_id", clientId);
+      if (setDefaultError) throw setDefaultError;
+    }
+
+    if (!addressIds.length && !newAddressText && optionalText(formData, "address")) {
+      const { error: seedAddressError } = await supabase.from("client_addresses").insert({
+        client_id: clientId,
+        address_label: "Main",
+        address: optionalText(formData, "address"),
+        is_default: true,
+      });
+      if (seedAddressError) throw seedAddressError;
+    }
 
     await supabase.from("activity_logs").insert({
       record_type: "client",

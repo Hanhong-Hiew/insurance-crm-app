@@ -1,6 +1,6 @@
 "use client";
 
-import { Save } from "lucide-react";
+import { MapPin, Save } from "lucide-react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -22,14 +22,24 @@ type ClientFormRecord = {
   notes: string | null;
 };
 
+type ClientAddressRecord = {
+  id: string;
+  address: string | null;
+  address_label: string | null;
+  client_id: string | null;
+  is_default: boolean | null;
+};
+
 const fieldClass =
   "h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100";
 
 export function ClientDetailForm({
   client,
+  clientAddresses,
   referralOptions,
 }: {
   client: ClientFormRecord;
+  clientAddresses: ClientAddressRecord[];
   referralOptions: string[];
 }) {
   const [state, formAction] = useActionState<UpdateClientState, FormData>(
@@ -95,13 +105,72 @@ export function ClientDetailForm({
           type="email"
         />
       </Field>
-      <Field label="Address">
+      <Field label="Main Address">
         <textarea
           className={`${fieldClass} min-h-24 py-2`}
           defaultValue={client.address ?? ""}
           name="address"
         />
       </Field>
+      <section className="grid gap-3 rounded-xl border border-sky-100 bg-sky-50/40 p-3">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-sky-800">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-sky-700 shadow-sm">
+            <MapPin className="h-4 w-4" />
+          </span>
+          Saved Addresses
+        </h2>
+        {clientAddresses.map((address) => (
+          <div className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3" key={address.id}>
+            <input name="address_id" type="hidden" value={address.id} />
+            <Field label="Address Label">
+              <input
+                className={fieldClass}
+                defaultValue={address.address_label ?? ""}
+                name="address_label"
+                placeholder="HQ, Shoplot, Warehouse, Home"
+              />
+            </Field>
+            <Field label="Address">
+              <textarea
+                className={`${fieldClass} min-h-20 py-2`}
+                defaultValue={address.address ?? ""}
+                name="address_text"
+              />
+            </Field>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+              <input
+                className="h-4 w-4"
+                defaultChecked={Boolean(address.is_default)}
+                name="default_address_id"
+                type="radio"
+                value={address.id}
+              />
+              Default address
+            </label>
+          </div>
+        ))}
+        <div className="grid gap-2 rounded-lg border border-dashed border-sky-200 bg-white/80 p-3">
+          <p className="text-sm font-semibold text-slate-700">Add Address</p>
+          <Field label="Address Label">
+            <input
+              className={fieldClass}
+              name="new_address_label"
+              placeholder="HQ, Shoplot, Warehouse, Home"
+            />
+          </Field>
+          <Field label="Address">
+            <textarea
+              className={`${fieldClass} min-h-20 py-2`}
+              name="new_address_text"
+              placeholder="New saved address"
+            />
+          </Field>
+          <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
+            <input className="h-4 w-4" name="default_address_id" type="radio" value="__new" />
+            Default address
+          </label>
+        </div>
+      </section>
       <Field label="Notes">
         <textarea
           className={`${fieldClass} min-h-24 py-2`}

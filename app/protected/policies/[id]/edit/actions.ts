@@ -195,6 +195,8 @@ export async function updatePolicy(
     const clientPhone = optionalText(formData, "client_phone");
     const clientEmail = optionalText(formData, "client_email");
     const clientAddress = optionalText(formData, "client_address");
+    const selectedClientAddressId = optionalText(formData, "selected_client_address_id");
+    const clientAddressLabel = optionalText(formData, "client_address_label");
 
     const { error: updateError } = await supabase
       .from("policy_terms")
@@ -235,10 +237,55 @@ export async function updatePolicy(
           email: clientEmail,
           phone: clientPhone,
           referral: clientReferral,
-          address: clientAddress,
         })
         .eq("id", termWithType.client_id);
       if (clientUpdateError) throw clientUpdateError;
+    }
+
+    let clientAddressId: string | null = null;
+    if (termWithType.client_id && clientAddress) {
+      if (selectedClientAddressId) {
+        const { data: existingAddress, error: addressLookupError } = await supabase
+          .from("client_addresses")
+          .select("id")
+          .eq("id", selectedClientAddressId)
+          .eq("client_id", termWithType.client_id)
+          .maybeSingle();
+        if (addressLookupError) throw addressLookupError;
+
+        if (existingAddress?.id) {
+          const { error: addressUpdateError } = await supabase
+            .from("client_addresses")
+            .update({
+              address: clientAddress,
+              address_label: clientAddressLabel,
+            })
+            .eq("id", existingAddress.id);
+          if (addressUpdateError) throw addressUpdateError;
+          clientAddressId = existingAddress.id as string;
+        }
+      }
+
+      if (!clientAddressId) {
+        const { data: createdAddress, error: addressCreateError } = await supabase
+          .from("client_addresses")
+          .insert({
+            client_id: termWithType.client_id,
+            address: clientAddress,
+            address_label: clientAddressLabel,
+            is_default: false,
+          })
+          .select("id")
+          .single();
+        if (addressCreateError) throw addressCreateError;
+        clientAddressId = createdAddress.id as string;
+      }
+
+      const { error: termAddressUpdateError } = await supabase
+        .from("policy_terms")
+        .update({ client_address_id: clientAddressId })
+        .eq("id", policyTermId);
+      if (termAddressUpdateError) throw termAddressUpdateError;
     }
 
     const insuranceType = Array.isArray(termWithType.insurance_types)
@@ -328,7 +375,7 @@ export async function updatePolicy(
         .update({ primary_risk_label: vehicleNo.toUpperCase() })
         .eq("id", termWithType.policy_series_id);
     } else if (isFireLikeInsurance(insuranceCode)) {
-      const propertyAddress = optionalText(formData, "property_address");
+      const propertyAddress = optionalText(formData, "property_address") || clientAddress;
       await upsertPolicyDetail(supabase, "fire_policy_details", policyTermId, {
         property_address: propertyAddress,
         risk_location: propertyAddress,
