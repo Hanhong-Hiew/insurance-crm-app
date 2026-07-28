@@ -59,6 +59,13 @@ export type PolicyRecord = {
 type CommissionTotalRow = {
   policy_term_id: string;
   amount: number | string | null;
+  unpaid_amount?: number | string | null;
+  status?: string | null;
+};
+
+type CommissionSummary = {
+  status: "paid" | "unpaid" | "partial" | "none";
+  total: number;
 };
 
 type SortDirection = "asc" | "desc";
@@ -289,6 +296,39 @@ function splitCode(record: PolicyRecord) {
   return clean(record.split_pattern_code);
 }
 
+function commissionRowIsPaid(row: CommissionTotalRow) {
+  if (String(row.status ?? "").toLowerCase() === "paid") return true;
+  return toNumber(row.amount) > 0 && toNumber(row.unpaid_amount) <= 0;
+}
+
+function commissionStatusLabel(status: CommissionSummary["status"]) {
+  if (status === "paid") return "Paid";
+  if (status === "partial") return "Partial";
+  if (status === "unpaid") return "Unpaid";
+  return "-";
+}
+
+function CommissionStatusBadge({ summary }: { summary?: CommissionSummary }) {
+  const status = summary?.status ?? "none";
+  const className =
+    status === "paid"
+      ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+      : status === "partial"
+        ? "bg-yellow-50 text-yellow-800 ring-yellow-200"
+        : status === "unpaid"
+          ? "bg-rose-50 text-rose-800 ring-rose-200"
+          : "bg-slate-50 text-slate-500 ring-slate-200";
+
+  return (
+    <span
+      className={`inline-flex min-w-16 justify-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${className}`}
+      title={summary ? `Commission: ${money(summary.total)}` : "No commission rows"}
+    >
+      {commissionStatusLabel(status)}
+    </span>
+  );
+}
+
 function compareValues(a: string | number, b: string | number) {
   if (typeof a === "number" && typeof b === "number") return a - b;
   return String(a).localeCompare(String(b), "en", {
@@ -423,6 +463,25 @@ export function RecordsPanel({
     () => uniqueOptions(policies, (record) => clean(record.premium_status)),
     [policies],
   );
+  const commissionSummaryByPolicy = useMemo(() => {
+    const grouped = new Map<string, CommissionTotalRow[]>();
+    for (const row of commissionTotals) {
+      grouped.set(row.policy_term_id, [...(grouped.get(row.policy_term_id) ?? []), row]);
+    }
+
+    const summaries = new Map<string, CommissionSummary>();
+    for (const [policyTermId, rows] of grouped.entries()) {
+      const paidRows = rows.filter((row) => commissionRowIsPaid(row)).length;
+      const status =
+        paidRows === rows.length ? "paid" : paidRows === 0 ? "unpaid" : "partial";
+      summaries.set(policyTermId, {
+        status,
+        total: rows.reduce((sum, row) => sum + toNumber(row.amount), 0),
+      });
+    }
+
+    return summaries;
+  }, [commissionTotals]);
 
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -647,13 +706,18 @@ export function RecordsPanel({
               </div>
             ) : null}
             <div className="overflow-x-auto">
-              <PolicyTable rows={rows} setPreviewRecord={setPreviewRecord} />
+              <PolicyTable
+                commissionSummaryByPolicy={commissionSummaryByPolicy}
+                rows={rows}
+                setPreviewRecord={setPreviewRecord}
+              />
             </div>
           </div>
         ))}
       </section>
       {previewRecord ? (
         <RecordPreviewModal
+          commissionSummary={commissionSummaryByPolicy.get(previewRecord.policy_term_id)}
           record={previewRecord}
           onClose={() => setPreviewRecord(null)}
         />
@@ -740,9 +804,11 @@ function PreviewGrid({ rows }: { rows: Array<[string, React.ReactNode]> }) {
 }
 
 function RecordPreviewModal({
+  commissionSummary,
   onClose,
   record,
 }: {
+  commissionSummary?: CommissionSummary;
   onClose: () => void;
   record: PolicyRecord;
 }) {
@@ -828,6 +894,10 @@ function RecordPreviewModal({
               ["Insurer", <InsurerBadge key="insurer" name={record.insurer_name} />],
               ["Insurance Type", clean(record.insurance_type)],
               ["Split", splitCode(record)],
+              [
+                "Commission",
+                <CommissionStatusBadge key="commission" summary={commissionSummary} />,
+              ],
               ["Sum Assured", money(record.primary_sum_assured)],
               ["Net Premium", money(record.net_premium)],
               ["Renewal", clean(record.renewal_status)],
@@ -854,14 +924,16 @@ function RecordPreviewModal({
 }
 
 function PolicyTable({
+  commissionSummaryByPolicy,
   rows,
   setPreviewRecord,
 }: {
+  commissionSummaryByPolicy: Map<string, CommissionSummary>;
   rows: PolicyRecord[];
   setPreviewRecord: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="w-full min-w-[1040px] text-left text-sm">
+    <table className="w-full min-w-[1120px] text-left text-sm">
       <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
         <tr>
           <th className="px-3 py-2 font-medium">Effective</th>
@@ -872,6 +944,7 @@ function PolicyTable({
           <th className="px-3 py-2 font-medium">Insurer</th>
           <th className="px-3 py-2 font-medium">Stage</th>
           <th className="px-3 py-2 font-medium">Split</th>
+          <th className="px-3 py-2 font-medium">Comm</th>
           <th className="px-3 py-2 font-medium">Gross</th>
           <th className="px-3 py-2 font-medium">Premium</th>
         </tr>
@@ -937,6 +1010,11 @@ function PolicyTable({
                 <StageBadge record={row} />
               </td>
               <td className="px-3 py-2 text-slate-700">{splitCode(row)}</td>
+              <td className="px-3 py-2">
+                <CommissionStatusBadge
+                  summary={commissionSummaryByPolicy.get(row.policy_term_id)}
+                />
+              </td>
               <td className="px-3 py-2 text-slate-700">{money(row.gross_premium)}</td>
               <td className="px-3 py-2 text-slate-700">
                 <PremiumStatusSelect
@@ -948,7 +1026,7 @@ function PolicyTable({
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-slate-500" colSpan={10}>
+            <td className="px-3 py-8 text-center text-slate-500" colSpan={11}>
               No matching records.
             </td>
           </tr>

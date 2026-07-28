@@ -91,7 +91,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
       <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
+        <div className="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div>
             <Link
               className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
@@ -111,7 +111,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
           </Link>
         </div>
       </header>
-      <div className="mx-auto max-w-7xl px-4 py-5">{children}</div>
+      <div className="mx-auto max-w-[1800px] px-4 py-5">{children}</div>
     </main>
   );
 }

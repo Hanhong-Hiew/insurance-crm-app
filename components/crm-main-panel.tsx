@@ -89,6 +89,11 @@ type DashboardSummary = {
   tasks_due_today_count: number | string | null;
 };
 
+type PolicyCommissionSummary = {
+  status: "paid" | "unpaid" | "partial" | "none";
+  total: number;
+};
+
 type ViewMode = "renewals" | "premium" | "commission" | "commissions";
 type SortDirection = "asc" | "desc";
 type RecordSort =
@@ -294,6 +299,39 @@ function splitCode(record: PolicyRecord) {
   return clean(record.split_pattern_code);
 }
 
+function commissionRowIsPaid(row: CommissionRecord) {
+  if (String(row.status ?? "").toLowerCase() === "paid") return true;
+  return toNumber(row.amount) > 0 && toNumber(row.unpaid_amount) <= 0;
+}
+
+function commissionStatusLabel(status: PolicyCommissionSummary["status"]) {
+  if (status === "paid") return "Paid";
+  if (status === "partial") return "Partial";
+  if (status === "unpaid") return "Unpaid";
+  return "-";
+}
+
+function CommissionStatusBadge({ summary }: { summary?: PolicyCommissionSummary }) {
+  const status = summary?.status ?? "none";
+  const className =
+    status === "paid"
+      ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+      : status === "partial"
+        ? "bg-yellow-50 text-yellow-800 ring-yellow-200"
+        : status === "unpaid"
+          ? "bg-rose-50 text-rose-800 ring-rose-200"
+          : "bg-slate-50 text-slate-500 ring-slate-200";
+
+  return (
+    <span
+      className={`inline-flex min-w-16 justify-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${className}`}
+      title={summary ? `Commission: ${money(summary.total)}` : "No commission rows"}
+    >
+      {commissionStatusLabel(status)}
+    </span>
+  );
+}
+
 function isCommissionRecord(
   record: PolicyRecord | CommissionRecord,
 ): record is CommissionRecord {
@@ -387,6 +425,25 @@ export function CrmMainPanel({
     }
     return [...totals.entries()].sort((a, b) => b[1].amount - a[1].amount);
   }, [commissions]);
+  const commissionSummaryByPolicy = useMemo(() => {
+    const grouped = new Map<string, CommissionRecord[]>();
+    for (const row of commissions) {
+      grouped.set(row.policy_term_id, [...(grouped.get(row.policy_term_id) ?? []), row]);
+    }
+
+    const summaries = new Map<string, PolicyCommissionSummary>();
+    for (const [policyTermId, rows] of grouped.entries()) {
+      const paidRows = rows.filter((row) => commissionRowIsPaid(row)).length;
+      const status =
+        paidRows === rows.length ? "paid" : paidRows === 0 ? "unpaid" : "partial";
+      summaries.set(policyTermId, {
+        status,
+        total: rows.reduce((sum, row) => sum + toNumber(row.amount), 0),
+      });
+    }
+
+    return summaries;
+  }, [commissions]);
 
   const metrics = useMemo<Array<{
     label: string;
@@ -478,7 +535,7 @@ export function CrmMainPanel({
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
       <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between">
+        <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div>
             <KoverLogo size="sm" />
             <h1 className="mt-3 flex items-center gap-2 text-2xl font-semibold tracking-normal">
@@ -539,7 +596,7 @@ export function CrmMainPanel({
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-7xl flex-col gap-5 px-4 py-5">
+      <main className="mx-auto flex max-w-[1800px] flex-col gap-5 px-4 py-5">
         {errors.length > 0 ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             {errors.join(" ")}
@@ -604,10 +661,11 @@ export function CrmMainPanel({
             </div>
           </div>
           <div className="overflow-x-auto">
-            <PolicyTable
-              rows={newestPolicies}
-              setPreviewRecord={setPreviewRecord}
-              selected={selected}
+                <PolicyTable
+                  commissionSummaryByPolicy={commissionSummaryByPolicy}
+                  rows={newestPolicies}
+                  setPreviewRecord={setPreviewRecord}
+                  selected={selected}
               setSelected={setSelected}
             />
           </div>
@@ -704,6 +762,7 @@ export function CrmMainPanel({
                 </div>
               ) : (
                 <PolicyTable
+                  commissionSummaryByPolicy={commissionSummaryByPolicy}
                   rows={sortedRows as PolicyRecord[]}
                   setPreviewRecord={setPreviewRecord}
                   selected={selected}
@@ -715,6 +774,7 @@ export function CrmMainPanel({
       </main>
       {previewRecord ? (
         <DashboardPreviewModal
+          commissionSummaryByPolicy={commissionSummaryByPolicy}
           onClose={() => setPreviewRecord(null)}
           record={previewRecord}
         />
@@ -724,9 +784,11 @@ export function CrmMainPanel({
 }
 
 function DashboardPreviewModal({
+  commissionSummaryByPolicy,
   onClose,
   record,
 }: {
+  commissionSummaryByPolicy: Map<string, PolicyCommissionSummary>;
   onClose: () => void;
   record: PolicyRecord | CommissionRecord;
 }) {
@@ -803,6 +865,13 @@ function DashboardPreviewModal({
                     ["Vehicle No", vehicleNo(record)],
                     ["Insurer", <InsurerBadge key="insurer" name={record.insurer_name} />],
                     ["Split", splitCode(record)],
+                    [
+                      "Commission",
+                      <CommissionStatusBadge
+                        key="commission"
+                        summary={commissionSummaryByPolicy.get(record.policy_term_id)}
+                      />,
+                    ],
                     ["Effective", formatDate(record.effective_date)],
                     ["Expiry", formatDate(record.expiry_date)],
                     ["Sum Assured", money(record.primary_sum_assured)],
@@ -869,18 +938,20 @@ function PreviewGrid({ rows }: { rows: Array<[string, React.ReactNode]> }) {
 }
 
 function PolicyTable({
+  commissionSummaryByPolicy,
   rows,
   setPreviewRecord,
   selected,
   setSelected,
 }: {
+  commissionSummaryByPolicy: Map<string, PolicyCommissionSummary>;
   rows: PolicyRecord[];
   setPreviewRecord: (record: PolicyRecord) => void;
   selected: PolicyRecord | CommissionRecord | null;
   setSelected: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="w-full min-w-[1040px] text-left text-sm">
+    <table className="w-full min-w-[1120px] text-left text-sm">
       <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
         <tr>
           <th className="px-3 py-2 font-medium">Effective</th>
@@ -892,6 +963,7 @@ function PolicyTable({
           <th className="px-3 py-2 font-medium">Insurer</th>
           <th className="px-3 py-2 font-medium">Stage</th>
           <th className="px-3 py-2 font-medium">Split</th>
+          <th className="px-3 py-2 font-medium">Comm</th>
           <th className="px-3 py-2 font-medium">Gross</th>
           <th className="px-3 py-2 font-medium">Premium</th>
         </tr>
@@ -965,6 +1037,11 @@ function PolicyTable({
                 <StageBadge record={row} />
               </td>
               <td className="px-3 py-2">{splitCode(row)}</td>
+              <td className="px-3 py-2">
+                <CommissionStatusBadge
+                  summary={commissionSummaryByPolicy.get(row.policy_term_id)}
+                />
+              </td>
               <td className="px-3 py-2">{money(row.gross_premium)}</td>
               <td className="px-3 py-2">
                 <PremiumStatusSelect
@@ -976,7 +1053,7 @@ function PolicyTable({
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-zinc-500" colSpan={11}>
+            <td className="px-3 py-8 text-center text-zinc-500" colSpan={12}>
               No matching records.
             </td>
           </tr>

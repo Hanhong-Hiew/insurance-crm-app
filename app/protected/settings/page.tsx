@@ -303,7 +303,7 @@ function PageShell({
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
       <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
+        <div className="mx-auto flex max-w-[1800px] items-center justify-between px-4 py-4">
           <div>
             <Link
               className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
@@ -319,7 +319,7 @@ function PageShell({
           </div>
         </div>
       </header>
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-5">
+      <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-5">
         {children}
       </div>
     </main>

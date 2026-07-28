@@ -125,7 +125,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
       <header className="border-b border-sky-100 bg-white/85 backdrop-blur print:hidden">
-        <div className="mx-auto max-w-7xl px-4 py-4">
+        <div className="mx-auto max-w-[1800px] px-4 py-4">
           <Link
             className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
             href="/protected"
@@ -144,7 +144,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
           </p>
         </div>
       </header>
-      <div className="mx-auto max-w-7xl px-4 py-5 print:max-w-none print:px-0 print:py-0">
+      <div className="mx-auto max-w-[1800px] px-4 py-5 print:max-w-none print:px-0 print:py-0">
         {children}
       </div>
     </main>

@@ -44,7 +44,7 @@ export default function ProtectedPage() {
 function ProtectedLoading() {
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-6 text-zinc-950">
-      <div className="mx-auto max-w-7xl rounded-md border border-zinc-200 bg-white p-4">
+      <div className="mx-auto max-w-[1800px] rounded-md border border-zinc-200 bg-white p-4">
         Loading CRM...
       </div>
     </main>
