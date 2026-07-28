@@ -47,23 +47,35 @@ async function DesignPreviewContent() {
     redirect("/auth/login");
   }
 
-  const [summaryResult, policiesResult, commissionsResult, splitPatternsResult] =
-    await Promise.all([
-      supabase.from("dashboard_summary_view").select("*").maybeSingle(),
-      supabase
-        .from("main_policy_view")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(80),
-      supabase
-        .from("commissions")
-        .select("id, policy_term_id, amount, unpaid_amount, status")
-        .limit(5000),
-      supabase
-        .from("policy_terms")
-        .select("id, split_pattern_id, commission_split_patterns(code, name)")
-        .limit(5000),
-    ]);
+  const [summaryResult, policiesResult] = await Promise.all([
+    supabase.from("dashboard_summary_view").select("*").maybeSingle(),
+    supabase
+      .from("main_policy_view")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(80),
+  ]);
+
+  const basePolicies = (policiesResult.data ?? []) as DesignPreviewPolicy[];
+  const policyTermIds = basePolicies
+    .map((policy) => policy.policy_term_id)
+    .filter((id): id is string => Boolean(id));
+
+  const [commissionsResult, splitPatternsResult] = policyTermIds.length
+    ? await Promise.all([
+        supabase
+          .from("commissions")
+          .select("id, policy_term_id, amount, unpaid_amount, status")
+          .in("policy_term_id", policyTermIds),
+        supabase
+          .from("policy_terms")
+          .select("id, split_pattern_id, commission_split_patterns(code, name)")
+          .in("id", policyTermIds),
+      ])
+    : [
+        { data: [], error: null },
+        { data: [], error: null },
+      ];
 
   const errors = [
     summaryResult.error?.message,
@@ -83,12 +95,10 @@ async function DesignPreviewContent() {
       ];
     }),
   );
-  const policies = ((policiesResult.data ?? []) as DesignPreviewPolicy[]).map(
-    (policy) => ({
-      ...policy,
-      ...(splitLookup.get(policy.policy_term_id) ?? {}),
-    }),
-  );
+  const policies = basePolicies.map((policy) => ({
+    ...policy,
+    ...(splitLookup.get(policy.policy_term_id) ?? {}),
+  }));
 
   return (
     <DesignPreviewPanel
