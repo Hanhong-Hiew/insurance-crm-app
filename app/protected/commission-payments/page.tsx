@@ -16,6 +16,7 @@ type RawCommissionRow = {
   id: string;
   payee_id: string;
   policy_terms: {
+    id?: string | null;
     effective_date?: string | null;
     expiry_date?: string | null;
     gross_premium?: number | string | null;
@@ -26,6 +27,11 @@ type RawCommissionRow = {
   } | null;
   status: string | null;
   unpaid_amount: number | string | null;
+};
+
+type PolicyViewRow = {
+  policy_term_id: string | null;
+  vehicle_no: string | null;
 };
 
 function firstValue<T>(value: T | T[] | null | undefined) {
@@ -51,11 +57,31 @@ async function CommissionPaymentsContent() {
   const { data, error } = await supabase
     .from("commissions")
     .select(
-      "id, payee_id, calculation_percent, amount, unpaid_amount, status, commission_payees(id, name), policy_terms(policy_number, effective_date, expiry_date, gross_premium, clients(client_name), insurers(insurer_name), insurance_types(name))",
+      "id, payee_id, calculation_percent, amount, unpaid_amount, status, commission_payees(id, name), policy_terms(id, policy_number, effective_date, expiry_date, gross_premium, clients(client_name), insurers(insurer_name), insurance_types(name))",
     )
     .neq("status", "paid")
     .order("created_at", { ascending: false })
     .limit(1000);
+
+  const policyTermIds = Array.from(
+    new Set(
+      ((data ?? []) as RawCommissionRow[])
+        .map((row) => row.policy_terms?.id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const vehicleResult = policyTermIds.length
+    ? await supabase
+        .from("main_policy_view")
+        .select("policy_term_id, vehicle_no")
+        .in("policy_term_id", policyTermIds)
+    : { data: [], error: null };
+  const vehicleByTermId = new Map(
+    ((vehicleResult.data ?? []) as PolicyViewRow[]).map((row) => [
+      row.policy_term_id,
+      row.vehicle_no,
+    ]),
+  );
 
   const rows = ((data ?? []) as RawCommissionRow[]).map((row): CommissionPaymentRow => {
     const payee = firstValue(row.commission_payees);
@@ -79,14 +105,15 @@ async function CommissionPaymentsContent() {
       policy_number: term?.policy_number ?? null,
       status: row.status,
       unpaid_amount: row.unpaid_amount,
+      vehicle_no: term?.id ? vehicleByTermId.get(term.id) ?? null : null,
     };
   });
 
   return (
     <PageShell>
-      {error ? (
+      {error || vehicleResult.error ? (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {error.message}
+          {[error?.message, vehicleResult.error?.message].filter(Boolean).join(" ")}
         </div>
       ) : null}
       <CommissionPaymentsPanel rows={rows} />

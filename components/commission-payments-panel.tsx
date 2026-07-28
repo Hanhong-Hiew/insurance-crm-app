@@ -26,7 +26,10 @@ export type CommissionPaymentRow = {
   policy_number: string | null;
   status: string | null;
   unpaid_amount: number | string | null;
+  vehicle_no: string | null;
 };
+
+type DateSort = "effective_asc" | "effective_desc" | "expiry_asc" | "expiry_desc";
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
@@ -56,8 +59,53 @@ function formatDate(value: string | null | undefined) {
   return new Intl.DateTimeFormat("en-GB").format(parsed);
 }
 
+function dateTime(value: string | null | undefined) {
+  if (!value) return Number.POSITIVE_INFINITY;
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? Number.POSITIVE_INFINITY : parsed.getTime();
+}
+
 function clean(value: string | null | undefined) {
   return value || "-";
+}
+
+function sortRowsByDate(rows: CommissionPaymentRow[], sort: DateSort) {
+  return [...rows].sort((a, b) => {
+    const field = sort.startsWith("expiry") ? "expiry_date" : "effective_date";
+    const direction = sort.endsWith("desc") ? -1 : 1;
+    const first = dateTime(a[field]);
+    const second = dateTime(b[field]);
+    if (first !== second) return (first - second) * direction;
+    return clean(a.client_name).localeCompare(clean(b.client_name));
+  });
+}
+
+function PolicyCell({
+  compact = false,
+  row,
+}: {
+  compact?: boolean;
+  row: CommissionPaymentRow;
+}) {
+  return (
+    <div className="grid gap-0.5">
+      <span className={compact ? "font-medium text-slate-900" : ""}>
+        {clean(row.policy_number)}
+      </span>
+      {row.vehicle_no ? (
+        <span className="text-xs text-slate-500">{row.vehicle_no}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function TermDateCell({ row }: { row: CommissionPaymentRow }) {
+  return (
+    <div className="grid gap-0.5 leading-tight">
+      <span>{formatDate(row.effective_date)}</span>
+      <span className="text-xs text-slate-500">{formatDate(row.expiry_date)}</span>
+    </div>
+  );
 }
 
 export function CommissionPaymentsPanel({
@@ -70,26 +118,35 @@ export function CommissionPaymentsPanel({
     {},
   );
   const [query, setQuery] = useState("");
+  const [dateSort, setDateSort] = useState<DateSort>("effective_asc");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [paidDate, setPaidDate] = useState(new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState("");
   const selectedRows = useMemo(
-    () => rows.filter((row) => selectedIds.includes(row.commission_id)),
+    () =>
+      sortRowsByDate(
+        rows.filter((row) => selectedIds.includes(row.commission_id)),
+        "effective_asc",
+      ),
     [rows, selectedIds],
   );
   const filteredRows = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((row) =>
-      [
-        row.client_name,
-        row.insurer_name,
-        row.policy_number,
-        row.insurance_type,
-        row.payee_name,
-      ].some((value) => String(value ?? "").toLowerCase().includes(q)),
-    );
-  }, [query, rows]);
+    const matchedRows = q
+      ? rows.filter((row) =>
+          [
+            row.client_name,
+            row.insurer_name,
+            row.policy_number,
+            row.vehicle_no,
+            row.insurance_type,
+            row.payee_name,
+          ].some((value) => String(value ?? "").toLowerCase().includes(q)),
+        )
+      : rows;
+
+    return sortRowsByDate(matchedRows, dateSort);
+  }, [dateSort, query, rows]);
   const filteredIds = useMemo(
     () => filteredRows.map((row) => row.commission_id),
     [filteredRows],
@@ -148,7 +205,7 @@ export function CommissionPaymentsPanel({
       ))}
 
       <section className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm print:hidden">
-        <div className="grid gap-3 lg:grid-cols-[1fr_180px_1fr_auto_auto] lg:items-end">
+        <div className="grid gap-3 lg:grid-cols-[1fr_180px_180px_1fr_auto_auto] lg:items-end">
           <label>
             <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
               Search
@@ -158,10 +215,25 @@ export function CommissionPaymentsPanel({
               <input
                 className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                 onChange={(event) => setQuery(event.target.value)}
-                placeholder="Client, insurer, policy, payee"
+                placeholder="Client, insurer, policy, vehicle, payee"
                 value={query}
               />
             </span>
+          </label>
+          <label>
+            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+              Sort Date
+            </span>
+            <select
+              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              onChange={(event) => setDateSort(event.target.value as DateSort)}
+              value={dateSort}
+            >
+              <option value="effective_asc">Effective oldest first</option>
+              <option value="effective_desc">Effective newest first</option>
+              <option value="expiry_asc">Expiry oldest first</option>
+              <option value="expiry_desc">Expiry newest first</option>
+            </select>
           </label>
           <label>
             <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
@@ -200,7 +272,7 @@ export function CommissionPaymentsPanel({
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(360px,2fr)]">
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-sm print:hidden">
           <div className="border-b border-slate-100 px-4 py-3">
             <h2 className="font-semibold text-slate-950">Unpaid Commissions</h2>
@@ -227,7 +299,7 @@ export function CommissionPaymentsPanel({
                   <th className="px-3 py-3">Client</th>
                   <th className="px-3 py-3">Insurer</th>
                   <th className="px-3 py-3">Policy</th>
-                  <th className="px-3 py-3">Expiry</th>
+                  <th className="px-3 py-3">Term</th>
                   <th className="px-3 py-3 text-right">Unpaid</th>
                 </tr>
               </thead>
@@ -246,8 +318,12 @@ export function CommissionPaymentsPanel({
                     <td className="px-3 py-3">
                       <InsurerBadge name={row.insurer_name} />
                     </td>
-                    <td className="px-3 py-3">{clean(row.policy_number)}</td>
-                    <td className="px-3 py-3">{formatDate(row.expiry_date)}</td>
+                    <td className="px-3 py-3">
+                      <PolicyCell row={row} />
+                    </td>
+                    <td className="px-3 py-3">
+                      <TermDateCell row={row} />
+                    </td>
                     <td className="px-3 py-3 text-right font-semibold">
                       {money(row.unpaid_amount || row.amount)}
                     </td>
@@ -284,8 +360,9 @@ function StatementPreview({
   }
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-4 xl:max-w-[40vw]">
       {statementGroups.map((rows) => {
+        const sortedRows = sortRowsByDate(rows, "effective_asc");
         const payeeName = clean(rows[0]?.payee_name);
         const total = rows.reduce(
           (sum, row) => sum + toNumber(row.unpaid_amount || row.amount),
@@ -313,28 +390,32 @@ function StatementPreview({
               <table className="w-full text-left text-sm">
                 <thead className="bg-slate-50 text-xs uppercase text-slate-500">
                   <tr>
+                    <th className="px-2 py-2">No</th>
                     <th className="px-2 py-2">Client</th>
                     <th className="px-2 py-2">Policy</th>
                     <th className="px-2 py-2">Type</th>
                     <th className="px-2 py-2">Insurer</th>
-                    <th className="px-2 py-2">Effective</th>
-                    <th className="px-2 py-2">Expiry</th>
+                    <th className="px-2 py-2">Term</th>
                     <th className="px-2 py-2 text-right">Gross</th>
                     <th className="px-2 py-2 text-right">%</th>
                     <th className="px-2 py-2 text-right">Amount</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row) => (
+                  {sortedRows.map((row, index) => (
                     <tr className="border-t border-slate-100" key={row.commission_id}>
+                      <td className="px-2 py-2 text-slate-500">{index + 1}</td>
                       <td className="px-2 py-2">{clean(row.client_name)}</td>
-                      <td className="px-2 py-2">{clean(row.policy_number)}</td>
+                      <td className="px-2 py-2">
+                        <PolicyCell row={row} compact />
+                      </td>
                       <td className="px-2 py-2">{clean(row.insurance_type)}</td>
                       <td className="px-2 py-2">
                         <InsurerBadge name={row.insurer_name} />
                       </td>
-                      <td className="px-2 py-2">{formatDate(row.effective_date)}</td>
-                      <td className="px-2 py-2">{formatDate(row.expiry_date)}</td>
+                      <td className="px-2 py-2">
+                        <TermDateCell row={row} />
+                      </td>
                       <td className="px-2 py-2 text-right">{money(row.gross_premium)}</td>
                       <td className="px-2 py-2 text-right">{percent(row.calculation_percent)}</td>
                       <td className="px-2 py-2 text-right font-semibold">
