@@ -59,6 +59,42 @@ function formatDate(value: string | null | undefined) {
   return new Intl.DateTimeFormat("en-GB").format(parsed);
 }
 
+function localIsoDate(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function isoToDisplayDate(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
+}
+
+function displayDateToIso(value: string) {
+  const match = value.trim().match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
+  if (!match) return "";
+
+  const day = match[1].padStart(2, "0");
+  const month = match[2].padStart(2, "0");
+  const year =
+    match[3].length === 2
+      ? Number(match[3]) >= 70
+        ? `19${match[3]}`
+        : `20${match[3]}`
+      : match[3];
+  const parsed = new Date(`${year}-${month}-${day}T00:00:00`);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getFullYear() !== Number(year) ||
+    parsed.getMonth() + 1 !== Number(month) ||
+    parsed.getDate() !== Number(day)
+  ) {
+    return "";
+  }
+  return `${year}-${month}-${day}`;
+}
+
 function dateTime(value: string | null | undefined) {
   if (!value) return Number.POSITIVE_INFINITY;
   const parsed = new Date(`${value}T00:00:00`);
@@ -120,7 +156,8 @@ export function CommissionPaymentsPanel({
   const [query, setQuery] = useState("");
   const [dateSort, setDateSort] = useState<DateSort>("effective_asc");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [paidDate, setPaidDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paidDate, setPaidDate] = useState(localIsoDate());
+  const [paidDateText, setPaidDateText] = useState(() => isoToDisplayDate(localIsoDate()));
   const [notes, setNotes] = useState("");
   const selectedRows = useMemo(
     () =>
@@ -195,6 +232,19 @@ export function CommissionPaymentsPanel({
     window.print();
   }
 
+  function updatePaidDate(value: string) {
+    setPaidDateText(value);
+    setPaidDate(displayDateToIso(value));
+  }
+
+  function normalisePaidDate() {
+    const iso = displayDateToIso(paidDateText);
+    if (iso) {
+      setPaidDate(iso);
+      setPaidDateText(isoToDisplayDate(iso));
+    }
+  }
+
   return (
     <form action={formAction} className="space-y-4">
       <ActionMessage message={state.error} tone="error" />
@@ -203,6 +253,7 @@ export function CommissionPaymentsPanel({
       {selectedIds.map((id) => (
         <input key={id} name="commission_id" type="hidden" value={id} />
       ))}
+      <input name="paid_date" type="hidden" value={paidDate} />
 
       <section className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm print:hidden">
         <div className="grid gap-3 lg:grid-cols-[1fr_180px_180px_1fr_auto_auto] lg:items-end">
@@ -241,10 +292,12 @@ export function CommissionPaymentsPanel({
             </span>
             <input
               className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-              name="paid_date"
-              onChange={(event) => setPaidDate(event.target.value)}
-              type="date"
-              value={paidDate}
+              inputMode="numeric"
+              onBlur={normalisePaidDate}
+              onChange={(event) => updatePaidDate(event.target.value)}
+              placeholder="dd/mm/yyyy"
+              type="text"
+              value={paidDateText}
             />
           </label>
           <label>

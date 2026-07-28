@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { connection } from "next/server";
 import { Suspense } from "react";
 
+import { AppMenu } from "@/components/app-menu";
 import { SettingsRowForm } from "@/components/settings-row-form";
 import { createClient } from "@/lib/supabase/server";
 import {
@@ -303,7 +304,7 @@ function PageShell({
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
       <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-[1800px] items-center justify-between px-4 py-4">
+        <div className="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
           <div>
             <Link
               className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
@@ -317,6 +318,7 @@ function PageShell({
               {title}
             </h1>
           </div>
+          <AppMenu activeHref="/protected/settings" path={["Dashboard", "Settings"]} />
         </div>
       </header>
       <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-5">

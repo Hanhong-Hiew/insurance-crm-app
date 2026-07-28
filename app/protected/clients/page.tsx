@@ -1,8 +1,9 @@
-import { ArrowLeft, FileText } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
+import { AppMenu } from "@/components/app-menu";
 import { ClientsTable, type ClientTableRow } from "@/components/clients-table";
 import { createClient } from "@/lib/supabase/server";
 
@@ -102,13 +103,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
             </Link>
             <h1 className="text-2xl font-semibold">Client Master</h1>
           </div>
-          <Link
-            className="inline-flex h-9 items-center gap-2 rounded-lg bg-sky-600 px-3 text-sm font-medium text-white shadow-sm"
-            href="/protected/new-policy"
-          >
-            <FileText className="h-4 w-4" />
-            New Policy
-          </Link>
+          <AppMenu activeHref="/protected/clients" path={["Dashboard", "Clients"]} />
         </div>
       </header>
       <div className="mx-auto max-w-[1800px] px-4 py-5">{children}</div>

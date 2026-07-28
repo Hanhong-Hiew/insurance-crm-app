@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
+import { AppMenu } from "@/components/app-menu";
 import {
   CommissionPaymentsPanel,
   type CommissionPaymentRow,
@@ -125,23 +126,29 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
       <header className="border-b border-sky-100 bg-white/85 backdrop-blur print:hidden">
-        <div className="mx-auto max-w-[1800px] px-4 py-4">
-          <Link
-            className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
-            href="/protected"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Dashboard
-          </Link>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-100 text-orange-700">
-              <WalletCards className="h-5 w-5" />
-            </span>
-            Commission Payments
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Select commissions, preview payee statements, download/print, then confirm paid.
-          </p>
+        <div className="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <Link
+              className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
+              href="/protected"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Dashboard
+            </Link>
+            <h1 className="flex items-center gap-2 text-2xl font-semibold">
+              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-100 text-orange-700">
+                <WalletCards className="h-5 w-5" />
+              </span>
+              Commission
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Select commissions, preview payee statements, download/print, then confirm paid.
+            </p>
+          </div>
+          <AppMenu
+            activeHref="/protected/commission-payments"
+            path={["Dashboard", "Commission"]}
+          />
         </div>
       </header>
       <div className="mx-auto max-w-[1800px] px-4 py-5 print:max-w-none print:px-0 print:py-0">

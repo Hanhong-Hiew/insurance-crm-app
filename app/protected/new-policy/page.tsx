@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
+import { AppMenu } from "@/components/app-menu";
 import { NewPolicyForm, type DuplicatePolicySource } from "@/components/new-policy-form";
 import { createClient } from "@/lib/supabase/server";
 
@@ -369,25 +370,28 @@ function PageShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
       <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
-        <div className="mx-auto max-w-[1800px] px-4 py-4">
-          <Link
-            className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
-            href="/protected"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Dashboard
-          </Link>
-          <div className="flex flex-col gap-1">
-            <h1 className="flex items-center gap-2 text-2xl font-semibold">
-              <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-100 text-sky-700">
-                <FileText className="h-5 w-5" />
-              </span>
-              New Policy Entry
-            </h1>
-            <p className="text-sm text-slate-500">
-              One clean entry screen for client, policy term, premium, and risk details.
-            </p>
+        <div className="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <Link
+              className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
+              href="/protected"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Dashboard
+            </Link>
+            <div className="flex flex-col gap-1">
+              <h1 className="flex items-center gap-2 text-2xl font-semibold">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-100 text-sky-700">
+                  <FileText className="h-5 w-5" />
+                </span>
+                New Policy Entry
+              </h1>
+              <p className="text-sm text-slate-500">
+                One clean entry screen for client, policy term, premium, and risk details.
+              </p>
+            </div>
           </div>
+          <AppMenu activeHref="/protected/new-policy" path={["Dashboard", "New Policy"]} />
         </div>
       </header>
       <div className="mx-auto max-w-[1800px] px-4 py-5">{children}</div>
