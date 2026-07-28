@@ -7,12 +7,10 @@ import {
   Car,
   CircleDollarSign,
   FileText,
-  Gauge,
   Layers3,
   ReceiptText,
   Search,
   ShieldCheck,
-  Sparkles,
   Users,
 } from "lucide-react";
 import Link from "next/link";
@@ -193,8 +191,8 @@ function DateStack({
 
   return (
     <div className="leading-tight">
-      <p className="font-semibold text-[#14211f]">{formatDate(start)}</p>
-      <p className={urgent ? "text-xs font-semibold text-[#a94a36]" : "text-xs text-[#66736f]"}>
+      <p className="font-semibold text-slate-950">{formatDate(start)}</p>
+      <p className={urgent ? "text-xs font-semibold text-rose-700" : "text-xs text-slate-500"}>
         {formatDate(end)}
       </p>
     </div>
@@ -205,45 +203,53 @@ function StatusPill({
   tone,
   value,
 }: {
-  tone: "green" | "red" | "amber" | "neutral" | "ink";
+  tone: "green" | "red" | "amber" | "neutral" | "ink" | "blue";
   value: string;
 }) {
   const classes = {
-    amber: "border-[#e8d69c] bg-[#fff6d7] text-[#7a5c11]",
-    green: "border-[#b9ddd1] bg-[#e8f7f0] text-[#14664f]",
-    ink: "border-[#2b3b37] bg-[#22312e] text-white",
-    neutral: "border-[#d9dfda] bg-white text-[#53615d]",
-    red: "border-[#f0c4b9] bg-[#fff0ed] text-[#9a3d2d]",
+    amber: "border-amber-200 bg-amber-50 text-amber-800",
+    blue: "border-sky-200 bg-sky-50 text-sky-800",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-800",
+    ink: "border-slate-700 bg-slate-900 text-white",
+    neutral: "border-slate-200 bg-slate-50 text-slate-600",
+    red: "border-rose-200 bg-rose-50 text-rose-800",
   }[tone];
 
   return (
-    <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold ${classes}`}>
+    <span className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-semibold ${classes}`}>
       {value}
     </span>
   );
 }
 
 function MetricTile({
-  detail,
   icon,
   label,
+  tone,
   value,
 }: {
-  detail: string;
   icon: React.ReactNode;
   label: string;
+  tone: "blue" | "green" | "amber" | "rose" | "slate";
   value: string;
 }) {
+  const iconClasses = {
+    amber: "bg-amber-50 text-amber-700",
+    blue: "bg-sky-50 text-sky-700",
+    green: "bg-emerald-50 text-emerald-700",
+    rose: "bg-rose-50 text-rose-700",
+    slate: "bg-slate-100 text-slate-700",
+  }[tone];
+
   return (
-    <div className="border-l border-[#d9dfda] bg-white/70 px-4 py-3 first:border-l-0">
-      <div className="flex items-center gap-2 text-[#49615a]">
+    <div className="flex min-w-0 items-center gap-3 border-r border-slate-200 px-4 py-3 last:border-r-0">
+      <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-md ${iconClasses}`}>
         {icon}
-        <p className="text-[11px] font-semibold uppercase tracking-[0.12em]">{label}</p>
-      </div>
-      <p className="mt-2 text-2xl font-semibold tracking-normal text-[#16231f]">
-        {value}
-      </p>
-      <p className="mt-1 text-xs text-[#6d7975]">{detail}</p>
+      </span>
+      <span className="min-w-0">
+        <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
+        <p className="mt-1 truncate text-xl font-semibold text-slate-950">{value}</p>
+      </span>
     </div>
   );
 }
@@ -259,16 +265,25 @@ function FilterButton({
 }) {
   return (
     <button
-      className={`h-9 rounded-full border px-3 text-sm font-semibold transition ${
+      className={`h-9 rounded-md border px-3 text-sm font-semibold transition ${
         active
-          ? "border-[#263b35] bg-[#263b35] text-white"
-          : "border-[#d6ded8] bg-white text-[#4b5d57] hover:border-[#8fa69c]"
+          ? "border-slate-900 bg-slate-900 text-white"
+          : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
       }`}
       onClick={onClick}
       type="button"
     >
       {children}
     </button>
+  );
+}
+
+function DetailItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
+      <p className="mt-1 break-words text-sm font-semibold text-slate-950">{value}</p>
+    </div>
   );
 }
 
@@ -285,6 +300,7 @@ export function DesignPreviewPanel({
 }) {
   const [filter, setFilter] = useState<FilterMode>("all");
   const [query, setQuery] = useState("");
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const commissionLookup = useMemo(() => buildCommissionLookup(commissions), [commissions]);
 
   const filteredPolicies = useMemo(() => {
@@ -312,7 +328,11 @@ export function DesignPreviewPanel({
       ].some((value) => String(value ?? "").toLowerCase().includes(q));
     });
   }, [commissionLookup, filter, policies, query]);
-  const selected = filteredPolicies[0] ?? policies[0] ?? null;
+  const selected =
+    filteredPolicies.find((policy) => policy.policy_term_id === selectedId) ??
+    filteredPolicies[0] ??
+    policies[0] ??
+    null;
   const selectedCommission = selected
     ? commissionLookup.get(selected.policy_term_id)
     : undefined;
@@ -329,57 +349,60 @@ export function DesignPreviewPanel({
   }).length;
 
   return (
-    <main className="min-h-screen bg-[#f4f7f2] text-[#172320]">
-      <div className="grid min-h-screen lg:grid-cols-[240px_1fr]">
-        <aside className="border-r border-[#d7dfd7] bg-[#1f302c] px-4 py-5 text-white">
-          <div className="flex items-center gap-3">
-            <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[#d86c4b] text-lg font-black">
+    <main className="min-h-screen bg-slate-100 text-slate-950">
+      <div className="grid min-h-screen xl:grid-cols-[236px_1fr]">
+        <aside className="border-r border-slate-200 bg-white px-3 py-4">
+          <div className="flex items-center gap-3 px-2">
+            <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900 text-sm font-black text-white">
               K
             </span>
             <div>
-              <p className="text-sm font-semibold">Kover Desk</p>
-              <p className="text-xs text-white/60">Design preview</p>
+              <p className="text-sm font-semibold text-slate-950">Kover CRM</p>
+              <p className="text-xs text-slate-500">Design preview</p>
             </div>
           </div>
 
-          <nav className="mt-8 grid gap-2 text-sm">
-            <Link className="rounded-xl bg-white/10 px-3 py-2 font-semibold" href="/protected/design-preview">
-              Preview Dashboard
+          <nav className="mt-6 grid gap-1 text-sm">
+            <Link
+              className="flex items-center gap-2 rounded-md bg-slate-900 px-3 py-2 font-semibold text-white"
+              href="/protected/design-preview"
+            >
+              <Layers3 className="h-4 w-4" />
+              Preview
             </Link>
-            <Link className="rounded-xl px-3 py-2 text-white/75 hover:bg-white/10" href="/protected">
-              Current Dashboard
+            <Link
+              className="flex items-center gap-2 rounded-md px-3 py-2 font-medium text-slate-600 hover:bg-slate-100"
+              href="/protected"
+            >
+              <FileText className="h-4 w-4" />
+              Current
             </Link>
-            <Link className="rounded-xl px-3 py-2 text-white/75 hover:bg-white/10" href="/protected/records">
+            <Link
+              className="flex items-center gap-2 rounded-md px-3 py-2 font-medium text-slate-600 hover:bg-slate-100"
+              href="/protected/records"
+            >
+              <ShieldCheck className="h-4 w-4" />
               Records
             </Link>
-            <Link className="rounded-xl px-3 py-2 text-white/75 hover:bg-white/10" href="/protected/new-policy">
+            <Link
+              className="flex items-center gap-2 rounded-md px-3 py-2 font-medium text-slate-600 hover:bg-slate-100"
+              href="/protected/new-policy"
+            >
+              <ReceiptText className="h-4 w-4" />
               New Policy
             </Link>
           </nav>
-
-          <div className="mt-8 rounded-2xl border border-white/10 bg-white/10 p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-white/55">
-              Design idea
-            </p>
-            <p className="mt-2 text-sm leading-5 text-white/80">
-              Less “dashboard cards”, more agency work desk: watch renewals, scan records, open the actual pages.
-            </p>
-          </div>
         </aside>
 
         <section className="min-w-0">
-          <header className="border-b border-[#d7dfd7] bg-[#fbfcf8]/90 px-4 py-4 backdrop-blur">
+          <header className="border-b border-slate-200 bg-white px-4 py-3">
             <div className="mx-auto flex max-w-[1800px] flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-[#d7dfd7] bg-white px-2.5 py-1 text-xs font-semibold text-[#53645e]">
-                  <Sparkles className="h-3.5 w-3.5 text-[#d86c4b]" />
-                  Alternative layout
-                </div>
-                <h1 className="text-3xl font-semibold tracking-normal text-[#172320]">
-                  Policy Workbench
+                <h1 className="text-2xl font-semibold tracking-normal text-slate-950">
+                  Operations Dashboard
                 </h1>
-                <p className="mt-1 max-w-2xl text-sm text-[#63736d]">
-                  Same CRM data, rebuilt as a denser operating screen for renewals, payment follow-up, and record scanning.
+                <p className="mt-1 text-sm text-slate-500">
+                  Renewals, payments, records, and commissions in one working view.
                 </p>
               </div>
               <AppMenu
@@ -389,78 +412,72 @@ export function DesignPreviewPanel({
             </div>
           </header>
 
-          <div className="mx-auto grid max-w-[1800px] gap-4 px-4 py-4 xl:grid-cols-[1fr_360px]">
+          <div className="mx-auto grid max-w-[1800px] gap-4 px-4 py-4 2xl:grid-cols-[1fr_380px]">
             <section className="min-w-0 space-y-4">
               {errors.length ? (
-                <div className="rounded-xl border border-[#e9c8b8] bg-[#fff4ee] px-4 py-3 text-sm text-[#963f2e]">
+                <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                   {errors.join(" ")}
                 </div>
               ) : null}
 
-              <div className="overflow-hidden rounded-2xl border border-[#d7dfd7] bg-white shadow-sm">
-                <div className="grid divide-y divide-[#d7dfd7] md:grid-cols-5 md:divide-x md:divide-y-0">
+              <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div className="grid divide-y divide-slate-200 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5">
                   <MetricTile
-                    detail={`${renewalCount} due soon`}
                     icon={<FileText className="h-4 w-4" />}
                     label="Policies"
+                    tone="blue"
                     value={clean(summary?.active_policy_count)}
                   />
                   <MetricTile
-                    detail="Unique records"
                     icon={<Users className="h-4 w-4" />}
                     label="Clients"
+                    tone="green"
                     value={clean(summary?.client_count)}
                   />
                   <MetricTile
-                    detail="Next 60 days"
                     icon={<CalendarClock className="h-4 w-4" />}
                     label="Renewals"
+                    tone="amber"
                     value={clean(summary?.renewals_due_60_days)}
                   />
                   <MetricTile
-                    detail="Gross active book"
                     icon={<CircleDollarSign className="h-4 w-4" />}
                     label="Premium"
+                    tone="slate"
                     value={compactMoney(summary?.active_gross_premium_total)}
                   />
                   <MetricTile
-                    detail="Unpaid commission"
                     icon={<BadgeDollarSign className="h-4 w-4" />}
                     label="Commission"
+                    tone="rose"
                     value={compactMoney(summary?.unpaid_commission_total)}
                   />
                 </div>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-[#d7dfd7] bg-[#233530] p-4 text-white">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold">Renewal pressure</p>
-                    <Gauge className="h-5 w-5 text-[#e5c466]" />
-                  </div>
-                  <p className="mt-4 text-3xl font-semibold">{renewalCount}</p>
-                  <p className="mt-1 text-sm text-white/65">records expiring within 60 days</p>
-                </div>
-                <div className="rounded-2xl border border-[#f0c7b8] bg-[#fff2ec] p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-[#8f3f2f]">Payment follow-up</p>
-                    <ReceiptText className="h-5 w-5 text-[#d86c4b]" />
-                  </div>
-                  <p className="mt-4 text-3xl font-semibold text-[#172320]">{unpaidCount}</p>
-                  <p className="mt-1 text-sm text-[#8b6256]">premium or commission not fully cleared</p>
-                </div>
-                <div className="rounded-2xl border border-[#d7dfd7] bg-white p-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-semibold text-[#42554e]">Loaded records</p>
-                    <Layers3 className="h-5 w-5 text-[#2c7d6f]" />
-                  </div>
-                  <p className="mt-4 text-3xl font-semibold">{policies.length}</p>
-                  <p className="mt-1 text-sm text-[#66736f]">latest policies available in this preview</p>
-                </div>
+              <div className="grid gap-3 lg:grid-cols-3">
+                <AttentionCard
+                  icon={<CalendarClock className="h-4 w-4" />}
+                  label="Renewal queue"
+                  tone="amber"
+                  value={renewalCount.toLocaleString("en-MY")}
+                />
+                <AttentionCard
+                  icon={<ReceiptText className="h-4 w-4" />}
+                  label="Payment follow-up"
+                  tone="rose"
+                  value={unpaidCount.toLocaleString("en-MY")}
+                />
+                <AttentionCard
+                  icon={<Layers3 className="h-4 w-4" />}
+                  label="Loaded records"
+                  tone="blue"
+                  value={policies.length.toLocaleString("en-MY")}
+                />
               </div>
 
-              <div className="rounded-2xl border border-[#d7dfd7] bg-white shadow-sm">
-                <div className="flex flex-col gap-3 border-b border-[#d7dfd7] p-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-3 py-3 xl:flex-row xl:items-center xl:justify-between">
                   <div className="flex flex-wrap gap-2">
                     <FilterButton active={filter === "all"} onClick={() => setFilter("all")}>
                       All
@@ -476,9 +493,9 @@ export function DesignPreviewPanel({
                     </FilterButton>
                   </div>
                   <label className="relative block min-w-0 xl:w-80">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#87928e]" />
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <input
-                      className="h-10 w-full rounded-full border border-[#d6ded8] bg-[#fbfcf8] pl-9 pr-3 text-sm outline-none transition focus:border-[#2c7d6f] focus:ring-2 focus:ring-[#cce4dd]"
+                      className="h-9 w-full rounded-md border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                       onChange={(event) => setQuery(event.target.value)}
                       placeholder="Search client, vehicle, insurer"
                       value={query}
@@ -487,18 +504,18 @@ export function DesignPreviewPanel({
                 </div>
 
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1080px] text-left text-sm">
-                    <thead className="bg-[#f8faf6] text-[11px] uppercase tracking-[0.12em] text-[#71807b]">
-                      <tr>
-                        <th className="px-3 py-3 font-semibold">Term</th>
-                        <th className="px-3 py-3 font-semibold">Client</th>
-                        <th className="px-3 py-3 font-semibold">Risk</th>
-                        <th className="px-3 py-3 font-semibold">Insurer</th>
-                        <th className="px-3 py-3 font-semibold">Stage</th>
-                        <th className="px-3 py-3 font-semibold">Split</th>
-                        <th className="px-3 py-3 font-semibold">Premium</th>
-                        <th className="px-3 py-3 font-semibold">Commission</th>
-                        <th className="px-3 py-3 font-semibold">Open</th>
+                  <table className="w-full min-w-[1120px] text-left text-sm">
+                    <thead className="sticky top-0 bg-white text-xs uppercase text-slate-500">
+                      <tr className="border-b border-slate-200">
+                        <th className="px-3 py-2 font-medium">Term</th>
+                        <th className="px-3 py-2 font-medium">Client</th>
+                        <th className="px-3 py-2 font-medium">Risk</th>
+                        <th className="px-3 py-2 font-medium">Insurer</th>
+                        <th className="px-3 py-2 font-medium">Stage</th>
+                        <th className="px-3 py-2 font-medium">Split</th>
+                        <th className="px-3 py-2 font-medium">Premium</th>
+                        <th className="px-3 py-2 font-medium">Commission</th>
+                        <th className="px-3 py-2 font-medium">Open</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -507,55 +524,59 @@ export function DesignPreviewPanel({
                           const commission = commissionLookup.get(policy.policy_term_id);
                           const premiumPaid =
                             String(policy.premium_status ?? "").toLowerCase() === "paid";
+                          const active = selected?.policy_term_id === policy.policy_term_id;
                           return (
                             <tr
-                              className="border-t border-[#edf1ed] transition hover:bg-[#f8faf6]"
+                              className={`cursor-pointer border-b border-slate-100 transition hover:bg-sky-50/60 ${
+                                active ? "bg-sky-50/80" : ""
+                              }`}
                               key={policy.policy_term_id}
+                              onClick={() => setSelectedId(policy.policy_term_id)}
                             >
-                              <td className="px-3 py-3">
+                              <td className="px-3 py-2">
                                 <DateStack end={policy.expiry_date} start={policy.effective_date} />
                               </td>
-                              <td className="px-3 py-3">
-                                <p className="font-semibold text-[#172320]">{clean(policy.client_name)}</p>
-                                <p className="text-xs text-[#66736f]">{clean(policy.policy_number)}</p>
+                              <td className="px-3 py-2">
+                                <p className="font-semibold text-slate-950">{clean(policy.client_name)}</p>
+                                <p className="text-xs text-slate-500">{clean(policy.policy_number)}</p>
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="px-3 py-2">
                                 <div className="flex items-center gap-2">
                                   {riskType(policy).toLowerCase().includes("motor") ? (
-                                    <Car className="h-4 w-4 text-[#2c7d6f]" />
+                                    <Car className="h-4 w-4 text-sky-700" />
                                   ) : (
-                                    <ShieldCheck className="h-4 w-4 text-[#2c7d6f]" />
+                                    <ShieldCheck className="h-4 w-4 text-sky-700" />
                                   )}
                                   <div>
-                                    <p className="font-medium">{riskType(policy)}</p>
-                                    <p className="text-xs text-[#66736f]">{riskLabel(policy)}</p>
+                                    <p className="font-medium text-slate-800">{riskType(policy)}</p>
+                                    <p className="text-xs text-slate-500">{riskLabel(policy)}</p>
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="px-3 py-2">
                                 <InsurerBadge name={policy.insurer_name} />
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="px-3 py-2">
                                 <StatusPill
                                   tone={policy.term_stage === "quotation" ? "amber" : "green"}
                                   value={stageCode(policy)}
                                 />
                               </td>
-                              <td className="px-3 py-3 font-semibold text-[#4c5c57]">
+                              <td className="px-3 py-2 font-semibold text-slate-700">
                                 {clean(policy.split_pattern_code)}
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="px-3 py-2">
                                 <div className="grid gap-1">
-                                  <span className="font-semibold">{money(policy.gross_premium)}</span>
+                                  <span className="font-semibold text-slate-900">{money(policy.gross_premium)}</span>
                                   <StatusPill
                                     tone={premiumPaid ? "green" : "red"}
                                     value={premiumPaid ? "Paid" : "Unpaid"}
                                   />
                                 </div>
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="px-3 py-2">
                                 <div className="grid gap-1">
-                                  <span className="font-semibold">{money(commission?.total)}</span>
+                                  <span className="font-semibold text-slate-900">{money(commission?.total)}</span>
                                   <StatusPill
                                     tone={
                                       commission?.status === "paid"
@@ -570,10 +591,11 @@ export function DesignPreviewPanel({
                                   />
                                 </div>
                               </td>
-                              <td className="px-3 py-3">
+                              <td className="px-3 py-2">
                                 <Link
-                                  className="inline-flex h-8 items-center gap-1 rounded-full border border-[#d6ded8] px-3 text-xs font-semibold text-[#2c655b] hover:border-[#2c7d6f]"
+                                  className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-sky-700 hover:border-sky-200 hover:bg-sky-50"
                                   href={`/protected/policies/${policy.policy_term_id}`}
+                                  onClick={(event) => event.stopPropagation()}
                                 >
                                   Open
                                   <ArrowUpRight className="h-3.5 w-3.5" />
@@ -584,8 +606,8 @@ export function DesignPreviewPanel({
                         })
                       ) : (
                         <tr>
-                          <td className="px-3 py-10 text-center text-[#66736f]" colSpan={9}>
-                            No records match this preview filter.
+                          <td className="px-3 py-10 text-center text-slate-500" colSpan={9}>
+                            No records match this filter.
                           </td>
                         </tr>
                       )}
@@ -596,54 +618,54 @@ export function DesignPreviewPanel({
             </section>
 
             <aside className="space-y-4">
-              <div className="sticky top-4 rounded-2xl border border-[#d7dfd7] bg-[#fbfcf8] p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-3 border-b border-[#d7dfd7] pb-3">
-                  <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#70817b]">
-                      Preview panel
-                    </p>
-                    <h2 className="mt-1 text-xl font-semibold text-[#172320]">
-                      {selected ? clean(selected.client_name) : "No record"}
-                    </h2>
+              <div className="sticky top-4 rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-200 px-4 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium uppercase text-slate-500">Selected record</p>
+                      <h2 className="mt-1 truncate text-lg font-semibold text-slate-950">
+                        {selected ? clean(selected.client_name) : "No record"}
+                      </h2>
+                    </div>
+                    {selected ? (
+                      <StatusPill
+                        tone={selected.term_stage === "quotation" ? "amber" : "ink"}
+                        value={selected.term_stage === "quotation" ? "Quotation" : "Policy"}
+                      />
+                    ) : null}
                   </div>
-                  {selected ? (
-                    <StatusPill
-                      tone={selected.term_stage === "quotation" ? "amber" : "ink"}
-                      value={selected.term_stage === "quotation" ? "Quotation" : "Policy"}
-                    />
-                  ) : null}
                 </div>
 
                 {selected ? (
-                  <div className="mt-4 space-y-4">
-                    <div className="rounded-2xl bg-[#22312e] p-4 text-white">
-                      <p className="text-xs uppercase tracking-[0.12em] text-white/55">
+                  <div className="space-y-4 p-4">
+                    <div className="rounded-lg bg-slate-950 p-4 text-white">
+                      <p className="text-xs font-medium uppercase text-white/55">
                         Primary risk
                       </p>
                       <p className="mt-2 text-2xl font-semibold">{riskLabel(selected)}</p>
                       <p className="mt-1 text-sm text-white/65">{riskType(selected)}</p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <SmallFact label="Effective" value={formatDate(selected.effective_date)} />
-                      <SmallFact label="Expiry" value={formatDate(selected.expiry_date)} />
-                      <SmallFact label="Gross" value={money(selected.gross_premium)} />
-                      <SmallFact label="Sum Assured" value={money(selected.primary_sum_assured)} />
-                      <SmallFact label="Split" value={clean(selected.split_pattern_code)} />
-                      <SmallFact label="Commission" value={commissionLabel(selectedCommission)} />
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                      <DetailItem label="Effective" value={formatDate(selected.effective_date)} />
+                      <DetailItem label="Expiry" value={formatDate(selected.expiry_date)} />
+                      <DetailItem label="Gross" value={money(selected.gross_premium)} />
+                      <DetailItem label="Sum Assured" value={money(selected.primary_sum_assured)} />
+                      <DetailItem label="Split" value={clean(selected.split_pattern_code)} />
+                      <DetailItem label="Commission" value={commissionLabel(selectedCommission)} />
                     </div>
 
-                    <div className="rounded-2xl border border-[#d7dfd7] bg-white p-3">
-                      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#70817b]">
-                        Vehicle / detail
+                    <div className="border-t border-slate-200 pt-4">
+                      <p className="text-xs font-medium uppercase text-slate-500">
+                        Risk detail
                       </p>
-                      <p className="mt-2 text-sm font-semibold">{clean(selected.vehicle_no)}</p>
-                      <p className="mt-1 text-sm text-[#66736f]">{clean(selected.make_model)}</p>
-                      <p className="mt-1 text-xs text-[#8a9691]">{clean(selected.motor_type)}</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-950">{clean(selected.vehicle_no)}</p>
+                      <p className="mt-1 text-sm text-slate-600">{clean(selected.make_model)}</p>
+                      <p className="mt-1 text-xs text-slate-500">{clean(selected.motor_type)}</p>
                     </div>
 
                     <Link
-                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#d86c4b] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#c95c3e]"
+                      className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-sky-700 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-800"
                       href={`/protected/policies/${selected.policy_term_id}`}
                     >
                       Open full record
@@ -651,7 +673,7 @@ export function DesignPreviewPanel({
                     </Link>
                   </div>
                 ) : (
-                  <p className="mt-4 text-sm text-[#66736f]">No record available.</p>
+                  <p className="p-4 text-sm text-slate-500">No record available.</p>
                 )}
               </div>
             </aside>
@@ -662,13 +684,30 @@ export function DesignPreviewPanel({
   );
 }
 
-function SmallFact({ label, value }: { label: string; value: string }) {
+function AttentionCard({
+  icon,
+  label,
+  tone,
+  value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  tone: "amber" | "blue" | "rose";
+  value: string;
+}) {
+  const classes = {
+    amber: "border-amber-200 bg-amber-50 text-amber-800",
+    blue: "border-sky-200 bg-sky-50 text-sky-800",
+    rose: "border-rose-200 bg-rose-50 text-rose-800",
+  }[tone];
+
   return (
-    <div className="rounded-2xl border border-[#d7dfd7] bg-white p-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#74817d]">
-        {label}
-      </p>
-      <p className="mt-1 break-words text-sm font-semibold text-[#172320]">{value}</p>
+    <div className={`flex items-center justify-between rounded-lg border px-4 py-3 ${classes}`}>
+      <div className="flex items-center gap-2">
+        {icon}
+        <p className="text-sm font-semibold">{label}</p>
+      </div>
+      <p className="text-2xl font-semibold">{value}</p>
     </div>
   );
 }
