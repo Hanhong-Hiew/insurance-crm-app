@@ -19,7 +19,6 @@ const menuItems = [
   { href: "/protected/commission-payments", label: "Commission", icon: BadgeDollarSign },
   { href: "/protected/settings", label: "Settings", icon: Settings },
   { href: "/protected/design-preview", label: "Design Preview", icon: PanelsTopLeft },
-  { href: "/protected/new-policy", label: "New Policy", icon: FileText },
 ];
 
 export function AppMenu({
@@ -48,50 +47,64 @@ export function AppMenu({
         ))}
       </nav>
 
-      <div className="relative">
-        <button
-          aria-expanded={open}
-          className="inline-flex h-10 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm transition hover:border-sky-300 hover:bg-sky-50"
-          onClick={() => setOpen((current) => !current)}
-          type="button"
+      <div className="flex items-center gap-2">
+        <Link
+          className={`inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold shadow-sm transition ${
+            activeHref === "/protected/new-policy"
+              ? "bg-slate-900 text-white"
+              : "bg-sky-600 text-white hover:bg-sky-700"
+          }`}
+          href="/protected/new-policy"
         >
-          Menu
-          <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} />
-        </button>
+          <FileText className="h-4 w-4" />
+          Add Policy
+        </Link>
 
-        {open ? (
-          <div className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
-            <Link
-              className={`flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition hover:bg-sky-50 ${
-                activeHref === "/protected"
-                  ? "bg-sky-50 text-sky-800"
-                  : "text-slate-700"
-              }`}
-              href="/protected"
-              onClick={() => setOpen(false)}
-            >
-              <Home className="h-4 w-4" />
-              Dashboard
-            </Link>
-            {menuItems.map((item) => {
-              const Icon = item.icon;
-              const active = activeHref === item.href;
-              return (
-                <Link
-                  className={`flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition hover:bg-sky-50 ${
-                    active ? "bg-sky-50 text-sky-800" : "text-slate-700"
-                  }`}
-                  href={item.href}
-                  key={item.href}
-                  onClick={() => setOpen(false)}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-        ) : null}
+        <div className="relative">
+          <button
+            aria-expanded={open}
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm transition hover:border-sky-300 hover:bg-sky-50"
+            onClick={() => setOpen((current) => !current)}
+            type="button"
+          >
+            Menu
+            <ChevronDown className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`} />
+          </button>
+
+          {open ? (
+            <div className="absolute right-0 z-30 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
+              <Link
+                className={`flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition hover:bg-sky-50 ${
+                  activeHref === "/protected"
+                    ? "bg-sky-50 text-sky-800"
+                    : "text-slate-700"
+                }`}
+                href="/protected"
+                onClick={() => setOpen(false)}
+              >
+                <Home className="h-4 w-4" />
+                Dashboard
+              </Link>
+              {menuItems.map((item) => {
+                const Icon = item.icon;
+                const active = activeHref === item.href;
+                return (
+                  <Link
+                    className={`flex items-center gap-2 px-3 py-2.5 text-sm font-medium transition hover:bg-sky-50 ${
+                      active ? "bg-sky-50 text-sky-800" : "text-slate-700"
+                    }`}
+                    href={item.href}
+                    key={item.href}
+                    onClick={() => setOpen(false)}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {item.label}
+                  </Link>
+                );
+              })}
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );
