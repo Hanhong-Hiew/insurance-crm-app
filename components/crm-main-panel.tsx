@@ -94,11 +94,16 @@ type PolicyCommissionSummary = {
   total: number;
 };
 
-type ViewMode = "renewals" | "premium" | "commission" | "commissions";
+type ViewMode =
+  | "renewals"
+  | "premium"
+  | "commission"
+  | "missing_split"
+  | "commissions";
 type SortDirection = "asc" | "desc";
 type RecordSort =
-  | "expiry_month"
-  | "effective_month"
+  | "expiry_date"
+  | "effective_date"
   | "risk_type"
   | "client"
   | "value"
@@ -122,12 +127,13 @@ const viewOptions: Array<{
   { id: "renewals", label: "Renewals", icon: CalendarDays },
   { id: "premium", label: "Unpaid Premium", icon: ReceiptText },
   { id: "commission", label: "Unpaid Commission", icon: WalletCards },
-  { id: "commissions", label: "Commissions", icon: BadgeDollarSign },
+  { id: "missing_split", label: "No Split", icon: BadgeDollarSign },
+  { id: "commissions", label: "Commission Ledger", icon: BadgeDollarSign },
 ];
 
 const recordSortOptions: Array<{ value: RecordSort; label: string }> = [
-  { value: "expiry_month", label: "Expiry Month" },
-  { value: "effective_month", label: "Effective Month" },
+  { value: "effective_date", label: "Effective Date" },
+  { value: "expiry_date", label: "Expiry Date" },
   { value: "risk_type", label: "Risk Type" },
   { value: "client", label: "Client" },
   { value: "value", label: "Value" },
@@ -221,8 +227,21 @@ function sortMultiplier(direction: SortDirection) {
   return direction === "asc" ? 1 : -1;
 }
 
-function monthKey(value: string | null | undefined) {
-  return value ? value.slice(0, 7) : "";
+function dateSortValue(value: string | null | undefined) {
+  const parsed = parseDate(value);
+  return parsed ? parsed.getTime() : null;
+}
+
+function compareRecordSortValues(
+  a: string | number | null,
+  b: string | number | null,
+  direction: SortDirection,
+) {
+  if (a === null && b === null) return 0;
+  if (a === null) return 1;
+  if (b === null) return -1;
+  const result = compareValues(a, b);
+  return result * sortMultiplier(direction);
 }
 
 function riskLabel(record: PolicyRecord) {
@@ -299,6 +318,10 @@ function splitCode(record: PolicyRecord) {
   return clean(record.split_pattern_code);
 }
 
+function hasSplitPattern(record: PolicyRecord) {
+  return String(record.split_pattern_code ?? "").trim().length > 0;
+}
+
 function commissionRowIsPaid(row: CommissionRecord) {
   if (String(row.status ?? "").toLowerCase() === "paid") return true;
   return toNumber(row.amount) > 0 && toNumber(row.unpaid_amount) <= 0;
@@ -339,8 +362,8 @@ function isCommissionRecord(
 }
 
 function recordSortValue(record: PolicyRecord | CommissionRecord, sort: RecordSort) {
-  if (sort === "expiry_month") return monthKey(record.expiry_date);
-  if (sort === "effective_month") return monthKey(record.effective_date);
+  if (sort === "expiry_date") return dateSortValue(record.expiry_date);
+  if (sort === "effective_date") return dateSortValue(record.effective_date);
   if (sort === "client") return clean(record.client_name);
 
   if (isCommissionRecord(record)) {
@@ -371,13 +394,18 @@ export function CrmMainPanel({
   const [query, setQuery] = useState("");
   const [hideDashboardValues, setHideDashboardValues] = useState(false);
   const [newestLimit, setNewestLimit] = useState(5);
-  const [recordSort, setRecordSort] = useState<RecordSort>("expiry_month");
+  const [recordSort, setRecordSort] = useState<RecordSort>("effective_date");
   const [recordSortDirection, setRecordSortDirection] = useState<SortDirection>("asc");
   const [selected, setSelected] = useState<PolicyRecord | CommissionRecord | null>(
     policies[0] || renewals[0] || unpaidPremium[0] || unpaidCommission[0] || null,
   );
   const [previewRecord, setPreviewRecord] = useState<PolicyRecord | CommissionRecord | null>(
     null,
+  );
+
+  const missingSplitPolicies = useMemo(
+    () => policies.filter((policy) => !hasSplitPattern(policy)),
+    [policies],
   );
 
   const activeRows = useMemo(() => {
@@ -389,7 +417,9 @@ export function CrmMainPanel({
           ? unpaidPremium
           : view === "commission"
             ? unpaidCommission
-            : commissions;
+            : view === "missing_split"
+              ? missingSplitPolicies
+              : commissions;
 
     if (!q) return rows;
 
@@ -400,16 +430,23 @@ export function CrmMainPanel({
           .includes(q),
       ),
     );
-  }, [commissions, query, renewals, unpaidCommission, unpaidPremium, view]);
+  }, [
+    commissions,
+    missingSplitPolicies,
+    query,
+    renewals,
+    unpaidCommission,
+    unpaidPremium,
+    view,
+  ]);
 
   const sortedRows = useMemo(() => {
-    const multiplier = sortMultiplier(recordSortDirection);
     return [...activeRows].sort((a, b) => {
-      const result = compareValues(
+      return compareRecordSortValues(
         recordSortValue(a, recordSort),
         recordSortValue(b, recordSort),
+        recordSortDirection,
       );
-      return result * multiplier;
     });
   }, [activeRows, recordSort, recordSortDirection]);
 
@@ -503,23 +540,25 @@ export function CrmMainPanel({
         order: 6,
       },
       {
-        label: "Documents",
-        value: count(summary?.document_attention_count),
-        numericValue: toNumber(summary?.document_attention_count),
-        icon: <FileText className="h-5 w-5" />,
-        colorClass: "text-slate-700 bg-slate-50",
+        label: "Missing Split",
+        value: count(missingSplitPolicies.length),
+        numericValue: missingSplitPolicies.length,
+        icon: <BadgeDollarSign className="h-5 w-5" />,
+        colorClass: "text-rose-700 bg-rose-50",
         order: 7,
       },
       {
-        label: "Tasks Due",
-        value: count(summary?.tasks_due_today_count),
-        numericValue: toNumber(summary?.tasks_due_today_count),
+        label: "Quotations",
+        value: count(
+          policies.filter((policy) => policy.term_stage === "quotation").length,
+        ),
+        numericValue: policies.filter((policy) => policy.term_stage === "quotation").length,
         icon: <ClipboardList className="h-5 w-5" />,
         colorClass: "text-cyan-700 bg-cyan-50",
         order: 8,
       },
     ],
-    [summary],
+    [missingSplitPolicies, policies, summary],
   );
 
   const newestPolicies = useMemo(
@@ -531,6 +570,16 @@ export function CrmMainPanel({
         .slice(0, newestLimit),
     [newestLimit, policies],
   );
+  const activeViewDescription =
+    view === "renewals"
+      ? "Policies coming up for renewal, sorted by the selected date."
+      : view === "premium"
+        ? "Policies where premium collection is still not complete."
+        : view === "commission"
+          ? "Commission rows that are still unpaid."
+          : view === "missing_split"
+            ? "Policies without a split pattern. These need fixing before commission is reliable."
+            : "All commission rows for audit and checking, not only unpaid items.";
 
   return (
     <div className="crm-page">
@@ -643,42 +692,47 @@ export function CrmMainPanel({
 
         <section className="crm-card min-w-0">
             <div className="crm-card-header flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex flex-wrap gap-2">
-                {viewOptions.map((option) => {
-                  const Icon = option.icon;
-                  const viewCount =
-                    option.id === "renewals"
-                      ? renewals.length
-                      : option.id === "premium"
-                        ? unpaidPremium.length
-                        : option.id === "commission"
-                          ? unpaidCommission.length
-                          : commissions.length;
-                  return (
-                    <button
-                      className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium ${
-                        view === option.id
-                          ? "bg-slate-950 text-white shadow-sm shadow-slate-900/15"
-                          : "border border-slate-200 bg-white text-slate-700 shadow-sm shadow-slate-900/5 hover:bg-sky-50"
-                      }`}
-                      key={option.id}
-                      onClick={() => setView(option.id)}
-                      type="button"
-                    >
-                      <Icon className="h-4 w-4" />
-                      {option.label}
-                      <span
-                        className={`rounded-full px-1.5 py-0.5 text-[11px] ${
+              <div>
+                <div className="flex flex-wrap gap-2">
+                  {viewOptions.map((option) => {
+                    const Icon = option.icon;
+                    const viewCount =
+                      option.id === "renewals"
+                        ? renewals.length
+                        : option.id === "premium"
+                          ? unpaidPremium.length
+                          : option.id === "commission"
+                            ? unpaidCommission.length
+                            : option.id === "missing_split"
+                              ? missingSplitPolicies.length
+                              : commissions.length;
+                    return (
+                      <button
+                        className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium ${
                           view === option.id
-                            ? "bg-white/15 text-white"
-                            : "bg-slate-100 text-slate-500"
+                            ? "bg-slate-950 text-white shadow-sm shadow-slate-900/15"
+                            : "border border-slate-200 bg-white text-slate-700 shadow-sm shadow-slate-900/5 hover:bg-sky-50"
                         }`}
+                        key={option.id}
+                        onClick={() => setView(option.id)}
+                        type="button"
                       >
-                        {viewCount}
-                      </span>
-                    </button>
-                  );
-                })}
+                        <Icon className="h-4 w-4" />
+                        {option.label}
+                        <span
+                          className={`rounded-full px-1.5 py-0.5 text-[11px] ${
+                            view === option.id
+                              ? "bg-white/15 text-white"
+                              : "bg-slate-100 text-slate-500"
+                          }`}
+                        >
+                          {viewCount}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-sm text-slate-500">{activeViewDescription}</p>
               </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <div className="flex items-center gap-2">
