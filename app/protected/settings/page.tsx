@@ -302,9 +302,9 @@ function PageShell({
   title: string;
 }) {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
-      <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
+    <main className="crm-page">
+      <header className="crm-header">
+        <div className="crm-header-inner">
           <div>
             <Link
               className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
@@ -313,15 +313,19 @@ function PageShell({
               <ArrowLeft className="h-4 w-4" />
               Dashboard
             </Link>
-            <h1 className="flex items-center gap-2 text-2xl font-semibold">
+            <p className="crm-kicker">System controls</p>
+            <h1 className="flex items-center gap-2 text-2xl font-bold">
               <Settings className="h-5 w-5" />
               {title}
             </h1>
+            <p className="crm-page-subtitle">
+              Maintain dropdowns, insurers, commission rates, payees, and split logic.
+            </p>
           </div>
           <AppMenu activeHref="/protected/settings" path={["Dashboard", "Settings"]} />
         </div>
       </header>
-      <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-5">
+      <div className="crm-container flex flex-col gap-4">
         {children}
       </div>
     </main>
@@ -387,8 +391,8 @@ function SettingsCard({
   title: string;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white/95 shadow-sm">
-      <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
+    <section className="crm-card">
+      <div className="crm-card-header">
         <h2 className="font-semibold text-slate-800">{title}</h2>
         <p className="mt-1 text-xs text-slate-500">{description}</p>
       </div>

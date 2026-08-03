@@ -93,8 +93,8 @@ async function ClientDetailContent({ params }: PageProps) {
   return (
     <PageShell>
       <div className="grid gap-5 lg:grid-cols-[380px_1fr]">
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
+        <section className="crm-card">
+          <div className="crm-card-header">
             <h1 className="font-semibold text-slate-800">Client Details</h1>
             <p className="text-xs text-slate-500">
               This is the master client record used by linked policies.
@@ -107,16 +107,16 @@ async function ClientDetailContent({ params }: PageProps) {
           />
         </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
+        <section className="crm-card">
+          <div className="crm-card-header">
             <h2 className="font-semibold text-slate-800">Linked Policies</h2>
             <p className="text-xs text-slate-500">
               Policies remain linked even when you edit the client name.
             </p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
-              <thead className="border-b border-slate-100 bg-white text-xs uppercase text-slate-500">
+            <table className="crm-table min-w-[760px]">
+              <thead>
                 <tr>
                   <th className="px-3 py-3 font-medium">Policy</th>
                   <th className="px-3 py-3 font-medium">Type</th>
@@ -129,7 +129,7 @@ async function ClientDetailContent({ params }: PageProps) {
               <tbody>
                 {policies.length ? (
                   policies.map((policy) => (
-                    <tr className="border-b border-slate-100 hover:bg-slate-50" key={policy.policy_term_id}>
+                    <tr key={policy.policy_term_id}>
                       <td className="px-3 py-3 font-medium">
                         <Link
                           className="hover:text-sky-700"
@@ -165,9 +165,9 @@ async function ClientDetailContent({ params }: PageProps) {
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
-      <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
+    <main className="crm-page">
+      <header className="crm-header">
+        <div className="crm-header-inner">
           <div>
             <Link
               className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
@@ -176,12 +176,16 @@ function PageShell({ children }: { children: React.ReactNode }) {
               <ArrowLeft className="h-4 w-4" />
               Clients
             </Link>
-            <h1 className="text-2xl font-semibold">Client Record</h1>
+            <p className="crm-kicker">Client file</p>
+            <h1 className="crm-page-title">Client Record</h1>
+            <p className="crm-page-subtitle">
+              Review client details, addresses, and linked policy history.
+            </p>
           </div>
           <AppMenu activeHref="/protected/clients" path={["Dashboard", "Clients", "Client"]} />
         </div>
       </header>
-      <div className="mx-auto max-w-[1800px] px-4 py-5">{children}</div>
+      <div className="crm-container">{children}</div>
     </main>
   );
 }

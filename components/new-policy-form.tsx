@@ -840,8 +840,8 @@ export function NewPolicyForm({
         {commissionPreview.length ? (
           <div className="md:col-span-2 xl:col-span-3">
             <div className="overflow-hidden rounded-xl border border-slate-200">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+              <table className="crm-table">
+                <thead>
                   <tr>
                     <th className="px-3 py-2 font-semibold">Payee</th>
                     <th className="px-3 py-2 font-semibold">Auto Rate</th>
@@ -852,7 +852,7 @@ export function NewPolicyForm({
                 </thead>
                 <tbody>
                   {commissionPreview.map((row) => (
-                    <tr className="border-t border-slate-100" key={row.payee_id}>
+                    <tr key={row.payee_id}>
                       <td className="px-3 py-2">
                         <input name="custom_commission_payee_id" type="hidden" value={row.payee_id} />
                         <input
@@ -928,10 +928,10 @@ export function NewPolicyForm({
         </div>
       </FormSection>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="crm-panel flex flex-wrap items-center gap-3">
         <SubmitButton />
         <button
-          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50"
+          className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 text-sm font-semibold text-sky-700 shadow-sm shadow-sky-900/5 transition hover:bg-sky-50"
           onClick={resetForm}
           type="button"
         >
@@ -1165,8 +1165,8 @@ function FormSection({
   title: string;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white/95 shadow-sm">
-      <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
+    <section className="crm-card">
+      <div className="crm-card-header">
         <h2 className="flex items-center gap-2 font-semibold text-slate-800">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-sky-700 shadow-sm">
             {icon ?? <FileText className="h-5 w-5" />}

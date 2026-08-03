@@ -165,20 +165,24 @@ function PageShell({
   policyTermId: string;
 }) {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
-      <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
-          <Link
-            className="inline-flex items-center gap-2 text-sm font-medium text-sky-700"
-            href={policyTermId ? `/protected/policies/${policyTermId}` : "/protected"}
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back
-          </Link>
+    <main className="crm-page">
+      <header className="crm-header">
+        <div className="crm-header-inner">
+          <div>
+            <Link
+              className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
+              href={policyTermId ? `/protected/policies/${policyTermId}` : "/protected"}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back
+            </Link>
+            <p className="crm-kicker">Policy maintenance</p>
+            <h1 className="crm-page-title">Edit Policy</h1>
+          </div>
           <AppMenu activeHref="/protected/records" path={["Dashboard", "Policies", "Edit"]} />
         </div>
       </header>
-      <div className="mx-auto max-w-[1800px] px-4 py-5">{children}</div>
+      <div className="crm-container">{children}</div>
     </main>
   );
 }

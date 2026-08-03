@@ -124,9 +124,9 @@ async function CommissionPaymentsContent() {
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
-      <header className="border-b border-sky-100 bg-white/85 backdrop-blur print:hidden">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
+    <main className="crm-page">
+      <header className="crm-header print:hidden">
+        <div className="crm-header-inner">
           <div>
             <Link
               className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
@@ -135,13 +135,14 @@ function PageShell({ children }: { children: React.ReactNode }) {
               <ArrowLeft className="h-4 w-4" />
               Dashboard
             </Link>
-            <h1 className="flex items-center gap-2 text-2xl font-semibold">
+            <p className="crm-kicker">Payee workflow</p>
+            <h1 className="flex items-center gap-2 text-2xl font-bold">
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-orange-100 text-orange-700">
                 <WalletCards className="h-5 w-5" />
               </span>
               Commission
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="crm-page-subtitle">
               Select commissions, preview payee statements, download/print, then confirm paid.
             </p>
           </div>
@@ -151,7 +152,7 @@ function PageShell({ children }: { children: React.ReactNode }) {
           />
         </div>
       </header>
-      <div className="mx-auto max-w-[1800px] px-4 py-5 print:max-w-none print:px-0 print:py-0">
+      <div className="crm-container print:max-w-none print:px-0 print:py-0">
         {children}
       </div>
     </main>

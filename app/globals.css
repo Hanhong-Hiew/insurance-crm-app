@@ -64,8 +64,10 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
-    font-family: Arial, Helvetica, sans-serif;
+    @apply bg-background text-foreground antialiased;
+    font-family:
+      Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+      sans-serif;
   }
   input,
   select,
@@ -74,5 +76,89 @@
     color-scheme: light;
     background-color: white;
     color: rgb(30 41 59);
+  }
+}
+
+@layer components {
+  .crm-page {
+    @apply min-h-screen bg-[#f4f8fb] text-slate-950;
+    background-image:
+      linear-gradient(180deg, rgba(232, 244, 252, 0.9) 0%, rgba(248, 251, 250, 0.96) 38%, rgba(241, 248, 245, 0.96) 100%),
+      linear-gradient(90deg, rgba(14, 116, 144, 0.06) 1px, transparent 1px),
+      linear-gradient(180deg, rgba(14, 116, 144, 0.05) 1px, transparent 1px);
+    background-size: auto, 32px 32px, 32px 32px;
+  }
+
+  .crm-header {
+    @apply sticky top-0 z-40 border-b border-sky-100/80 bg-white/90 shadow-sm shadow-sky-900/5 backdrop-blur-xl;
+  }
+
+  .crm-container {
+    @apply mx-auto w-full max-w-[1920px] px-3 py-4 sm:px-4 lg:px-5;
+  }
+
+  .crm-header-inner {
+    @apply mx-auto flex w-full max-w-[1920px] flex-col gap-3 px-3 py-3 sm:px-4 lg:flex-row lg:items-center lg:justify-between lg:px-5;
+  }
+
+  .crm-kicker {
+    @apply text-[11px] font-bold uppercase tracking-[0.14em] text-sky-700;
+  }
+
+  .crm-page-title {
+    @apply text-2xl font-bold tracking-normal text-slate-950;
+  }
+
+  .crm-page-subtitle {
+    @apply mt-1 max-w-3xl text-sm leading-6 text-slate-500;
+  }
+
+  .crm-card {
+    @apply overflow-hidden rounded-xl border border-slate-200/80 bg-white/95 shadow-sm shadow-slate-900/5;
+  }
+
+  .crm-card-header {
+    @apply border-b border-slate-100 bg-gradient-to-r from-white to-sky-50/50 px-4 py-3;
+  }
+
+  .crm-panel {
+    @apply rounded-xl border border-slate-200/80 bg-white/95 p-4 shadow-sm shadow-slate-900/5;
+  }
+
+  .crm-control {
+    @apply h-10 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-sky-400 focus:ring-2 focus:ring-sky-100;
+  }
+
+  .crm-table {
+    @apply w-full text-left text-sm;
+  }
+
+  .crm-table thead {
+    @apply sticky top-0 z-10 border-b border-slate-200 bg-slate-50/95 text-[11px] uppercase tracking-[0.08em] text-slate-500 backdrop-blur;
+  }
+
+  .crm-table th {
+    @apply px-3 py-2 font-bold;
+  }
+
+  .crm-table td {
+    @apply px-3 py-2 align-middle;
+  }
+
+  .crm-table tbody tr {
+    @apply border-b border-slate-100 transition hover:bg-sky-50/60;
+  }
+
+  .crm-table tbody tr:last-child {
+    @apply border-b-0;
+  }
+
+  .crm-stat-card {
+    @apply relative overflow-hidden rounded-xl border border-slate-200/80 bg-white p-4 shadow-sm shadow-slate-900/5;
+  }
+
+  .crm-stat-card::before {
+    content: "";
+    @apply absolute inset-x-0 top-0 h-1 bg-sky-500;
   }
 }

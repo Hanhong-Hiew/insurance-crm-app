@@ -255,7 +255,7 @@ export function CommissionPaymentsPanel({
       ))}
       <input name="paid_date" type="hidden" value={paidDate} />
 
-      <section className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm print:hidden">
+      <section className="crm-panel print:hidden">
         <div className="grid gap-3 lg:grid-cols-[1fr_180px_180px_1fr_auto_auto] lg:items-end">
           <label>
             <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
@@ -264,7 +264,7 @@ export function CommissionPaymentsPanel({
             <span className="relative block">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               <input
-                className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                className="crm-control w-full pl-9"
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Client, insurer, policy, vehicle, payee"
                 value={query}
@@ -276,7 +276,7 @@ export function CommissionPaymentsPanel({
               Sort Date
             </span>
             <select
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              className="crm-control w-full"
               onChange={(event) => setDateSort(event.target.value as DateSort)}
               value={dateSort}
             >
@@ -291,7 +291,7 @@ export function CommissionPaymentsPanel({
               Paid Date
             </span>
             <input
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              className="crm-control w-full"
               inputMode="numeric"
               onBlur={normalisePaidDate}
               onChange={(event) => updatePaidDate(event.target.value)}
@@ -305,7 +305,7 @@ export function CommissionPaymentsPanel({
               Notes
             </span>
             <input
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              className="crm-control w-full"
               name="notes"
               onChange={(event) => setNotes(event.target.value)}
               placeholder="Payment reference or note"
@@ -313,7 +313,7 @@ export function CommissionPaymentsPanel({
             />
           </label>
           <button
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 text-sm font-semibold text-sky-700 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 text-sm font-semibold text-sky-700 shadow-sm shadow-sky-900/5 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!selectedRows.length}
             onClick={printStatements}
             type="button"
@@ -326,16 +326,16 @@ export function CommissionPaymentsPanel({
       </section>
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(360px,2fr)]">
-        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-sm print:hidden">
-          <div className="border-b border-slate-100 px-4 py-3">
+        <div className="crm-card print:hidden">
+          <div className="crm-card-header">
             <h2 className="font-semibold text-slate-950">Unpaid Commissions</h2>
             <p className="text-sm text-slate-500">
               Tick rows, check the statement preview, then confirm payment.
             </p>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+            <table className="crm-table">
+              <thead>
                 <tr>
                   <th className="px-3 py-3">
                     <input
@@ -358,7 +358,7 @@ export function CommissionPaymentsPanel({
               </thead>
               <tbody>
                 {filteredRows.map((row) => (
-                  <tr className="border-t border-slate-100" key={row.commission_id}>
+                  <tr key={row.commission_id}>
                     <td className="px-3 py-3">
                       <input
                         checked={selectedIds.includes(row.commission_id)}
@@ -440,8 +440,8 @@ function StatementPreview({
               </div>
             </div>
             <div className="mt-4 overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+              <table className="crm-table">
+                <thead>
                   <tr>
                     <th className="px-2 py-2">No</th>
                     <th className="px-2 py-2">Client</th>
@@ -456,7 +456,7 @@ function StatementPreview({
                 </thead>
                 <tbody>
                   {sortedRows.map((row, index) => (
-                    <tr className="border-t border-slate-100" key={row.commission_id}>
+                    <tr key={row.commission_id}>
                       <td className="px-2 py-2 text-slate-500">{index + 1}</td>
                       <td className="px-2 py-2">{clean(row.client_name)}</td>
                       <td className="px-2 py-2">

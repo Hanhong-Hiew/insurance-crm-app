@@ -533,18 +533,19 @@ export function CrmMainPanel({
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
-      <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-4 px-4 py-4 md:flex-row md:items-center md:justify-between">
+    <div className="crm-page">
+      <header className="crm-header">
+        <div className="crm-header-inner">
           <div>
             <KoverLogo size="sm" />
-            <h1 className="mt-3 flex items-center gap-2 text-2xl font-semibold tracking-normal">
+            <p className="crm-kicker mt-3">Daily control room</p>
+            <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold tracking-normal">
               <span>Operations Dashboard</span>
               <button
                 aria-label={
                   hideDashboardValues ? "Show dashboard values" : "Hide dashboard values"
                 }
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-sky-200 bg-white text-sky-700 shadow-sm transition hover:bg-sky-50"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-sky-200 bg-white text-sky-700 shadow-sm shadow-sky-900/5 transition hover:bg-sky-50"
                 onClick={() => setHideDashboardValues((current) => !current)}
                 type="button"
               >
@@ -555,22 +556,26 @@ export function CrmMainPanel({
                 )}
               </button>
             </h1>
+            <p className="crm-page-subtitle">
+              Renewals, unpaid work, commissions, and the latest policy movement in
+              one scan.
+            </p>
           </div>
           <AppMenu activeHref="/protected" path={["Dashboard"]} />
         </div>
       </header>
 
-      <main className="mx-auto flex max-w-[1800px] flex-col gap-5 px-4 py-5">
+      <main className="crm-container flex flex-col gap-5">
         {errors.length > 0 ? (
           <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             {errors.join(" ")}
           </div>
         ) : null}
 
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {metrics.map(({ colorClass, icon, label, value }) => (
             <div
-              className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm"
+              className="crm-stat-card flex items-start gap-3"
               key={label}
             >
               <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${colorClass}`}>
@@ -588,8 +593,8 @@ export function CrmMainPanel({
           ))}
         </section>
 
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-sm">
-          <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <section className="crm-card">
+          <div className="crm-card-header flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2 text-sky-700">
                 <TableProperties className="h-5 w-5" />
@@ -598,14 +603,15 @@ export function CrmMainPanel({
                 </h2>
               </div>
               <p className="mt-1 text-sm text-slate-500">
-                Latest policies added to the CRM.
+                Latest policies added to the CRM. Use this as the quick “what changed”
+                view.
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <label className="flex items-center gap-2 text-sm font-medium text-slate-600">
                 Show
                 <select
-                  className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                  className="crm-control h-9 px-2"
                   onChange={(event) => setNewestLimit(Number(event.target.value))}
                   value={newestLimit}
                 >
@@ -617,7 +623,7 @@ export function CrmMainPanel({
                 </select>
               </label>
               <Link
-                className="inline-flex h-9 items-center justify-center rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm"
+                className="inline-flex h-9 items-center justify-center rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm shadow-sky-900/5 transition hover:bg-sky-50"
                 href="/protected/records"
               >
                 Analyse Records
@@ -635,17 +641,25 @@ export function CrmMainPanel({
           </div>
         </section>
 
-        <section className="min-w-0 rounded-xl border border-slate-200 bg-white/95 shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-slate-100 p-3 lg:flex-row lg:items-center lg:justify-between">
+        <section className="crm-card min-w-0">
+            <div className="crm-card-header flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex flex-wrap gap-2">
                 {viewOptions.map((option) => {
                   const Icon = option.icon;
+                  const viewCount =
+                    option.id === "renewals"
+                      ? renewals.length
+                      : option.id === "premium"
+                        ? unpaidPremium.length
+                        : option.id === "commission"
+                          ? unpaidCommission.length
+                          : commissions.length;
                   return (
                     <button
                       className={`inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium ${
                         view === option.id
-                          ? "bg-emerald-600 text-white"
-                          : "border border-slate-200 bg-white text-slate-700"
+                          ? "bg-slate-950 text-white shadow-sm shadow-slate-900/15"
+                          : "border border-slate-200 bg-white text-slate-700 shadow-sm shadow-slate-900/5 hover:bg-sky-50"
                       }`}
                       key={option.id}
                       onClick={() => setView(option.id)}
@@ -653,6 +667,15 @@ export function CrmMainPanel({
                     >
                       <Icon className="h-4 w-4" />
                       {option.label}
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[11px] ${
+                          view === option.id
+                            ? "bg-white/15 text-white"
+                            : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {viewCount}
+                      </span>
                     </button>
                   );
                 })}
@@ -663,7 +686,7 @@ export function CrmMainPanel({
                     Sort
                   </label>
                   <select
-                    className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                    className="crm-control h-9"
                     onChange={(event) => setRecordSort(event.target.value as RecordSort)}
                     value={recordSort}
                   >
@@ -679,7 +702,7 @@ export function CrmMainPanel({
                         ? "Sort records descending"
                         : "Sort records ascending"
                     }
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-700 shadow-sm shadow-slate-900/5 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
                     onClick={() =>
                       setRecordSortDirection((current) =>
                         current === "asc" ? "desc" : "asc",
@@ -697,7 +720,7 @@ export function CrmMainPanel({
                 <label className="relative block min-w-0 sm:w-72">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
-                    className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+                    className="crm-control h-9 w-full pl-9"
                     onChange={(event) => setQuery(event.target.value)}
                     placeholder="Search client, vehicle, policy"
                     value={query}
@@ -915,8 +938,8 @@ function PolicyTable({
   setSelected: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="w-full min-w-[1120px] text-left text-sm">
-      <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
+    <table className="crm-table min-w-[1120px]">
+      <thead>
         <tr>
           <th className="px-3 py-2 font-medium">Effective</th>
           <th className="px-3 py-2 font-medium">Expiry</th>
@@ -936,11 +959,11 @@ function PolicyTable({
         {rows.length ? (
           rows.map((row) => (
             <tr
-              className={`cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 ${
+              className={`cursor-pointer ${
                 selected &&
                 "policy_term_id" in selected &&
                 selected.policy_term_id === row.policy_term_id
-                  ? "bg-zinc-50"
+                  ? "bg-sky-50"
                   : ""
               }`}
               key={row.policy_term_id}
@@ -1074,8 +1097,8 @@ function CommissionTable({
   setSelected: (record: CommissionRecord) => void;
 }) {
   return (
-    <table className="w-full min-w-[820px] text-left text-sm">
-      <thead className="border-b border-zinc-200 bg-zinc-50 text-xs uppercase text-zinc-500">
+    <table className="crm-table min-w-[820px]">
+      <thead>
         <tr>
           <th className="px-3 py-2 font-medium">Effective</th>
           <th className="px-3 py-2 font-medium">Expiry</th>
@@ -1094,11 +1117,11 @@ function CommissionTable({
         {rows.length ? (
           rows.map((row) => (
             <tr
-              className={`cursor-pointer border-b border-zinc-100 hover:bg-zinc-50 ${
+              className={`cursor-pointer ${
                 selected &&
                 "commission_id" in selected &&
                 selected.commission_id === row.commission_id
-                  ? "bg-zinc-50"
+                  ? "bg-sky-50"
                   : ""
               }`}
               key={row.commission_id}

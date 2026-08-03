@@ -59,10 +59,10 @@ export function AppMenu({
   }, [open]);
 
   return (
-    <div className="relative flex flex-col items-start gap-2 md:items-end">
+    <div className="relative flex flex-col items-start gap-2 lg:items-end">
       <nav
         aria-label="Page path"
-        className="flex flex-wrap items-center gap-1 text-xs font-medium text-slate-500"
+        className="flex flex-wrap items-center gap-1 text-xs font-semibold text-slate-500"
       >
         <Home className="h-3.5 w-3.5 text-sky-600" />
         {path.map((label, index) => (
@@ -85,8 +85,8 @@ export function AppMenu({
               <Link
                 className={`inline-flex h-9 items-center gap-1.5 rounded-lg border px-2.5 text-sm font-semibold shadow-sm transition ${
                   active
-                    ? "border-sky-200 bg-sky-50 text-sky-800"
-                    : "border-slate-200 bg-white text-slate-700 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800"
+                    ? "border-sky-200 bg-sky-50 text-sky-800 shadow-sky-900/5"
+                    : "border-slate-200 bg-white/90 text-slate-700 shadow-slate-900/5 hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800"
                 }`}
                 href={item.href}
                 key={item.href}
@@ -101,8 +101,8 @@ export function AppMenu({
         <Link
           className={`inline-flex h-10 items-center gap-2 rounded-lg px-3 text-sm font-semibold shadow-sm transition ${
             activeHref === "/protected/new-policy"
-              ? "bg-slate-900 text-white"
-              : "bg-sky-600 text-white hover:bg-sky-700"
+              ? "bg-slate-950 text-white shadow-slate-900/15"
+              : "bg-sky-700 text-white shadow-sky-900/15 hover:bg-sky-800"
           }`}
           href="/protected/new-policy"
         >
@@ -114,7 +114,7 @@ export function AppMenu({
           <button
             aria-expanded={open}
             aria-haspopup="menu"
-            className="inline-flex h-10 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm transition hover:border-sky-300 hover:bg-sky-50"
+            className="inline-flex h-10 items-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm shadow-sky-900/5 transition hover:border-sky-300 hover:bg-sky-50"
             onClick={() => setOpen((current) => !current)}
             type="button"
           >
@@ -124,7 +124,7 @@ export function AppMenu({
 
           {open ? (
             <div
-              className="mt-2 max-h-[70vh] w-56 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl"
+              className="mt-2 max-h-[70vh] w-56 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-xl shadow-slate-900/10"
               role="menu"
             >
               {navigationItems.map((item) => {

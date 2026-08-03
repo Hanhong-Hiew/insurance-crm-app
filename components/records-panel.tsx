@@ -564,7 +564,7 @@ export function RecordsPanel({
 
   return (
     <div className="space-y-4">
-      <section className="grid gap-3 md:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           colorClass="bg-emerald-50 text-emerald-700"
           icon={<FileText className="h-5 w-5" />}
@@ -591,7 +591,7 @@ export function RecordsPanel({
         />
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm">
+      <section className="crm-panel">
         <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="flex items-center gap-2 text-emerald-700">
@@ -605,7 +605,7 @@ export function RecordsPanel({
           <label className="relative block min-w-0 lg:w-80">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
-              className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-950 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              className="crm-control w-full pl-9"
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search client, policy, vehicle, insurer"
               value={query}
@@ -673,7 +673,7 @@ export function RecordsPanel({
               Direction
             </p>
             <button
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm shadow-slate-900/5 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-700"
               onClick={() =>
                 setSortDirection((current) => (current === "asc" ? "desc" : "asc"))
               }
@@ -693,7 +693,7 @@ export function RecordsPanel({
       <section className="space-y-3">
         {groupedRows.map(([group, rows]) => (
           <div
-            className="overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-sm"
+            className="crm-card"
             key={group}
           >
             {groupBy !== "none" ? (
@@ -738,7 +738,7 @@ function MetricCard({
   value: string;
 }) {
   return (
-    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-slate-200 bg-white/95 p-4 shadow-sm">
+    <div className="crm-stat-card flex min-w-0 items-start gap-3">
       <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${colorClass}`}>
         {icon}
       </span>
@@ -767,7 +767,7 @@ function SelectField({
         {label}
       </span>
       <select
-        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-950 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+        className="crm-control w-full"
         onChange={(event) => onChange(event.target.value)}
         value={value}
       >
@@ -933,8 +933,8 @@ function PolicyTable({
   setPreviewRecord: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="w-full min-w-[1120px] text-left text-sm">
-      <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase text-slate-500">
+    <table className="crm-table min-w-[1120px]">
+      <thead>
         <tr>
           <th className="px-3 py-2 font-medium">Effective</th>
           <th className="px-3 py-2 font-medium">Expiry</th>
@@ -953,7 +953,7 @@ function PolicyTable({
         {rows.length ? (
           rows.map((row) => (
             <tr
-              className="cursor-pointer border-b border-slate-100 transition hover:bg-sky-50/60"
+              className="cursor-pointer"
               key={row.policy_term_id}
               onDoubleClick={() => {
                 window.location.href = `/protected/policies/${row.policy_term_id}`;

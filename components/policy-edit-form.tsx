@@ -409,8 +409,8 @@ export function PolicyEditForm({
       <ActionMessage message={state.success} tone="success" />
 
       <input name="policy_term_id" type="hidden" value={policyTermId} />
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-emerald-100 bg-emerald-50/50 px-4 py-3">
+      <section className="crm-card">
+        <div className="crm-card-header">
           <h1 className="font-semibold text-slate-800">Client</h1>
           <p className="text-xs text-slate-500">
             These fields update the linked client record used by this policy.
@@ -505,8 +505,8 @@ export function PolicyEditForm({
         </div>
       </section>
 
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
+      <section className="crm-card">
+        <div className="crm-card-header">
           <h1 className="font-semibold text-slate-800">Edit Policy Term</h1>
           <p className="text-xs text-slate-500">
             Update the policy term, premium, commission split, and risk details.
@@ -709,8 +709,8 @@ export function PolicyEditForm({
         {commissionPreview.length ? (
           <div className="md:col-span-2 xl:col-span-3">
             <div className="overflow-hidden rounded-xl border border-slate-200">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+              <table className="crm-table">
+                <thead>
                   <tr>
                     <th className="px-3 py-2 font-semibold">Payee</th>
                     <th className="px-3 py-2 font-semibold">Auto Rate</th>
@@ -721,7 +721,7 @@ export function PolicyEditForm({
                 </thead>
                 <tbody>
                   {commissionPreview.map((row) => (
-                    <tr className="border-t border-slate-100" key={row.payee_id}>
+                    <tr key={row.payee_id}>
                       <td className="px-3 py-2">
                         <input name="custom_commission_payee_id" type="hidden" value={row.payee_id} />
                         <input
@@ -782,7 +782,7 @@ export function PolicyEditForm({
         ) : null}
       </FormSection>
 
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className="crm-panel flex flex-wrap items-center gap-3">
         <SubmitButton />
       </div>
     </form>
@@ -1029,8 +1029,8 @@ function FormSection({
   title: string;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
+    <section className="crm-card">
+      <div className="crm-card-header">
         <h2 className="flex items-center gap-2 font-semibold text-slate-800">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-sky-700 shadow-sm">
             {icon ?? <FileText className="h-5 w-5" />}

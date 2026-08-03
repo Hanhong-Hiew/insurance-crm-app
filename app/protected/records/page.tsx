@@ -94,9 +94,9 @@ async function RecordsContent() {
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
-      <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
+    <main className="crm-page">
+      <header className="crm-header">
+        <div className="crm-header-inner">
           <div>
             <Link
               className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
@@ -105,15 +105,16 @@ function PageShell({ children }: { children: React.ReactNode }) {
               <ArrowLeft className="h-4 w-4" />
               Dashboard
             </Link>
-            <h1 className="text-2xl font-semibold">Records Analysis</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="crm-kicker">Analysis workspace</p>
+            <h1 className="crm-page-title">Records Analysis</h1>
+            <p className="crm-page-subtitle">
               Search, filter, group, and sort policy records.
             </p>
           </div>
           <AppMenu activeHref="/protected/records" path={["Dashboard", "Records"]} />
         </div>
       </header>
-      <div className="mx-auto max-w-[1800px] px-4 py-5">{children}</div>
+      <div className="crm-container">{children}</div>
     </main>
   );
 }

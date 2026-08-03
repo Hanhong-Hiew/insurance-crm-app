@@ -76,8 +76,8 @@ export function ClientsTable({
   }, [createState.success]);
 
   return (
-    <section className="rounded-xl border border-slate-200 bg-white/95 shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-sky-100 bg-sky-50/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+    <section className="crm-card">
+      <div className="crm-card-header flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div>
           <h1 className="flex items-center gap-2 text-xl font-semibold text-slate-900">
             <Users className="h-5 w-5 text-sky-700" />
@@ -90,7 +90,7 @@ export function ClientsTable({
         <label className="relative block w-full md:w-80">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
           <input
-            className="h-9 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            className="crm-control h-9 w-full pl-9"
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search client, IC/reg no, phone, email"
             value={query}
@@ -107,18 +107,18 @@ export function ClientsTable({
           className="grid gap-3 rounded-xl border border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1.3fr_1fr_0.8fr_1fr_1fr_1fr_auto]"
         >
           <input
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            className="crm-control h-9"
             name="client_name"
             placeholder="Client name"
             required
           />
           <input
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            className="crm-control h-9"
             name="business_registration_no"
             placeholder="IC / Business Reg. No."
           />
           <select
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            className="crm-control h-9"
             name="client_type"
           >
             <option value="individual">Individual</option>
@@ -126,12 +126,12 @@ export function ClientsTable({
             <option value="other">Other</option>
           </select>
           <input
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            className="crm-control h-9"
             name="phone"
             placeholder="Phone"
           />
           <input
-            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+            className="crm-control h-9"
             name="email"
             placeholder="Email"
             type="email"
@@ -139,7 +139,7 @@ export function ClientsTable({
           <div className="relative">
             <input
               autoComplete="off"
-              className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
+              className="crm-control h-9 w-full"
               name="referral"
               onBlur={() => {
                 window.setTimeout(() => setShowReferralSuggestions(false), 120);
@@ -176,8 +176,8 @@ export function ClientsTable({
       </div>
 
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[1040px] text-left text-sm">
-          <thead className="border-b border-slate-100 bg-white text-xs uppercase text-slate-500">
+        <table className="crm-table min-w-[1040px]">
+          <thead>
             <tr>
               <th className="px-3 py-3 font-medium">Client</th>
               <th className="px-3 py-3 font-medium">IC / Business Reg. No.</th>
@@ -192,7 +192,7 @@ export function ClientsTable({
           <tbody>
             {filteredClients.length ? (
               filteredClients.map((client) => (
-                <tr className="border-b border-slate-100 hover:bg-slate-50" key={client.id}>
+                <tr key={client.id}>
                   <td className="px-3 py-3 font-medium text-slate-900">
                     <Link className="hover:text-sky-700" href={`/protected/clients/${client.id}`}>
                       {clean(client.client_name)}

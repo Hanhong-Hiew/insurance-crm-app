@@ -135,7 +135,7 @@ async function PolicyRecordContent({ params }: PageProps) {
     <PageShell>
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
         <section className="space-y-4">
-          <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <section className="crm-panel">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <p className="text-xs font-medium uppercase text-sky-700">
@@ -154,7 +154,7 @@ async function PolicyRecordContent({ params }: PageProps) {
                 </p>
               </div>
               <Link
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-medium text-sky-700 shadow-sm"
+                className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-medium text-sky-700 shadow-sm shadow-sky-900/5 transition hover:bg-sky-50"
                 href={`/protected/policies/${id}/edit`}
               >
                 <PenLine className="h-4 w-4" />
@@ -190,13 +190,13 @@ async function PolicyRecordContent({ params }: PageProps) {
 
           <InfoCard rows={detailRows} title="Risk Details" />
 
-          <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
+          <section className="crm-card">
+            <div className="crm-card-header">
               <h2 className="font-semibold text-slate-800">Commissions</h2>
             </div>
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[680px] text-left text-sm">
-                <thead className="border-b border-slate-100 bg-white text-xs uppercase text-slate-500">
+              <table className="crm-table min-w-[680px]">
+                <thead>
                   <tr>
                     <th className="px-3 py-3 font-medium">Payee</th>
                     <th className="px-3 py-3 font-medium">Rate</th>
@@ -326,8 +326,8 @@ function InfoCard({
   title: string;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="border-b border-sky-100 bg-sky-50/50 px-4 py-3">
+    <section className="crm-card">
+      <div className="crm-card-header">
         <h2 className="font-semibold text-slate-800">{title}</h2>
       </div>
       <dl className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -352,7 +352,7 @@ function ListCard({
   title: string;
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <section className="crm-panel">
       <div className="flex items-center gap-2">
         <FileText className="h-4 w-4 text-sky-600" />
         <h2 className="font-semibold text-slate-800">{title}</h2>
@@ -375,20 +375,24 @@ function ListCard({
 
 function PageShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-emerald-50 text-slate-950">
-      <header className="border-b border-sky-100 bg-white/85 backdrop-blur">
-        <div className="mx-auto flex max-w-[1800px] flex-col gap-3 px-4 py-4 md:flex-row md:items-center md:justify-between">
-          <Link
-            className="inline-flex items-center gap-2 text-sm font-medium text-sky-700"
-            href="/protected"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Dashboard
-          </Link>
+    <main className="crm-page">
+      <header className="crm-header">
+        <div className="crm-header-inner">
+          <div>
+            <Link
+              className="mb-2 inline-flex items-center gap-2 text-sm font-medium text-sky-700"
+              href="/protected"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Dashboard
+            </Link>
+            <p className="crm-kicker">Policy file</p>
+            <h1 className="crm-page-title">Policy Details</h1>
+          </div>
           <AppMenu activeHref="/protected/records" path={["Dashboard", "Policies", "Details"]} />
         </div>
       </header>
-      <div className="mx-auto max-w-[1800px] px-4 py-5">{children}</div>
+      <div className="crm-container">{children}</div>
     </main>
   );
 }
