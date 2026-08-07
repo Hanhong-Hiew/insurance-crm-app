@@ -112,6 +112,7 @@ type RecordSort =
 type CrmMainPanelProps = {
   summary: DashboardSummary | null;
   commissions: CommissionRecord[];
+  netPremiumTotal: number;
   policies: PolicyRecord[];
   renewals: PolicyRecord[];
   unpaidPremium: PolicyRecord[];
@@ -134,7 +135,7 @@ const viewOptions: Array<{
 const recordSortOptions: Array<{ value: RecordSort; label: string }> = [
   { value: "effective_date", label: "Effective Date" },
   { value: "expiry_date", label: "Expiry Date" },
-  { value: "risk_type", label: "Risk Type" },
+  { value: "risk_type", label: "Risk" },
   { value: "client", label: "Client" },
   { value: "value", label: "Value" },
   { value: "status", label: "Status" },
@@ -373,7 +374,7 @@ function recordSortValue(record: PolicyRecord | CommissionRecord, sort: RecordSo
     return "";
   }
 
-  if (sort === "risk_type") return riskType(record);
+  if (sort === "risk_type") return clean(record.insurance_type);
   if (sort === "value") return toNumber(record.gross_premium);
   if (sort === "status") {
     return clean(record.premium_status || record.policy_status || record.renewal_status);
@@ -383,6 +384,7 @@ function recordSortValue(record: PolicyRecord | CommissionRecord, sort: RecordSo
 
 export function CrmMainPanel({
   commissions,
+  netPremiumTotal,
   summary,
   policies,
   renewals,
@@ -508,20 +510,28 @@ export function CrmMainPanel({
         order: 2,
       },
       {
-        label: "Renewals 60 Days",
-        value: count(summary?.renewals_due_60_days),
-        numericValue: toNumber(summary?.renewals_due_60_days),
-        icon: <CalendarDays className="h-5 w-5" />,
-        colorClass: "text-amber-700 bg-amber-50",
-        order: 3,
-      },
-      {
         label: "Gross Premium",
         value: money(summary?.active_gross_premium_total),
         numericValue: toNumber(summary?.active_gross_premium_total),
         icon: <CircleDollarSign className="h-5 w-5" />,
         colorClass: "text-violet-700 bg-violet-50",
+        order: 3,
+      },
+      {
+        label: "Net Premium",
+        value: money(netPremiumTotal),
+        numericValue: netPremiumTotal,
+        icon: <CircleDollarSign className="h-5 w-5" />,
+        colorClass: "text-indigo-700 bg-indigo-50",
         order: 4,
+      },
+      {
+        label: "Renewals 60 Days",
+        value: count(summary?.renewals_due_60_days),
+        numericValue: toNumber(summary?.renewals_due_60_days),
+        icon: <CalendarDays className="h-5 w-5" />,
+        colorClass: "text-amber-700 bg-amber-50",
+        order: 5,
       },
       {
         label: "Unpaid Premium",
@@ -529,7 +539,7 @@ export function CrmMainPanel({
         numericValue: toNumber(summary?.unpaid_premium_total),
         icon: <ReceiptText className="h-5 w-5" />,
         colorClass: "text-red-700 bg-red-50",
-        order: 5,
+        order: 6,
       },
       {
         label: "Unpaid Commission",
@@ -537,14 +547,6 @@ export function CrmMainPanel({
         numericValue: toNumber(summary?.unpaid_commission_total),
         icon: <WalletCards className="h-5 w-5" />,
         colorClass: "text-orange-700 bg-orange-50",
-        order: 6,
-      },
-      {
-        label: "Missing Split",
-        value: count(missingSplitPolicies.length),
-        numericValue: missingSplitPolicies.length,
-        icon: <BadgeDollarSign className="h-5 w-5" />,
-        colorClass: "text-rose-700 bg-rose-50",
         order: 7,
       },
       {
@@ -558,7 +560,7 @@ export function CrmMainPanel({
         order: 8,
       },
     ],
-    [missingSplitPolicies, policies, summary],
+    [netPremiumTotal, policies, summary],
   );
 
   const newestPolicies = useMemo(
@@ -859,7 +861,7 @@ function DashboardPreviewModal({
                 <>
                   <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100">
                     <RiskIcon record={record} />
-                    {riskType(record)}
+                    {clean(record.insurance_type)}
                   </span>
                   <StageBadge record={record} />
                 </>
@@ -871,7 +873,7 @@ function DashboardPreviewModal({
             <p className="mt-1 text-sm text-slate-500">
               {isCommission
                 ? `${clean(record.payee_name)} / ${clean(record.status)}`
-                : `${riskType(record)} / ${riskLabel(record)}`}
+                : `${clean(record.insurance_type)} / ${riskLabel(record)}`}
             </p>
           </div>
           <button
@@ -890,7 +892,7 @@ function DashboardPreviewModal({
               isCommission
                 ? [
                     ["Policy No", clean(record.policy_number)],
-                    ["Insurance Type", clean(record.insurance_type)],
+                    ["Risk", clean(record.insurance_type)],
                     ["Payee", clean(record.payee_name)],
                     ["Rate", percent(record.calculation_percent)],
                     ["Amount", money(record.amount)],
@@ -992,15 +994,14 @@ function PolicyTable({
   setSelected: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="crm-table min-w-[1120px]">
+    <table className="crm-table min-w-[1080px]">
       <thead>
         <tr>
           <th className="px-3 py-2 font-medium">Effective</th>
           <th className="px-3 py-2 font-medium">Expiry</th>
           <th className="px-3 py-2 font-medium">Client</th>
-          <th className="px-3 py-2 font-medium">Risk Type</th>
+          <th className="px-3 py-2 font-medium">Risk</th>
           <th className="px-3 py-2 font-medium">Vehicle No</th>
-          <th className="px-3 py-2 font-medium">Type</th>
           <th className="px-3 py-2 font-medium">Insurer</th>
           <th className="px-3 py-2 font-medium">Stage</th>
           <th className="px-3 py-2 font-medium">Split</th>
@@ -1066,11 +1067,10 @@ function PolicyTable({
               <td className="px-3 py-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
                   <RiskIcon record={row} />
-                  {riskType(row)}
+                  {clean(row.insurance_type)}
                 </span>
               </td>
               <td className="px-3 py-2">{vehicleNo(row)}</td>
-              <td className="px-3 py-2">{clean(row.insurance_type)}</td>
               <td className="px-3 py-2">
                 <InsurerBadge name={row.insurer_name} />
               </td>
@@ -1094,7 +1094,7 @@ function PolicyTable({
           ))
         ) : (
           <tr>
-            <td className="px-3 py-8 text-center text-zinc-500" colSpan={12}>
+            <td className="px-3 py-8 text-center text-zinc-500" colSpan={11}>
               No matching records.
             </td>
           </tr>
@@ -1157,7 +1157,7 @@ function CommissionTable({
           <th className="px-3 py-2 font-medium">Effective</th>
           <th className="px-3 py-2 font-medium">Expiry</th>
           <th className="px-3 py-2 font-medium">Client</th>
-          <th className="px-3 py-2 font-medium">Type</th>
+          <th className="px-3 py-2 font-medium">Risk</th>
           <th className="px-3 py-2 font-medium">Policy No</th>
           <th className="px-3 py-2 font-medium">Payee</th>
           <th className="px-3 py-2 font-medium">Rate</th>

@@ -66,6 +66,7 @@ async function ProtectedContent() {
     premiumResult,
     commissionResult,
     allCommissionResult,
+    netPremiumResult,
     splitPatternsResult,
   ] =
     await Promise.all([
@@ -85,6 +86,7 @@ async function ProtectedContent() {
         )
         .order("created_at", { ascending: false })
         .limit(500),
+      supabase.from("main_policy_view").select("net_premium").limit(5000),
       supabase
         .from("policy_terms")
         .select("id, split_pattern_id, commission_split_patterns(code, name)")
@@ -98,6 +100,7 @@ async function ProtectedContent() {
     premiumResult.error?.message,
     commissionResult.error?.message,
     allCommissionResult.error?.message,
+    netPremiumResult.error?.message,
     splitPatternsResult.error?.message,
   ].filter((message): message is string => Boolean(message));
   const splitLookup = new Map(
@@ -150,11 +153,16 @@ async function ProtectedContent() {
       };
     },
   );
+  const netPremiumTotal = (netPremiumResult.data ?? []).reduce((total, row) => {
+    const amount = Number(String(row.net_premium ?? 0).replace(/,/g, ""));
+    return Number.isFinite(amount) ? total + amount : total;
+  }, 0);
 
   return (
     <CrmMainPanel
       commissions={commissions}
       errors={errors}
+      netPremiumTotal={netPremiumTotal}
       policies={policies}
       renewals={renewals}
       summary={summaryResult.data ?? null}

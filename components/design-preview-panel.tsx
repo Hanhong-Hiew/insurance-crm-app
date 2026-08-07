@@ -548,7 +548,7 @@ export function DesignPreviewPanel({
                                     <ShieldCheck className="h-4 w-4 text-sky-700" />
                                   )}
                                   <div>
-                                    <p className="font-medium text-slate-800">{riskType(policy)}</p>
+                                    <p className="font-medium text-slate-800">{clean(policy.insurance_type)}</p>
                                     <p className="text-xs text-slate-500">{riskLabel(policy)}</p>
                                   </div>
                                 </div>
@@ -643,7 +643,7 @@ export function DesignPreviewPanel({
                         Primary risk
                       </p>
                       <p className="mt-2 text-2xl font-semibold">{riskLabel(selected)}</p>
-                      <p className="mt-1 text-sm text-white/65">{riskType(selected)}</p>
+                      <p className="mt-1 text-sm text-white/65">{clean(selected.insurance_type)}</p>
                     </div>
 
                     <div className="grid grid-cols-2 gap-x-4 gap-y-3">

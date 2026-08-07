@@ -446,7 +446,7 @@ function StatementPreview({
                     <th className="px-2 py-2">No</th>
                     <th className="px-2 py-2">Client</th>
                     <th className="px-2 py-2">Policy</th>
-                    <th className="px-2 py-2">Type</th>
+                    <th className="px-2 py-2">Risk</th>
                     <th className="px-2 py-2">Insurer</th>
                     <th className="px-2 py-2">Term</th>
                     <th className="px-2 py-2 text-right">Gross</th>

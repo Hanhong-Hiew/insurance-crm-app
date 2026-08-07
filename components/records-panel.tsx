@@ -100,7 +100,7 @@ const groupOptions: Array<{ value: GroupBy; label: string }> = [
   { value: "none", label: "No Group" },
   { value: "expiry_month", label: "Expiry Month" },
   { value: "effective_month", label: "Effective Month" },
-  { value: "risk_type", label: "Risk Type" },
+  { value: "risk_type", label: "Risk" },
   { value: "insurer", label: "Insurer" },
   { value: "premium_status", label: "Premium Status" },
 ];
@@ -110,7 +110,7 @@ const sortOptions: Array<{ value: SortBy; label: string }> = [
   { value: "expiry_date", label: "Expiry Date" },
   { value: "created_at", label: "Newest" },
   { value: "client", label: "Client" },
-  { value: "risk_type", label: "Risk Type" },
+  { value: "risk_type", label: "Risk" },
   { value: "gross_premium", label: "Gross Premium" },
   { value: "premium_status", label: "Premium Status" },
 ];
@@ -396,7 +396,7 @@ function sortValue(record: PolicyRecord, sortBy: SortBy) {
   if (sortBy === "expiry_date") return dateSortValue(record.expiry_date);
   if (sortBy === "effective_date") return dateSortValue(record.effective_date);
   if (sortBy === "client") return clean(record.client_name);
-  if (sortBy === "risk_type") return riskType(record);
+  if (sortBy === "risk_type") return clean(record.insurance_type);
   if (sortBy === "gross_premium") return toNumber(record.gross_premium);
   if (sortBy === "premium_status") return clean(record.premium_status);
   return null;
@@ -417,7 +417,7 @@ function compareSortValues(
 function groupKey(record: PolicyRecord, groupBy: GroupBy) {
   if (groupBy === "expiry_month") return formatMonth(monthKey(record.expiry_date));
   if (groupBy === "effective_month") return formatMonth(monthKey(record.effective_date));
-  if (groupBy === "risk_type") return riskType(record);
+  if (groupBy === "risk_type") return clean(record.insurance_type);
   if (groupBy === "insurer") return clean(record.insurer_name);
   if (groupBy === "premium_status") return clean(record.premium_status);
   return "All Records";
@@ -452,7 +452,7 @@ export function RecordsPanel({
   }
 
   const riskOptions = useMemo(
-    () => uniqueOptions(policies, (record) => riskType(record)),
+    () => uniqueOptions(policies, (record) => clean(record.insurance_type)),
     [policies],
   );
   const insurerOptions = useMemo(
@@ -489,7 +489,7 @@ export function RecordsPanel({
     return policies.filter((record) => {
       const date = parseDate(record[dateBasis]);
       if (!dateMatchesPeriod(date, period)) return false;
-      if (riskFilter !== "all" && riskType(record) !== riskFilter) return false;
+      if (riskFilter !== "all" && clean(record.insurance_type) !== riskFilter) return false;
       if (insurerFilter !== "all" && clean(record.insurer_name) !== insurerFilter) {
         return false;
       }
@@ -630,10 +630,10 @@ export function RecordsPanel({
             value={period}
           />
           <SelectField
-            label="Risk Type"
+            label="Risk"
             onChange={setRiskFilter}
             options={[
-              { value: "all", label: "All Risk Types" },
+              { value: "all", label: "All Risks" },
               ...riskOptions.map((value) => ({ value, label: value })),
             ]}
             value={riskFilter}
@@ -834,7 +834,7 @@ function RecordPreviewModal({
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full bg-sky-50 px-2.5 py-1 text-xs font-semibold text-sky-700 ring-1 ring-sky-100">
                 <RiskIcon record={record} />
-                {riskType(record)}
+                {clean(record.insurance_type)}
               </span>
               <StageBadge record={record} />
             </div>
@@ -892,7 +892,7 @@ function RecordPreviewModal({
             rows={[
               ["Policy No", clean(record.policy_number)],
               ["Insurer", <InsurerBadge key="insurer" name={record.insurer_name} />],
-              ["Insurance Type", clean(record.insurance_type)],
+              ["Risk", clean(record.insurance_type)],
               ["Split", splitCode(record)],
               [
                 "Commission",
@@ -933,13 +933,13 @@ function PolicyTable({
   setPreviewRecord: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="crm-table min-w-[1120px]">
+    <table className="crm-table min-w-[1080px]">
       <thead>
         <tr>
           <th className="px-3 py-2 font-medium">Effective</th>
           <th className="px-3 py-2 font-medium">Expiry</th>
           <th className="px-3 py-2 font-medium">Client</th>
-          <th className="px-3 py-2 font-medium">Risk Type</th>
+          <th className="px-3 py-2 font-medium">Risk</th>
           <th className="px-3 py-2 font-medium">Vehicle No</th>
           <th className="px-3 py-2 font-medium">Insurer</th>
           <th className="px-3 py-2 font-medium">Stage</th>
@@ -999,7 +999,7 @@ function PolicyTable({
               <td className="px-3 py-2">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
                   <RiskIcon record={row} />
-                  {riskType(row)}
+                  {clean(row.insurance_type)}
                 </span>
               </td>
               <td className="px-3 py-2 text-slate-700">{vehicleNo(row)}</td>
