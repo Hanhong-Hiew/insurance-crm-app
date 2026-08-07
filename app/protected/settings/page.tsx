@@ -11,7 +11,6 @@ import {
   saveCommissionRate,
   saveInsuranceType,
   saveInsurer,
-  savePayee,
   saveSplitPattern,
 } from "./actions";
 
@@ -43,13 +42,6 @@ type CommissionRate = {
 type SplitPattern = {
   id: string;
   code: string | null;
-  name: string | null;
-  active: boolean | null;
-  notes?: string | null;
-};
-
-type Payee = {
-  id: string;
   name: string | null;
   active: boolean | null;
   notes?: string | null;
@@ -106,7 +98,7 @@ async function SettingsContent() {
     redirect("/auth/login");
   }
 
-  const [typesResult, insurersResult, ratesResult, splitsResult, payeesResult, rulesResult] =
+  const [typesResult, insurersResult, ratesResult, splitsResult, rulesResult] =
     await Promise.all([
       supabase
         .from("insurance_types")
@@ -125,10 +117,6 @@ async function SettingsContent() {
         .select("id, code, name, active, notes")
         .order("code", { ascending: true }),
       supabase
-        .from("commission_payees")
-        .select("id, name, active, notes")
-        .order("name", { ascending: true }),
-      supabase
         .from("commission_split_rules")
         .select("id, split_pattern_id, rule_type, share_percent, fixed_percent, commission_payees(name)")
         .order("sort_order", { ascending: true }),
@@ -138,7 +126,6 @@ async function SettingsContent() {
   const insurers = (insurersResult.data ?? []) as Insurer[];
   const rates = (ratesResult.data ?? []) as CommissionRate[];
   const splits = (splitsResult.data ?? []) as SplitPattern[];
-  const payees = (payeesResult.data ?? []) as Payee[];
   const rules = (rulesResult.data ?? []) as SplitRule[];
   const typeNameById = new Map(insuranceTypes.map((type) => [type.id, type.name]));
   const rulesBySplitId = new Map<string, string[]>();
@@ -157,7 +144,6 @@ async function SettingsContent() {
     insurersResult.error?.message,
     ratesResult.error?.message,
     splitsResult.error?.message,
-    payeesResult.error?.message,
     rulesResult.error?.message,
   ].filter((message): message is string => Boolean(message));
 
@@ -276,28 +262,6 @@ async function SettingsContent() {
           </SettingsRowForm>
         </SettingsCard>
 
-        <SettingsCard
-          description="People who can receive commission."
-          title="Commission Payees"
-        >
-          <SettingsHeader
-            className="md:grid-cols-[1fr_2fr_auto_auto]"
-            labels={["Payee", "Notes", "Status", "Save"]}
-          />
-          {payees.map((payee) => (
-            <SettingsRowForm action={savePayee} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_2fr_auto_auto]" key={payee.id}>
-              <input name="id" type="hidden" value={payee.id} />
-              <TextInput defaultValue={clean(payee.name)} name="name" placeholder="Payee" />
-              <TextInput defaultValue={clean(payee.notes)} name="notes" placeholder="Notes" />
-              <ActiveCheckbox defaultChecked={Boolean(payee.active)} />
-            </SettingsRowForm>
-          ))}
-          <SettingsRowForm action={savePayee} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1fr_2fr_auto_auto]" submitLabel="Add">
-            <TextInput name="name" placeholder="New payee" />
-            <TextInput name="notes" placeholder="Notes" />
-            <ActiveCheckbox defaultChecked />
-          </SettingsRowForm>
-        </SettingsCard>
       </section>
     </PageShell>
   );
@@ -328,7 +292,7 @@ function PageShell({
               {title}
             </h1>
             <p className="crm-page-subtitle">
-              Maintain dropdowns, insurers, commission rates, payees, and split logic.
+              Maintain dropdowns, insurers, commission rates, and split logic.
             </p>
           </div>
           <AppMenu activeHref="/protected/settings" path={["Dashboard", "Settings"]} />
