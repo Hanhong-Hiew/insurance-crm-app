@@ -80,6 +80,15 @@ function clean(value: string | null | undefined) {
   return value || "-";
 }
 
+function ruleTypeLabel(value: string | null | undefined) {
+  if (value === "gross_commission_share") return "gross commission share";
+  if (value === "net_commission_share") return "net commission share";
+  if (value === "fixed_percent_of_gross") return "fixed gross premium rate";
+  if (value === "remaining_net_after_fixed_percent") return "remaining net after fixed rate";
+  if (value === "equal_net_share") return "equal net share";
+  return clean(value);
+}
+
 export default function SettingsPage() {
   return (
     <Suspense fallback={<PageShell title="Settings">Loading...</PageShell>}>
@@ -138,7 +147,7 @@ async function SettingsContent() {
     const payee = Array.isArray(rule.commission_payees)
       ? rule.commission_payees[0]?.name
       : rule.commission_payees?.name;
-    const label = `${payee || "Payee"} / ${clean(rule.rule_type)} ${
+    const label = `${payee || "Payee"} / ${ruleTypeLabel(rule.rule_type)} ${
       rule.fixed_percent ? percent(rule.fixed_percent) : rule.share_percent ? percent(rule.share_percent) : ""
     }`;
     rulesBySplitId.set(splitId, [...(rulesBySplitId.get(splitId) ?? []), label]);

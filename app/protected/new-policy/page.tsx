@@ -39,6 +39,7 @@ type SplitRuleRow = {
   fixed_percent: number | string | null;
   payee_id: string;
   rule_type:
+    | "gross_commission_share"
     | "net_commission_share"
     | "fixed_percent_of_gross"
     | "remaining_net_after_fixed_percent"

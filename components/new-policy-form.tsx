@@ -351,6 +351,7 @@ export function NewPolicyForm({
   const commissionPreview = useMemo(
     () =>
       calculateCommissionRows({
+        grossCommissionPercent: toNumber(selectedRate?.gross_commission_percent),
         grossPremium: toNumber(grossPremium),
         netCommissionPercent: toNumber(selectedRate?.net_commission_percent),
         rules: selectedRules,

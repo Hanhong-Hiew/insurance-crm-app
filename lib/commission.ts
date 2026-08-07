@@ -3,6 +3,7 @@ export type CommissionRule = {
   payee_id: string;
   payee_name?: string | null;
   rule_type:
+    | "gross_commission_share"
     | "net_commission_share"
     | "fixed_percent_of_gross"
     | "remaining_net_after_fixed_percent"
@@ -29,15 +30,17 @@ export function roundMoney(value: number) {
 }
 
 export function calculateCommissionRows({
+  grossCommissionPercent,
   grossPremium,
   netCommissionPercent,
   rules,
 }: {
+  grossCommissionPercent?: number;
   grossPremium: number;
   netCommissionPercent: number;
   rules: CommissionRule[];
 }): CommissionPreviewRow[] {
-  if (!grossPremium || !netCommissionPercent || !rules.length) return [];
+  if (!grossPremium || !rules.length) return [];
 
   const equalRuleCount =
     rules.filter((rule) => rule.rule_type === "equal_net_share").length || 1;
@@ -50,7 +53,10 @@ export function calculateCommissionRows({
     let calculationPercent = 0;
     let amount = 0;
 
-    if (rule.rule_type === "net_commission_share") {
+    if (rule.rule_type === "gross_commission_share") {
+      calculationPercent = toNumber(grossCommissionPercent) * toNumber(rule.share_percent);
+      amount = grossPremium * calculationPercent;
+    } else if (rule.rule_type === "net_commission_share") {
       calculationPercent = netCommissionPercent * toNumber(rule.share_percent);
       amount = grossPremium * calculationPercent;
     } else if (rule.rule_type === "fixed_percent_of_gross") {

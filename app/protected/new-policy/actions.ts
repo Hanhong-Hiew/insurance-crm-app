@@ -15,6 +15,7 @@ export type SavePolicyState = {
 type SplitRule = {
   payee_id: string;
   rule_type:
+    | "gross_commission_share"
     | "net_commission_share"
     | "fixed_percent_of_gross"
     | "remaining_net_after_fixed_percent"
@@ -569,7 +570,7 @@ export async function savePolicy(
       if (genericError) throw genericError;
     }
 
-    if (splitPatternId && grossPremium !== null && netCommissionPercent !== null) {
+    if (splitPatternId && grossPremium !== null) {
       try {
         const { data: rules, error: rulesError } = await supabase
           .from("commission_split_rules")
@@ -584,6 +585,7 @@ export async function savePolicy(
         }
         const equalRuleCount =
           splitRules.filter((rule) => rule.rule_type === "equal_net_share").length || 1;
+        const grossPercent = percentNumber(grossCommissionPercent);
         const netPercent = percentNumber(netCommissionPercent);
         const totalNetCommissionAmount = grossPremium * netPercent;
         const fixedGrossPremiumAmount = splitRules
@@ -614,7 +616,10 @@ export async function savePolicy(
           let calculationPercent = 0;
           let amount = 0;
 
-          if (rule.rule_type === "net_commission_share") {
+          if (rule.rule_type === "gross_commission_share") {
+            calculationPercent = grossPercent * percentNumber(rule.share_percent);
+            amount = grossPremium * calculationPercent;
+          } else if (rule.rule_type === "net_commission_share") {
             calculationPercent = netPercent * percentNumber(rule.share_percent);
             amount = grossPremium * calculationPercent;
           } else if (rule.rule_type === "fixed_percent_of_gross") {

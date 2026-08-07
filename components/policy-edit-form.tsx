@@ -384,6 +384,7 @@ export function PolicyEditForm({
     (rule) => rule.split_pattern_id === selectedSplitId,
   );
   const commissionPreview = calculateCommissionRows({
+    grossCommissionPercent: toNumber(selectedRate?.gross_commission_percent),
     grossPremium: toNumber(grossPremium),
     netCommissionPercent: toNumber(selectedRate?.net_commission_percent),
     rules: selectedRules,
