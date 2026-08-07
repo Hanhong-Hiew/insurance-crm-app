@@ -21,6 +21,7 @@ type RawCommissionRow = {
     effective_date?: string | null;
     expiry_date?: string | null;
     gross_premium?: number | string | null;
+    premium_status?: string | null;
     policy_number?: string | null;
     clients?: { client_name?: string | null } | Array<{ client_name?: string | null }> | null;
     insurers?: { insurer_name?: string | null } | Array<{ insurer_name?: string | null }> | null;
@@ -58,9 +59,10 @@ async function CommissionPaymentsContent() {
   const { data, error } = await supabase
     .from("commissions")
     .select(
-      "id, payee_id, calculation_percent, amount, unpaid_amount, status, commission_payees(id, name), policy_terms(id, policy_number, effective_date, expiry_date, gross_premium, clients(client_name), insurers(insurer_name), insurance_types(name))",
+      "id, payee_id, calculation_percent, amount, unpaid_amount, status, commission_payees(id, name), policy_terms!inner(id, policy_number, effective_date, expiry_date, gross_premium, premium_status, clients(client_name), insurers(insurer_name), insurance_types(name))",
     )
     .neq("status", "paid")
+    .eq("policy_terms.premium_status", "paid")
     .order("created_at", { ascending: false })
     .limit(1000);
 

@@ -19,6 +19,7 @@ type CommissionPaymentRow = {
     effective_date?: string | null;
     expiry_date?: string | null;
     gross_premium?: number | string | null;
+    premium_status?: string | null;
     policy_number?: string | null;
     clients?: { client_name?: string | null } | Array<{ client_name?: string | null }> | null;
     insurers?: { insurer_name?: string | null } | Array<{ insurer_name?: string | null }> | null;
@@ -77,14 +78,21 @@ export async function confirmCommissionPayment(
     const { data, error } = await supabase
       .from("commissions")
       .select(
-        "id, payee_id, calculation_percent, amount, unpaid_amount, commission_payees(id, name), policy_terms(policy_number, effective_date, expiry_date, gross_premium, clients(client_name), insurers(insurer_name), insurance_types(name))",
+        "id, payee_id, calculation_percent, amount, unpaid_amount, commission_payees(id, name), policy_terms!inner(policy_number, effective_date, expiry_date, gross_premium, premium_status, clients(client_name), insurers(insurer_name), insurance_types(name))",
       )
       .in("id", selectedIds)
+      .eq("policy_terms.premium_status", "paid")
       .neq("status", "paid");
     if (error) throw error;
 
     const rows = (data ?? []) as CommissionPaymentRow[];
     if (!rows.length) return { error: "Selected commissions are already paid or unavailable." };
+    if (rows.length !== selectedIds.length) {
+      return {
+        error:
+          "Some selected commissions are unavailable, already paid, or linked to unpaid premiums.",
+      };
+    }
 
     const groups = new Map<string, CommissionPaymentRow[]>();
     for (const row of rows) {
