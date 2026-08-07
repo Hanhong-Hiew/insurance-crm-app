@@ -101,6 +101,7 @@ type PolicyEditFormProps = {
   genericDetail: RiskDetailRecord;
   insurers: OptionRow[];
   insuranceCode: string | null;
+  insuranceTypes: OptionRow[];
   isEquipmentPolicy: boolean;
   marineDetail: RiskDetailRecord;
   motorDetail: RiskDetailRecord;
@@ -230,6 +231,10 @@ function moneyText(value: number | string | null | undefined) {
   }).format(amount);
 }
 
+function optionLabel(row: OptionRow) {
+  return row.name || row.insurer_name || row.code || "-";
+}
+
 function detailText(record: RiskDetailRecord | Record<string, unknown>, key: string) {
   const value = record?.[key];
   if (value === null || value === undefined) return "";
@@ -294,6 +299,7 @@ export function PolicyEditForm({
   genericDetail,
   insurers,
   insuranceCode,
+  insuranceTypes,
   isEquipmentPolicy,
   marineDetail,
   motorDetail,
@@ -312,6 +318,7 @@ export function PolicyEditForm({
   const [expiryDate, setExpiryDate] = useState(toDdMmYyyy(term.expiry_date));
   const [grossPremium, setGrossPremium] = useState(String(term.gross_premium ?? ""));
   const [netPremium, setNetPremium] = useState(String(term.net_premium ?? ""));
+  const [selectedTypeId, setSelectedTypeId] = useState(term.insurance_type_id ?? "");
   const [selectedSplitId, setSelectedSplitId] = useState(term.split_pattern_id ?? "");
   const initialClientAddress = clientAddresses.find(
     (address) => address.id === term.client_address_id,
@@ -329,12 +336,17 @@ export function PolicyEditForm({
   const [customTotalAmount, setCustomTotalAmount] = useState("");
   const [customReason, setCustomReason] = useState("");
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
-  const code = cleanCode(insuranceCode);
+  const selectedInsuranceType = useMemo(
+    () => insuranceTypes.find((type) => type.id === selectedTypeId),
+    [insuranceTypes, selectedTypeId],
+  );
+  const code = cleanCode(selectedInsuranceType?.code ?? insuranceCode);
   const isMotor = code === "motor";
   const isFire = isFireLike(code);
   const isMarine = code === "marine_insurance";
   const isTravel = code === "travel";
-  const isGeneric = Boolean(code) && !isMotor && !isFire && !isEquipmentLike(code) && !isMarine && !isTravel;
+  const selectedIsEquipmentPolicy = isEquipmentLike(code) || (!code && isEquipmentPolicy);
+  const isGeneric = Boolean(code) && !isMotor && !isFire && !selectedIsEquipmentPolicy && !isMarine && !isTravel;
   const motorVehicle = motorDetail?.vehicles && typeof motorDetail.vehicles === "object"
     ? (motorDetail.vehicles as Record<string, unknown>)
     : {};
@@ -366,7 +378,7 @@ export function PolicyEditForm({
     setClientAddress(address?.address ?? fallbackAddress);
   }
   const selectedRate = commissionRates.find(
-    (rate) => rate.insurance_type_id === term.insurance_type_id,
+    (rate) => rate.insurance_type_id === selectedTypeId,
   );
   const selectedRules = splitRules.filter(
     (rule) => rule.split_pattern_id === selectedSplitId,
@@ -507,12 +519,32 @@ export function PolicyEditForm({
 
       <section className="crm-card">
         <div className="crm-card-header">
-          <h1 className="font-semibold text-slate-800">Edit Policy Term</h1>
+          <h1 className="font-semibold text-slate-800">Risk & Stage</h1>
           <p className="text-xs text-slate-500">
-            Update the policy term, premium, commission split, and risk details.
+            Risk controls which detail fields appear and which commission settings are used.
           </p>
         </div>
         <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
+          <Field label="Risk" required>
+            <select
+              className={fieldClass}
+              name="insurance_type_id"
+              onChange={(event) => {
+                setSelectedTypeId(event.target.value);
+                setCustomTotalAmount("");
+                setCustomAmounts({});
+              }}
+              required
+              value={selectedTypeId}
+            >
+              <option value="">Select risk</option>
+              {insuranceTypes.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {optionLabel(type)}
+                </option>
+              ))}
+            </select>
+          </Field>
           <Field label="Stage">
             <select className={fieldClass} defaultValue={term.term_stage ?? "policy"} name="term_stage">
               <option value="policy">Policy issued</option>
@@ -542,6 +574,17 @@ export function PolicyEditForm({
               />
             </Field>
           ) : null}
+        </div>
+      </section>
+
+      <section className="crm-card">
+        <div className="crm-card-header">
+          <h1 className="font-semibold text-slate-800">Dates & Premium</h1>
+          <p className="text-xs text-slate-500">
+            These values drive renewals, payment follow-up, and commission calculation.
+          </p>
+        </div>
+        <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
           <Field label="Effective Date" required>
             <DateInput
               name="effective_date"
@@ -594,6 +637,17 @@ export function PolicyEditForm({
               ))}
             </select>
           </Field>
+        </div>
+      </section>
+
+      <section className="crm-card">
+        <div className="crm-card-header">
+          <h1 className="font-semibold text-slate-800">Status & Notes</h1>
+          <p className="text-xs text-slate-500">
+            Use this section for workflow state, not risk details.
+          </p>
+        </div>
+        <div className="grid gap-4 p-4 md:grid-cols-2 xl:grid-cols-3">
           <Field label="Premium Status">
             <select className={fieldClass} defaultValue={term.premium_status ?? "unpaid"} name="premium_status">
               <option value="unpaid">Unpaid</option>
@@ -644,7 +698,7 @@ export function PolicyEditForm({
 
       {isMotor ? <MotorRiskSection defaults={motorDefaults} /> : null}
       {isFire ? <FireRiskSection detail={fireDetail} selectedAddress={clientAddress} /> : null}
-      {isEquipmentPolicy ? (
+      {selectedIsEquipmentPolicy ? (
         <EquipmentRiskSection
           detail={equipmentDetail}
           detailsJson={equipmentJson}

@@ -197,18 +197,43 @@ export async function updatePolicy(
     const clientAddress = optionalText(formData, "client_address");
     const selectedClientAddressId = optionalText(formData, "selected_client_address_id");
     const clientAddressLabel = optionalText(formData, "client_address_label");
+    const insuranceTypeId = textValue(formData, "insurance_type_id");
+    const insurerId = textValue(formData, "insurer_id");
+
+    if (!insuranceTypeId) return { error: "Risk is required." };
+    if (!insurerId) return { error: "Insurer is required." };
+
+    const { data: selectedInsuranceType, error: insuranceTypeError } = await supabase
+      .from("insurance_types")
+      .select("id, code, name")
+      .eq("id", insuranceTypeId)
+      .single();
+    if (insuranceTypeError) throw insuranceTypeError;
+    const insuranceCode = String(selectedInsuranceType?.code ?? "").trim().toLowerCase();
+
+    const { data: rateSetting, error: rateSettingError } = await supabase
+      .from("commission_rate_settings")
+      .select("gross_commission_percent, net_commission_percent")
+      .eq("insurance_type_id", insuranceTypeId)
+      .eq("active", true)
+      .is("effective_to", null)
+      .maybeSingle();
+    if (rateSettingError) throw rateSettingError;
 
     const { error: updateError } = await supabase
       .from("policy_terms")
       .update({
-        insurer_id: textValue(formData, "insurer_id"),
+        insurance_type_id: insuranceTypeId,
+        insurer_id: insurerId,
         split_pattern_id: splitPatternId,
         policy_number: optionalText(formData, "policy_number"),
         effective_date: effectiveDate,
         expiry_date: expiryDate,
         primary_sum_assured: primarySumAssured,
         gross_premium: grossPremium,
+        gross_commission_percent: rateSetting?.gross_commission_percent ?? null,
         net_premium: netPremium,
+        net_commission_percent: rateSetting?.net_commission_percent ?? null,
         premium_status: textValue(formData, "premium_status"),
         term_stage: termStage,
         quotation_status: termStage === "quotation" ? textValue(formData, "quotation_status") : null,
@@ -222,7 +247,7 @@ export async function updatePolicy(
 
     const { data: termWithType, error: termLookupError } = await supabase
       .from("policy_terms")
-      .select("client_id, policy_series_id, insurance_types(code, name)")
+      .select("client_id, policy_series_id")
       .eq("id", policyTermId)
       .single();
     if (termLookupError) throw termLookupError;
@@ -287,11 +312,6 @@ export async function updatePolicy(
         .eq("id", policyTermId);
       if (termAddressUpdateError) throw termAddressUpdateError;
     }
-
-    const insuranceType = Array.isArray(termWithType.insurance_types)
-      ? termWithType.insurance_types[0]
-      : termWithType.insurance_types;
-    const insuranceCode = String(insuranceType?.code ?? "").trim().toLowerCase();
 
     if (insuranceCode === "motor") {
       const vehicleNo = textValue(formData, "vehicle_no");
@@ -407,7 +427,7 @@ export async function updatePolicy(
       };
 
       await upsertPolicyDetail(supabase, "generic_policy_details", policyTermId, {
-        detail_type: insuranceType?.name ?? "Equipment Insurance",
+        detail_type: selectedInsuranceType?.name ?? "Equipment Insurance",
         description: equipmentDescription,
         sum_insured: null,
         details_json: detailsJson,

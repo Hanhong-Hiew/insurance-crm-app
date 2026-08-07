@@ -31,6 +31,7 @@ async function EditPolicyContent({ params }: PageProps) {
   const [
     termResult,
     clientAddressesResult,
+    typesResult,
     insurersResult,
     splitsResult,
     ratesResult,
@@ -52,6 +53,10 @@ async function EditPolicyContent({ params }: PageProps) {
       .order("is_default", { ascending: false })
       .order("address_label", { ascending: true })
       .limit(500),
+    supabase
+      .from("insurance_types")
+      .select("id, code, name")
+      .order("name", { ascending: true }),
     supabase
       .from("insurers")
       .select("id, insurer_name")
@@ -86,6 +91,7 @@ async function EditPolicyContent({ params }: PageProps) {
   if (!termResult.data) notFound();
   const setupErrors = [
     clientAddressesResult.error,
+    typesResult.error,
     insurersResult.error,
     splitsResult.error,
     ratesResult.error,
@@ -132,6 +138,7 @@ async function EditPolicyContent({ params }: PageProps) {
         genericDetail={genericResult.data ?? null}
         insurers={insurersResult.data ?? []}
         insuranceCode={insuranceType?.code ?? null}
+        insuranceTypes={typesResult.data ?? []}
         isEquipmentPolicy={isEquipmentPolicy}
         marineDetail={marineResult.data ?? null}
         motorDetail={motorResult.data ?? null}
