@@ -32,15 +32,19 @@ const SUBTLE_TEXT = [0.4, 0.48, 0.58] as [number, number, number];
 const DARK_TEXT = [0.07, 0.1, 0.18] as [number, number, number];
 
 const COLUMNS = [
-  { key: "no", label: "No", width: 24, align: "left" },
-  { key: "client", label: "Client / Policy", width: 176, align: "left" },
-  { key: "risk", label: "Risk / Insurer", width: 120, align: "left" },
-  { key: "term", label: "Term", width: 86, align: "left" },
-  { key: "amount", label: "Premium / Comm", width: 129, align: "right" },
+  { key: "no", label: "No.", width: 24, align: "left" },
+  { key: "client", label: "Client / Policy No.", width: 120, align: "left" },
+  { key: "vehicle", label: "Vehicle No.", width: 62, align: "left" },
+  { key: "risk", label: "Risk", width: 70, align: "left" },
+  { key: "insurer", label: "Insurer", width: 72, align: "left" },
+  { key: "term", label: "Term", width: 72, align: "left" },
+  { key: "gross", label: "Gross / Rate", width: 72, align: "left" },
+  { key: "commission", label: "Commission", width: 43, align: "left" },
 ] as const;
 
 type PdfCommand = string;
 type Align = "left" | "right";
+type Rgb = [number, number, number];
 
 function cleanText(value: string | null | undefined) {
   return String(value || "-")
@@ -85,7 +89,39 @@ function fileNamePart(value: string) {
   return cleanText(value).replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "") || "Payee";
 }
 
-function setTextColor(rgb: [number, number, number]) {
+function insurerPdfColor(name: string | null | undefined): {
+  background: Rgb;
+  border: Rgb;
+  text: Rgb;
+} {
+  const normalized = String(name ?? "").toLowerCase();
+
+  if (normalized.includes("great eastern")) {
+    return { background: [1, 0.95, 0.95], border: [0.99, 0.8, 0.8], text: [0.73, 0.11, 0.11] };
+  }
+  if (normalized.includes("etiqa takaful")) {
+    return { background: [1, 0.98, 0.86], border: [0.99, 0.9, 0.55], text: [0.52, 0.34, 0.02] };
+  }
+  if (normalized.includes("etiqa general")) {
+    return { background: [1, 0.95, 0.88], border: [0.99, 0.84, 0.65], text: [0.76, 0.25, 0.05] };
+  }
+  if (normalized.includes("qbe")) {
+    return { background: [0.97, 0.95, 1], border: [0.88, 0.82, 0.98], text: [0.49, 0.23, 0.72] };
+  }
+  if (normalized.includes("tokio")) {
+    return { background: [0.92, 0.99, 0.95], border: [0.7, 0.94, 0.82], text: [0.02, 0.47, 0.29] };
+  }
+  if (normalized.includes("progressive")) {
+    return { background: [0.99, 0.93, 0.96], border: [0.98, 0.76, 0.86], text: [0.75, 0.15, 0.39] };
+  }
+  if (normalized.includes("allianz")) {
+    return { background: [0.94, 0.98, 1], border: [0.73, 0.9, 0.99], text: [0.02, 0.41, 0.67] };
+  }
+
+  return { background: [0.97, 0.98, 0.99], border: [0.88, 0.91, 0.94], text: [0.29, 0.35, 0.43] };
+}
+
+function setTextColor(rgb: Rgb) {
   return `${rgb.join(" ")} rg`;
 }
 
@@ -110,7 +146,7 @@ function textLine(
   options: {
     align?: Align;
     bold?: boolean;
-    color?: [number, number, number];
+    color?: Rgb;
     fontSize?: number;
     width?: number;
   } = {},
@@ -174,7 +210,7 @@ function wrappedLinesCommands({
 }: {
   align?: Align;
   boldFirstLine?: boolean;
-  color?: [number, number, number];
+  color?: Rgb;
   fontSize?: number;
   lineHeight?: number;
   maxLines?: number;
@@ -206,12 +242,10 @@ function rowCells(row: CommissionStatementPdfRow, index: number) {
     [
       cleanText(row.client_name),
       `Policy: ${cleanText(row.policy_number)}`,
-      `Vehicle: ${row.vehicle_no ? cleanText(row.vehicle_no) : "-"}`,
     ],
-    [
-      `Risk: ${cleanText(row.insurance_type)}`,
-      `Insurer: ${cleanText(row.insurer_name)}`,
-    ],
+    [row.vehicle_no ? cleanText(row.vehicle_no) : "-"],
+    [cleanText(row.insurance_type)],
+    [cleanText(row.insurer_name)],
     [
       `Start: ${formatDate(row.effective_date)}`,
       `End: ${formatDate(row.expiry_date)}`,
@@ -219,8 +253,8 @@ function rowCells(row: CommissionStatementPdfRow, index: number) {
     [
       `Gross: ${money(row.gross_premium)}`,
       `Rate: ${percent(row.calculation_percent)}`,
-      `Comm: ${money(row.amount)}`,
     ],
+    [money(row.amount)],
   ];
 }
 
@@ -334,13 +368,27 @@ function rowCommands(row: CommissionStatementPdfRow, index: number, topY: number
   let x = MARGIN;
   cells.forEach((lines, columnIndex) => {
     const column = COLUMNS[columnIndex];
+    const insurerColor =
+      column.key === "insurer" ? insurerPdfColor(row.insurer_name) : null;
+    if (insurerColor) {
+      commands.push(
+        rect(
+          x + 2,
+          bottomY + 4,
+          column.width - 4,
+          Math.max(10, height - 8),
+          insurerColor.background,
+        ),
+        `q ${insurerColor.border.join(" ")} RG 0.5 w ${x + 2} ${bottomY + 4} ${column.width - 4} ${Math.max(10, height - 8)} re S Q`,
+      );
+    }
     let y = topY - ROW_PADDING_Y - BODY_FONT_SIZE;
     lines.forEach((value, lineIndex) => {
       const isPrimary = column.key === "client" && lineIndex === 0;
       const lineCommands = wrappedLinesCommands({
         align: column.align,
         boldFirstLine: isPrimary,
-        color: isPrimary ? DARK_TEXT : lineIndex === 0 ? DARK_TEXT : SUBTLE_TEXT,
+        color: insurerColor?.text ?? (isPrimary ? DARK_TEXT : lineIndex === 0 ? DARK_TEXT : SUBTLE_TEXT),
         fontSize: isPrimary ? 7.6 : BODY_FONT_SIZE,
         value,
         width: column.width - CELL_PADDING_X * 2,
