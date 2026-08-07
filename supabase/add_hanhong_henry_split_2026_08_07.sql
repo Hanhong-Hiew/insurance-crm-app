@@ -1,5 +1,7 @@
--- Add Hanhong / Henry commission split - 2026-08-07
--- Run this once in Supabase SQL Editor.
+-- Step 2: Add Hanhong / Henry commission split - 2026-08-07
+--
+-- Run add_gross_commission_share_rule_type_2026_08_07.sql first.
+-- After Step 1 succeeds, run this SQL by itself in Supabase SQL Editor.
 --
 -- Split code: H/HENRY
 -- Logic: Hanhong 50% and Henry 50% of the gross commission rate.
@@ -11,6 +13,7 @@ declare
   rule_type_schema text;
   rule_type_name text;
   rule_type_is_enum boolean;
+  gross_rule_type_exists boolean;
   check_constraint_name text;
 begin
   select n.nspname, t.typname, t.typtype = 'e'
@@ -25,23 +28,20 @@ begin
     and a.attname = 'rule_type'
     and not a.attisdropped;
 
-  if rule_type_is_enum then
-    if not exists (
-      select 1
-      from pg_enum e
-      join pg_type t on t.oid = e.enumtypid
-      join pg_namespace n on n.oid = t.typnamespace
-      where n.nspname = rule_type_schema
-        and t.typname = rule_type_name
-        and e.enumlabel = 'gross_commission_share'
-    ) then
-      execute format(
-        'alter type %I.%I add value %L',
-        rule_type_schema,
-        rule_type_name,
-        'gross_commission_share'
-      );
-    end if;
+  select exists (
+    select 1
+    from pg_enum e
+    join pg_type t on t.oid = e.enumtypid
+    join pg_namespace n on n.oid = t.typnamespace
+    where n.nspname = rule_type_schema
+      and t.typname = rule_type_name
+      and e.enumlabel = 'gross_commission_share'
+  )
+  into gross_rule_type_exists;
+
+  if rule_type_is_enum and not gross_rule_type_exists then
+    raise exception
+      'Run add_gross_commission_share_rule_type_2026_08_07.sql first, then run this SQL separately.';
   end if;
 
   for check_constraint_name in
