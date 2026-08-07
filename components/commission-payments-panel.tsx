@@ -141,9 +141,17 @@ function PolicyCell({
 
 function TermDateCell({ row }: { row: CommissionPaymentRow }) {
   return (
+    <span className="leading-tight">
+      {formatDate(row.effective_date)} - {formatDate(row.expiry_date)}
+    </span>
+  );
+}
+
+function GrossRateCell({ row }: { row: CommissionPaymentRow }) {
+  return (
     <div className="grid gap-0.5 leading-tight">
-      <span>{formatDate(row.effective_date)}</span>
-      <span className="text-xs text-slate-500">{formatDate(row.expiry_date)}</span>
+      <span>{money(row.gross_premium)}</span>
+      <span className="text-xs text-slate-500">{percent(row.calculation_percent)}</span>
     </div>
   );
 }
@@ -485,35 +493,42 @@ function StatementPreview({
               <table className="crm-table">
                 <thead>
                   <tr>
-                    <th className="px-2 py-2">No</th>
-                    <th className="px-2 py-2">Client</th>
-                    <th className="px-2 py-2">Policy</th>
+                    <th className="px-2 py-2">No.</th>
+                    <th className="px-2 py-2">Client / Policy No.</th>
+                    <th className="px-2 py-2">Vehicle No.</th>
                     <th className="px-2 py-2">Risk</th>
                     <th className="px-2 py-2">Insurer</th>
                     <th className="px-2 py-2">Term</th>
-                    <th className="px-2 py-2 text-right">Gross</th>
-                    <th className="px-2 py-2 text-right">%</th>
-                    <th className="px-2 py-2 text-right">Amount</th>
+                    <th className="px-2 py-2">Gross / Rate</th>
+                    <th className="px-2 py-2">Commission</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedRows.map((row, index) => (
                     <tr key={row.commission_id}>
                       <td className="px-2 py-2 text-slate-500">{index + 1}</td>
-                      <td className="px-2 py-2">{clean(row.client_name)}</td>
                       <td className="px-2 py-2">
-                        <PolicyCell row={row} compact />
+                        <div className="grid gap-0.5 leading-tight">
+                          <span className="font-medium text-slate-950">
+                            {clean(row.client_name)}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {clean(row.policy_number)}
+                          </span>
+                        </div>
                       </td>
+                      <td className="px-2 py-2">{clean(row.vehicle_no)}</td>
                       <td className="px-2 py-2">{clean(row.insurance_type)}</td>
                       <td className="px-2 py-2">
-                        <InsurerBadge name={row.insurer_name} />
+                        <InsurerBadge name={row.insurer_name} wrap />
                       </td>
                       <td className="px-2 py-2">
                         <TermDateCell row={row} />
                       </td>
-                      <td className="px-2 py-2 text-right">{money(row.gross_premium)}</td>
-                      <td className="px-2 py-2 text-right">{percent(row.calculation_percent)}</td>
-                      <td className="px-2 py-2 text-right font-semibold">
+                      <td className="px-2 py-2">
+                        <GrossRateCell row={row} />
+                      </td>
+                      <td className="whitespace-nowrap px-2 py-2 font-semibold">
                         {money(row.unpaid_amount || row.amount)}
                       </td>
                     </tr>

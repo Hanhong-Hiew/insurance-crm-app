@@ -2,6 +2,7 @@
 
 type InsurerBadgeProps = {
   name: string | null | undefined;
+  wrap?: boolean;
 };
 
 function clean(value: string | null | undefined) {
@@ -37,13 +38,15 @@ function colorClass(name: string | null | undefined) {
   return "border-slate-100 bg-slate-50 text-slate-700";
 }
 
-export function InsurerBadge({ name }: InsurerBadgeProps) {
+export function InsurerBadge({ name, wrap = false }: InsurerBadgeProps) {
   return (
     <span
       className={`inline-flex max-w-36 items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${colorClass(name)}`}
       title={clean(name)}
     >
-      <span className="truncate">{clean(name)}</span>
+      <span className={wrap ? "whitespace-normal break-words leading-tight" : "truncate"}>
+        {clean(name)}
+      </span>
     </span>
   );
 }

@@ -33,13 +33,13 @@ const DARK_TEXT = [0.07, 0.1, 0.18] as [number, number, number];
 
 const COLUMNS = [
   { key: "no", label: "No.", width: 24, align: "left" },
-  { key: "client", label: "Client / Policy No.", width: 120, align: "left" },
-  { key: "vehicle", label: "Vehicle No.", width: 62, align: "left" },
-  { key: "risk", label: "Risk", width: 70, align: "left" },
-  { key: "insurer", label: "Insurer", width: 72, align: "left" },
-  { key: "term", label: "Term", width: 72, align: "left" },
-  { key: "gross", label: "Gross / Rate", width: 72, align: "left" },
-  { key: "commission", label: "Commission", width: 43, align: "left" },
+  { key: "client", label: "Client / Policy No.", width: 112, align: "left" },
+  { key: "vehicle", label: "Vehicle No.", width: 55, align: "left" },
+  { key: "risk", label: "Risk", width: 56, align: "left" },
+  { key: "insurer", label: "Insurer", width: 66, align: "left" },
+  { key: "term", label: "Term", width: 70, align: "left" },
+  { key: "gross", label: "Gross / Rate", width: 62, align: "left" },
+  { key: "commission", label: "Commission", width: 90, align: "left" },
 ] as const;
 
 type PdfCommand = string;
@@ -165,6 +165,10 @@ function textLine(
   ].join(" ");
 }
 
+function approxTextWidth(value: string, fontSize = BODY_FONT_SIZE) {
+  return cleanText(value).length * fontSize * 0.5;
+}
+
 function wrapText(value: string, width: number, fontSize = BODY_FONT_SIZE) {
   const maxChars = Math.max(5, Math.floor(width / (fontSize * 0.5)));
   const words = cleanText(value).split(" ");
@@ -236,23 +240,27 @@ function cellLineCount(value: string, width: number) {
   return wrapText(value, width - CELL_PADDING_X * 2, BODY_FONT_SIZE).length;
 }
 
+function rowCellLineCount(value: string, column: (typeof COLUMNS)[number]) {
+  if (column.key === "commission") return 1;
+  return cellLineCount(value, column.width);
+}
+
 function rowCells(row: CommissionStatementPdfRow, index: number) {
   return [
     [String(index + 1)],
     [
       cleanText(row.client_name),
-      `Policy: ${cleanText(row.policy_number)}`,
+      cleanText(row.policy_number),
     ],
     [row.vehicle_no ? cleanText(row.vehicle_no) : "-"],
     [cleanText(row.insurance_type)],
     [cleanText(row.insurer_name)],
     [
-      `Start: ${formatDate(row.effective_date)}`,
-      `End: ${formatDate(row.expiry_date)}`,
+      `${formatDate(row.effective_date)} - ${formatDate(row.expiry_date)}`,
     ],
     [
-      `Gross: ${money(row.gross_premium)}`,
-      `Rate: ${percent(row.calculation_percent)}`,
+      money(row.gross_premium),
+      percent(row.calculation_percent),
     ],
     [money(row.amount)],
   ];
@@ -264,7 +272,7 @@ function rowHeight(row: CommissionStatementPdfRow, index: number) {
     ...cells.map((lines, columnIndex) => {
       const column = COLUMNS[columnIndex];
       return lines.reduce(
-        (sum, value) => sum + cellLineCount(value, column.width),
+        (sum, value) => sum + rowCellLineCount(value, column),
         0,
       );
     }),
@@ -370,29 +378,56 @@ function rowCommands(row: CommissionStatementPdfRow, index: number, topY: number
     const column = COLUMNS[columnIndex];
     const insurerColor =
       column.key === "insurer" ? insurerPdfColor(row.insurer_name) : null;
-    if (insurerColor) {
-      commands.push(
-        rect(
-          x + 2,
-          bottomY + 4,
-          column.width - 4,
-          Math.max(10, height - 8),
-          insurerColor.background,
-        ),
-        `q ${insurerColor.border.join(" ")} RG 0.5 w ${x + 2} ${bottomY + 4} ${column.width - 4} ${Math.max(10, height - 8)} re S Q`,
-      );
-    }
     let y = topY - ROW_PADDING_Y - BODY_FONT_SIZE;
     lines.forEach((value, lineIndex) => {
       const isPrimary = column.key === "client" && lineIndex === 0;
+      const fontSize = isPrimary ? 7.6 : BODY_FONT_SIZE;
+      const textX = x + CELL_PADDING_X;
+      const textWidth = column.width - CELL_PADDING_X * 2;
+
+      if (column.key === "commission") {
+        commands.push(
+          textLine(value, textX, y, {
+            align: column.align,
+            color: DARK_TEXT,
+            fontSize: 7,
+            width: textWidth,
+          }),
+        );
+        y -= BODY_LINE_HEIGHT;
+        return;
+      }
+
+      if (insurerColor) {
+        const insurerLines = wrapText(value, textWidth, fontSize);
+        insurerLines.forEach((insurerLine, insurerLineIndex) => {
+          const lineY = y - insurerLineIndex * BODY_LINE_HEIGHT;
+          const badgeWidth = Math.min(
+            textWidth,
+            approxTextWidth(insurerLine, fontSize) + 10,
+          );
+          commands.push(
+            rect(textX - 2, lineY - 3, badgeWidth, BODY_LINE_HEIGHT + 1, insurerColor.background),
+            `q ${insurerColor.border.join(" ")} RG 0.5 w ${textX - 2} ${lineY - 3} ${badgeWidth} ${BODY_LINE_HEIGHT + 1} re S Q`,
+            textLine(insurerLine, textX + 3, lineY, {
+              color: insurerColor.text,
+              fontSize,
+              width: badgeWidth - 6,
+            }),
+          );
+        });
+        y -= insurerLines.length * BODY_LINE_HEIGHT;
+        return;
+      }
+
       const lineCommands = wrappedLinesCommands({
         align: column.align,
         boldFirstLine: isPrimary,
-        color: insurerColor?.text ?? (isPrimary ? DARK_TEXT : lineIndex === 0 ? DARK_TEXT : SUBTLE_TEXT),
-        fontSize: isPrimary ? 7.6 : BODY_FONT_SIZE,
+        color: isPrimary ? DARK_TEXT : lineIndex === 0 ? DARK_TEXT : SUBTLE_TEXT,
+        fontSize,
         value,
-        width: column.width - CELL_PADDING_X * 2,
-        x: x + CELL_PADDING_X,
+        width: textWidth,
+        x: textX,
         y,
       });
       commands.push(...lineCommands);
