@@ -17,23 +17,17 @@ export type CommissionStatementPdfInput = {
   rows: CommissionStatementPdfRow[];
 };
 
-const PAGE_WIDTH = 842;
-const PAGE_HEIGHT = 595;
-const MARGIN = 28;
-const TABLE_TOP = 458;
-const ROW_HEIGHT = 24;
-const ROWS_PER_PAGE = 16;
-const COLUMNS = [
-  { key: "no", label: "No", width: 25, align: "left" },
-  { key: "client", label: "Client", width: 125, align: "left" },
-  { key: "policy", label: "Policy / Vehicle", width: 105, align: "left" },
-  { key: "risk", label: "Risk", width: 75, align: "left" },
-  { key: "insurer", label: "Insurer", width: 95, align: "left" },
-  { key: "term", label: "Term", width: 88, align: "left" },
-  { key: "gross", label: "Gross", width: 86, align: "right" },
-  { key: "rate", label: "Rate", width: 55, align: "right" },
-  { key: "amount", label: "Amount", width: 86, align: "right" },
-] as const;
+const PAGE_WIDTH = 595;
+const PAGE_HEIGHT = 842;
+const MARGIN = 36;
+const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+const FOOTER_Y = 42;
+const HEADER_BOTTOM_Y = PAGE_HEIGHT - 126;
+const FIELD_GAP = 14;
+const COLUMN_GAP = 18;
+const FIELD_COLUMN_WIDTH = (CONTENT_WIDTH - COLUMN_GAP) / 2;
+
+type PdfCommand = string;
 
 function cleanText(value: string | null | undefined) {
   return String(value || "-")
@@ -74,11 +68,8 @@ function formatDate(value: string | null | undefined) {
   return cleanText(value);
 }
 
-function fitText(value: string, width: number, fontSize: number) {
-  const text = cleanText(value);
-  const maxChars = Math.max(4, Math.floor(width / (fontSize * 0.52)));
-  if (text.length <= maxChars) return text;
-  return `${text.slice(0, Math.max(1, maxChars - 3))}...`;
+function termText(row: CommissionStatementPdfRow) {
+  return `${formatDate(row.effective_date)} to ${formatDate(row.expiry_date)}`;
 }
 
 function fileNamePart(value: string) {
@@ -89,11 +80,27 @@ function line(x1: number, y1: number, x2: number, y2: number) {
   return `${x1} ${y1} m ${x2} ${y2} l S`;
 }
 
-function rect(x: number, y: number, width: number, height: number, rgb: [number, number, number]) {
+function rect(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  rgb: [number, number, number],
+) {
   return `q ${rgb.join(" ")} rg ${x} ${y} ${width} ${height} re f Q`;
 }
 
-function text(
+function strokeRect(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  rgb: [number, number, number],
+) {
+  return `q ${rgb.join(" ")} RG 0.7 w ${x} ${y} ${width} ${height} re S Q`;
+}
+
+function textLine(
   value: string,
   x: number,
   y: number,
@@ -105,10 +112,132 @@ function text(
   } = {},
 ) {
   const fontSize = options.fontSize ?? 9;
-  const fitted = options.width ? fitText(value, options.width, fontSize) : cleanText(value);
-  const approxWidth = fitted.length * fontSize * 0.52;
+  const safeValue = cleanText(value);
+  const approxWidth = safeValue.length * fontSize * 0.52;
   const tx = options.align === "right" && options.width ? x + options.width - approxWidth : x;
-  return `BT /${options.bold ? "F2" : "F1"} ${fontSize} Tf ${tx.toFixed(2)} ${y.toFixed(2)} Td (${pdfText(fitted)}) Tj ET`;
+  return `BT /${options.bold ? "F2" : "F1"} ${fontSize} Tf ${tx.toFixed(2)} ${y.toFixed(2)} Td (${pdfText(safeValue)}) Tj ET`;
+}
+
+function wrapText(value: string, width: number, fontSize: number) {
+  const maxChars = Math.max(8, Math.floor(width / (fontSize * 0.52)));
+  const words = cleanText(value).split(" ");
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    if (word.length > maxChars) {
+      if (current) {
+        lines.push(current);
+        current = "";
+      }
+      for (let index = 0; index < word.length; index += maxChars) {
+        lines.push(word.slice(index, index + maxChars));
+      }
+      continue;
+    }
+
+    const next = current ? `${current} ${word}` : word;
+    if (next.length > maxChars && current) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = next;
+    }
+  }
+
+  if (current) lines.push(current);
+  return lines.length ? lines : ["-"];
+}
+
+function wrappedTextCommands({
+  bold = false,
+  fontSize = 8.5,
+  lineHeight = fontSize + 3,
+  value,
+  width,
+  x,
+  y,
+}: {
+  bold?: boolean;
+  fontSize?: number;
+  lineHeight?: number;
+  value: string;
+  width: number;
+  x: number;
+  y: number;
+}) {
+  const lines = wrapText(value, width, fontSize);
+  return {
+    commands: lines.map((lineValue, index) =>
+      textLine(lineValue, x, y - index * lineHeight, { bold, fontSize }),
+    ),
+    height: lines.length * lineHeight,
+  };
+}
+
+function fieldHeight(value: string, width = FIELD_COLUMN_WIDTH) {
+  return 10 + wrapText(value, width, 8.2).length * 11.2;
+}
+
+function fieldCommands({
+  label,
+  value,
+  width = FIELD_COLUMN_WIDTH,
+  x,
+  y,
+}: {
+  label: string;
+  value: string;
+  width?: number;
+  x: number;
+  y: number;
+}) {
+  const wrapped = wrappedTextCommands({
+    fontSize: 8.2,
+    lineHeight: 11.2,
+    value,
+    width,
+    x,
+    y: y - 10,
+  });
+
+  return [
+    textLine(label.toUpperCase(), x, y, {
+      bold: true,
+      fontSize: 6.8,
+    }),
+    ...wrapped.commands,
+  ];
+}
+
+function sortedStatementRows(rows: CommissionStatementPdfRow[]) {
+  return [...rows].sort((a, b) => {
+    const first = `${a.effective_date ?? "9999-99-99"}${cleanText(a.client_name)}`;
+    const second = `${b.effective_date ?? "9999-99-99"}${cleanText(b.client_name)}`;
+    return first.localeCompare(second);
+  });
+}
+
+function statementTotal(rows: CommissionStatementPdfRow[]) {
+  return rows.reduce((sum, row) => sum + toNumber(row.amount), 0);
+}
+
+function rowHeight(row: CommissionStatementPdfRow) {
+  const clientHeight = wrapText(cleanText(row.client_name), 325, 9.8).length * 13;
+  const firstLineHeight = Math.max(clientHeight, 20);
+  const detailRows = [
+    Math.max(
+      fieldHeight(cleanText(row.policy_number)),
+      fieldHeight(row.vehicle_no ? cleanText(row.vehicle_no) : "-"),
+    ),
+    Math.max(
+      fieldHeight(cleanText(row.insurance_type)),
+      fieldHeight(cleanText(row.insurer_name)),
+    ),
+    Math.max(fieldHeight(termText(row)), fieldHeight(money(row.gross_premium))),
+    Math.max(fieldHeight(percent(row.calculation_percent)), fieldHeight(money(row.amount))),
+  ];
+  return 30 + firstLineHeight + detailRows.reduce((sum, height) => sum + height + FIELD_GAP, 0);
 }
 
 function pageHeader({
@@ -116,139 +245,172 @@ function pageHeader({
   pageTotal,
   paidDate,
   payeeName,
+  statementIndex,
   total,
 }: {
   pageIndex: number;
   pageTotal: number;
   paidDate: string;
   payeeName: string;
+  statementIndex: number;
   total: number;
 }) {
   return [
-    rect(0, PAGE_HEIGHT - 90, PAGE_WIDTH, 90, [0.93, 0.97, 1]),
-    text("Kover", MARGIN, PAGE_HEIGHT - 38, { bold: true, fontSize: 12 }),
-    text("Commission Statement", MARGIN, PAGE_HEIGHT - 62, { bold: true, fontSize: 20 }),
-    text(`Payee: ${payeeName}`, MARGIN, PAGE_HEIGHT - 82, { fontSize: 10 }),
-    text(`Paid date: ${formatDate(paidDate)}`, PAGE_WIDTH - MARGIN - 170, PAGE_HEIGHT - 42, {
+    rect(0, PAGE_HEIGHT - 112, PAGE_WIDTH, 112, [0.93, 0.97, 1]),
+    textLine("Kover", MARGIN, PAGE_HEIGHT - 38, { bold: true, fontSize: 12 }),
+    textLine("Commission Statement", MARGIN, PAGE_HEIGHT - 64, { bold: true, fontSize: 20 }),
+    textLine(`Payee: ${payeeName}`, MARGIN, PAGE_HEIGHT - 86, { fontSize: 10 }),
+    textLine(`Statement ${statementIndex}`, MARGIN, PAGE_HEIGHT - 102, { fontSize: 8 }),
+    textLine(`Paid date: ${formatDate(paidDate)}`, PAGE_WIDTH - MARGIN - 190, PAGE_HEIGHT - 44, {
       align: "right",
       fontSize: 10,
-      width: 170,
+      width: 190,
     }),
-    text(`Total: ${money(total)}`, PAGE_WIDTH - MARGIN - 170, PAGE_HEIGHT - 64, {
+    textLine(`Total: ${money(total)}`, PAGE_WIDTH - MARGIN - 190, PAGE_HEIGHT - 67, {
       align: "right",
       bold: true,
       fontSize: 12,
-      width: 170,
+      width: 190,
     }),
-    text(`Page ${pageIndex + 1} of ${pageTotal}`, PAGE_WIDTH - MARGIN - 170, PAGE_HEIGHT - 82, {
+    textLine(`Page ${pageIndex + 1} of ${pageTotal}`, PAGE_WIDTH - MARGIN - 190, PAGE_HEIGHT - 87, {
       align: "right",
-      fontSize: 9,
-      width: 170,
+      fontSize: 8,
+      width: 190,
     }),
   ];
 }
 
-function tableHeader(y: number) {
-  const commands = [
-    rect(MARGIN, y - 6, PAGE_WIDTH - MARGIN * 2, 22, [0.96, 0.98, 1]),
-    "q 0.85 0.9 0.95 RG 0.7 w",
-    line(MARGIN, y - 6, PAGE_WIDTH - MARGIN, y - 6),
-    "Q",
+function rowCommands(row: CommissionStatementPdfRow, index: number, topY: number) {
+  const height = rowHeight(row);
+  const bottomY = topY - height;
+  const commands: PdfCommand[] = [
+    rect(MARGIN, bottomY, CONTENT_WIDTH, height - 6, [0.985, 0.992, 1]),
+    strokeRect(MARGIN, bottomY, CONTENT_WIDTH, height - 6, [0.84, 0.9, 0.95]),
   ];
-  let x = MARGIN + 6;
-  for (const column of COLUMNS) {
-    commands.push(
-      text(column.label, x, y + 1, {
-        align: column.align,
-        bold: true,
-        fontSize: 7.5,
-        width: column.width - 8,
-      }),
-    );
-    x += column.width;
+
+  commands.push(
+    textLine(String(index + 1), MARGIN + 12, topY - 23, {
+      bold: true,
+      fontSize: 9,
+    }),
+  );
+
+  const client = wrappedTextCommands({
+    bold: true,
+    fontSize: 9.8,
+    lineHeight: 13,
+    value: cleanText(row.client_name),
+    width: 325,
+    x: MARGIN + 40,
+    y: topY - 20,
+  });
+  commands.push(...client.commands);
+  commands.push(
+    textLine(money(row.amount), PAGE_WIDTH - MARGIN - 130, topY - 21, {
+      align: "right",
+      bold: true,
+      fontSize: 10.5,
+      width: 130,
+    }),
+  );
+
+  let y = topY - 30 - Math.max(client.height, 20);
+  const leftX = MARGIN + 16;
+  const rightX = MARGIN + 16 + FIELD_COLUMN_WIDTH + COLUMN_GAP;
+  const detailRows = [
+    [
+      { label: "Policy No", value: cleanText(row.policy_number) },
+      { label: "Vehicle No", value: row.vehicle_no ? cleanText(row.vehicle_no) : "-" },
+    ],
+    [
+      { label: "Risk", value: cleanText(row.insurance_type) },
+      { label: "Insurer", value: cleanText(row.insurer_name) },
+    ],
+    [
+      { label: "Term", value: termText(row) },
+      { label: "Gross Premium", value: money(row.gross_premium) },
+    ],
+    [
+      { label: "Commission Rate", value: percent(row.calculation_percent) },
+      { label: "Commission Amount", value: money(row.amount) },
+    ],
+  ];
+
+  for (const [left, right] of detailRows) {
+    commands.push(...fieldCommands({ ...left, x: leftX, y }));
+    commands.push(...fieldCommands({ ...right, x: rightX, y }));
+    y -=
+      Math.max(fieldHeight(left.value), fieldHeight(right.value)) +
+      FIELD_GAP;
   }
-  return commands;
+
+  return {
+    commands,
+    height,
+  };
 }
 
-function rowCommands(row: CommissionStatementPdfRow, index: number, y: number) {
-  const values = [
-    String(index + 1),
-    cleanText(row.client_name),
-    `${cleanText(row.policy_number)}${row.vehicle_no ? ` / ${cleanText(row.vehicle_no)}` : ""}`,
-    cleanText(row.insurance_type),
-    cleanText(row.insurer_name),
-    `${formatDate(row.effective_date)} to ${formatDate(row.expiry_date)}`,
-    money(row.gross_premium),
-    percent(row.calculation_percent),
-    money(row.amount),
-  ];
-  const commands = [
-    "q 0.9 0.93 0.96 RG 0.5 w",
-    line(MARGIN, y - 7, PAGE_WIDTH - MARGIN, y - 7),
+function pageFooter() {
+  return [
+    "q 0.85 0.9 0.95 RG 0.7 w",
+    line(MARGIN, 62, PAGE_WIDTH - MARGIN, 62),
     "Q",
+    textLine("Prepared from selected unpaid commission rows.", MARGIN, 42, {
+      fontSize: 7.5,
+    }),
+    textLine("Confirm payment only after the actual payment is made.", PAGE_WIDTH - MARGIN - 245, 42, {
+      align: "right",
+      fontSize: 7.5,
+      width: 245,
+    }),
   ];
-  let x = MARGIN + 6;
-  COLUMNS.forEach((column, columnIndex) => {
-    commands.push(
-      text(values[columnIndex], x, y, {
-        align: column.align,
-        fontSize: 7.5,
-        width: column.width - 8,
-      }),
-    );
-    x += column.width;
-  });
-  return commands;
 }
 
-function buildPdf(input: CommissionStatementPdfInput) {
-  const sortedRows = [...input.rows].sort((a, b) => {
-    const first = `${a.effective_date ?? "9999-99-99"}${cleanText(a.client_name)}`;
-    const second = `${b.effective_date ?? "9999-99-99"}${cleanText(b.client_name)}`;
-    return first.localeCompare(second);
-  });
-  const total = sortedRows.reduce((sum, row) => sum + toNumber(row.amount), 0);
-  const pageCount = Math.max(1, Math.ceil(sortedRows.length / ROWS_PER_PAGE));
-  const pages: string[] = [];
+function buildStatementPages(input: CommissionStatementPdfInput, statementIndex: number) {
+  const rows = sortedStatementRows(input.rows);
+  const total = statementTotal(rows);
+  const availableHeight = HEADER_BOTTOM_Y - FOOTER_Y - 24;
 
-  for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
-    const pageRows = sortedRows.slice(
-      pageIndex * ROWS_PER_PAGE,
-      pageIndex * ROWS_PER_PAGE + ROWS_PER_PAGE,
-    );
-    const commands = [
+  const rowPages: CommissionStatementPdfRow[][] = [];
+  let pageRows: CommissionStatementPdfRow[] = [];
+  let pageHeight = 0;
+  for (const row of rows) {
+    const height = rowHeight(row);
+    if (pageRows.length && pageHeight + height > availableHeight) {
+      rowPages.push(pageRows);
+      pageRows = [];
+      pageHeight = 0;
+    }
+    pageRows.push(row);
+    pageHeight += height;
+  }
+  rowPages.push(pageRows);
+
+  return rowPages.map((pageRowsForStatement, pageIndex) => {
+    const commands: PdfCommand[] = [
       ...pageHeader({
         pageIndex,
-        pageTotal: pageCount,
+        pageTotal: rowPages.length,
         paidDate: input.paidDate,
         payeeName: input.payeeName,
+        statementIndex,
         total,
       }),
-      ...tableHeader(TABLE_TOP),
     ];
-    pageRows.forEach((row, rowIndex) => {
-      commands.push(
-        ...rowCommands(
-          row,
-          pageIndex * ROWS_PER_PAGE + rowIndex,
-          TABLE_TOP - 30 - rowIndex * ROW_HEIGHT,
-        ),
-      );
-    });
-    commands.push(
-      "q 0.85 0.9 0.95 RG 0.7 w",
-      line(MARGIN, 58, PAGE_WIDTH - MARGIN, 58),
-      "Q",
-      text("Prepared from selected unpaid commission rows.", MARGIN, 38, { fontSize: 8 }),
-      text("Confirm payment only after the actual payment is made.", PAGE_WIDTH - MARGIN - 250, 38, {
-        align: "right",
-        fontSize: 8,
-        width: 250,
-      }),
-    );
-    pages.push(commands.join("\n"));
-  }
 
+    let y = HEADER_BOTTOM_Y;
+    pageRowsForStatement.forEach((row) => {
+      const rowBlock = rowCommands(row, rows.indexOf(row), y);
+      commands.push(...rowBlock.commands);
+      y -= rowBlock.height;
+    });
+    commands.push(...pageFooter());
+    return commands.join("\n");
+  });
+}
+
+function buildPdf(inputs: CommissionStatementPdfInput[]) {
+  const pages = inputs.flatMap((input, index) => buildStatementPages(input, index + 1));
   const objects: string[] = [];
   const pageObjectIds: number[] = [];
   objects.push("<< /Type /Catalog /Pages 2 0 R >>");
@@ -284,15 +446,28 @@ function buildPdf(input: CommissionStatementPdfInput) {
   return pdf;
 }
 
-export function downloadCommissionStatementPdf(input: CommissionStatementPdfInput) {
-  const pdf = buildPdf(input);
+function downloadPdf(pdf: string, fileName: string) {
   const blob = new Blob([pdf], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = `commission-statement-${fileNamePart(input.payeeName)}-${input.paidDate || "draft"}.pdf`;
+  link.download = fileName;
   document.body.appendChild(link);
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+export function downloadCommissionStatementPdf(input: CommissionStatementPdfInput) {
+  downloadPdf(
+    buildPdf([input]),
+    `commission-statement-${fileNamePart(input.payeeName)}-${input.paidDate || "draft"}.pdf`,
+  );
+}
+
+export function downloadCommissionStatementsPdf(inputs: CommissionStatementPdfInput[]) {
+  downloadPdf(
+    buildPdf(inputs),
+    `commission-statements-${inputs[0]?.paidDate || "draft"}.pdf`,
+  );
 }

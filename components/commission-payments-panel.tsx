@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Eye, Printer, Search } from "lucide-react";
+import { Download, Eye, Search } from "lucide-react";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -10,7 +10,10 @@ import {
 } from "@/app/protected/commission-payments/actions";
 import { ActionMessage } from "@/components/action-message";
 import { InsurerBadge } from "@/components/insurer-badge";
-import { downloadCommissionStatementPdf } from "@/lib/commission-statement-pdf";
+import {
+  downloadCommissionStatementPdf,
+  downloadCommissionStatementsPdf,
+} from "@/lib/commission-statement-pdf";
 
 export type CommissionPaymentRow = {
   amount: number | string | null;
@@ -145,6 +148,21 @@ function TermDateCell({ row }: { row: CommissionPaymentRow }) {
   );
 }
 
+function toStatementPdfRows(rows: CommissionPaymentRow[]) {
+  return rows.map((row) => ({
+    amount: row.unpaid_amount || row.amount,
+    calculation_percent: row.calculation_percent,
+    client_name: row.client_name,
+    effective_date: row.effective_date,
+    expiry_date: row.expiry_date,
+    gross_premium: row.gross_premium,
+    insurer_name: row.insurer_name,
+    insurance_type: row.insurance_type,
+    policy_number: row.policy_number,
+    vehicle_no: row.vehicle_no,
+  }));
+}
+
 export function CommissionPaymentsPanel({
   rows,
 }: {
@@ -229,8 +247,17 @@ export function CommissionPaymentsPanel({
     }
   }, [someFilteredSelected]);
 
-  function printStatements() {
-    window.print();
+  function downloadAllStatements() {
+    downloadCommissionStatementsPdf(
+      statementGroups.map((rows) => {
+        const sortedRows = sortRowsByDate(rows, "effective_asc");
+        return {
+          paidDate,
+          payeeName: clean(sortedRows[0]?.payee_name),
+          rows: toStatementPdfRows(sortedRows),
+        };
+      }),
+    );
   }
 
   function updatePaidDate(value: string) {
@@ -316,11 +343,11 @@ export function CommissionPaymentsPanel({
           <button
             className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 text-sm font-semibold text-sky-700 shadow-sm shadow-sky-900/5 transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={!selectedRows.length}
-            onClick={printStatements}
+            onClick={downloadAllStatements}
             type="button"
           >
-            <Printer className="h-4 w-4" />
-            Print All
+            <Download className="h-4 w-4" />
+            Download All PDF
           </button>
           <ConfirmButton disabled={!selectedRows.length} />
         </div>
@@ -444,18 +471,7 @@ function StatementPreview({
                     downloadCommissionStatementPdf({
                       paidDate,
                       payeeName,
-                      rows: sortedRows.map((row) => ({
-                        amount: row.unpaid_amount || row.amount,
-                        calculation_percent: row.calculation_percent,
-                        client_name: row.client_name,
-                        effective_date: row.effective_date,
-                        expiry_date: row.expiry_date,
-                        gross_premium: row.gross_premium,
-                        insurer_name: row.insurer_name,
-                        insurance_type: row.insurance_type,
-                        policy_number: row.policy_number,
-                        vehicle_no: row.vehicle_no,
-                      })),
+                      rows: toStatementPdfRows(sortedRows),
                     })
                   }
                   type="button"
