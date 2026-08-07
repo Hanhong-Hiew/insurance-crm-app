@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Eye, Search } from "lucide-react";
+import { Download, Eye, Printer, Search } from "lucide-react";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -10,6 +10,7 @@ import {
 } from "@/app/protected/commission-payments/actions";
 import { ActionMessage } from "@/components/action-message";
 import { InsurerBadge } from "@/components/insurer-badge";
+import { downloadCommissionStatementPdf } from "@/lib/commission-statement-pdf";
 
 export type CommissionPaymentRow = {
   amount: number | string | null;
@@ -318,8 +319,8 @@ export function CommissionPaymentsPanel({
             onClick={printStatements}
             type="button"
           >
-            <Download className="h-4 w-4" />
-            Download PDF
+            <Printer className="h-4 w-4" />
+            Print All
           </button>
           <ConfirmButton disabled={!selectedRows.length} />
         </div>
@@ -437,6 +438,31 @@ function StatementPreview({
               <div className="text-right text-sm">
                 <p className="font-semibold text-slate-950">{formatDate(paidDate)}</p>
                 <p className="text-slate-500">Draft preview</p>
+                <button
+                  className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-xs font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50 print:hidden"
+                  onClick={() =>
+                    downloadCommissionStatementPdf({
+                      paidDate,
+                      payeeName,
+                      rows: sortedRows.map((row) => ({
+                        amount: row.unpaid_amount || row.amount,
+                        calculation_percent: row.calculation_percent,
+                        client_name: row.client_name,
+                        effective_date: row.effective_date,
+                        expiry_date: row.expiry_date,
+                        gross_premium: row.gross_premium,
+                        insurer_name: row.insurer_name,
+                        insurance_type: row.insurance_type,
+                        policy_number: row.policy_number,
+                        vehicle_no: row.vehicle_no,
+                      })),
+                    })
+                  }
+                  type="button"
+                >
+                  <Download className="h-4 w-4" />
+                  Download PDF
+                </button>
               </div>
             </div>
             <div className="mt-4 overflow-x-auto">
