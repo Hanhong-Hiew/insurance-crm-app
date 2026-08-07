@@ -139,11 +139,28 @@ function PolicyCell({
   );
 }
 
+function ClientCell({ row }: { row: CommissionPaymentRow }) {
+  return (
+    <span className="block max-w-[180px] whitespace-normal break-words leading-tight">
+      {clean(row.client_name)}
+    </span>
+  );
+}
+
 function TermDateCell({ row }: { row: CommissionPaymentRow }) {
   return (
     <span className="leading-tight">
       {formatDate(row.effective_date)} - {formatDate(row.expiry_date)}
     </span>
+  );
+}
+
+function StackedTermDateCell({ row }: { row: CommissionPaymentRow }) {
+  return (
+    <div className="grid gap-0.5 leading-tight">
+      <span>{formatDate(row.effective_date)}</span>
+      <span className="text-xs text-slate-500">{formatDate(row.expiry_date)}</span>
+    </div>
   );
 }
 
@@ -370,7 +387,7 @@ export function CommissionPaymentsPanel({
             </p>
           </div>
           <div className="overflow-x-auto">
-            <table className="crm-table">
+            <table className="crm-table min-w-[920px]">
               <thead>
                 <tr>
                   <th className="px-3 py-3">
@@ -386,6 +403,7 @@ export function CommissionPaymentsPanel({
                   </th>
                   <th className="px-3 py-3">Payee</th>
                   <th className="px-3 py-3">Client</th>
+                  <th className="px-3 py-3">Risk</th>
                   <th className="px-3 py-3">Insurer</th>
                   <th className="px-3 py-3">Policy</th>
                   <th className="px-3 py-3">Term</th>
@@ -403,7 +421,10 @@ export function CommissionPaymentsPanel({
                       />
                     </td>
                     <td className="px-3 py-3">{clean(row.payee_name)}</td>
-                    <td className="px-3 py-3">{clean(row.client_name)}</td>
+                    <td className="px-3 py-3">
+                      <ClientCell row={row} />
+                    </td>
+                    <td className="px-3 py-3">{clean(row.insurance_type)}</td>
                     <td className="px-3 py-3">
                       <InsurerBadge name={row.insurer_name} />
                     </td>
@@ -411,7 +432,7 @@ export function CommissionPaymentsPanel({
                       <PolicyCell row={row} />
                     </td>
                     <td className="px-3 py-3">
-                      <TermDateCell row={row} />
+                      <StackedTermDateCell row={row} />
                     </td>
                     <td className="px-3 py-3 text-right font-semibold">
                       {money(row.unpaid_amount || row.amount)}
