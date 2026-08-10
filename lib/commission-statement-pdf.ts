@@ -89,6 +89,12 @@ function fileNamePart(value: string) {
   return cleanText(value).replace(/[^A-Za-z0-9]+/g, "-").replace(/^-|-$/g, "") || "Payee";
 }
 
+function fileNameDate(value: string | null | undefined) {
+  const match = String(value ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (match) return `${match[1].slice(2)}${match[2]}${match[3]}`;
+  return "draft";
+}
+
 function insurerPdfColor(name: string | null | undefined): {
   background: Rgb;
   border: Rgb;
@@ -562,13 +568,13 @@ function downloadPdf(pdf: string, fileName: string) {
 export function downloadCommissionStatementPdf(input: CommissionStatementPdfInput) {
   downloadPdf(
     buildPdf([input]),
-    `commission-statement-${fileNamePart(input.payeeName)}-${input.paidDate || "draft"}.pdf`,
+    `${fileNameDate(input.paidDate)}_${fileNamePart(input.payeeName)}_commission statement.pdf`,
   );
 }
 
 export function downloadCommissionStatementsPdf(inputs: CommissionStatementPdfInput[]) {
   downloadPdf(
     buildPdf(inputs),
-    `commission-statements-${inputs[0]?.paidDate || "draft"}.pdf`,
+    `${fileNameDate(inputs[0]?.paidDate)}_all-payees_commission statement.pdf`,
   );
 }
