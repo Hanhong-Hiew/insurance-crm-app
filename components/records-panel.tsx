@@ -19,9 +19,13 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { InsurerBadge } from "@/components/insurer-badge";
+import {
+  DEFAULT_PAGE_SIZE,
+  PaginationControls,
+} from "@/components/pagination-controls";
 import { PremiumStatusSelect } from "@/components/premium-status-select";
 
 export type PolicyRecord = {
@@ -436,6 +440,7 @@ export function RecordsPanel({
   policies: PolicyRecord[];
 }) {
   const [query, setQuery] = useState("");
+  const [recordPage, setRecordPage] = useState(1);
   const [dateBasis, setDateBasis] = useState<DateBasis>("effective_date");
   const [period, setPeriod] = useState<PeriodFilter>("all");
   const [riskFilter, setRiskFilter] = useState("all");
@@ -529,15 +534,35 @@ export function RecordsPanel({
       return compareSortValues(sortValue(a, sortBy), sortValue(b, sortBy), sortDirection);
     });
   }, [filteredRows, sortBy, sortDirection]);
+  const pageCount = Math.max(1, Math.ceil(sortedRows.length / DEFAULT_PAGE_SIZE));
+  const currentRecordPage = Math.min(recordPage, pageCount);
+  const paginatedRows = useMemo(() => {
+    const start = (currentRecordPage - 1) * DEFAULT_PAGE_SIZE;
+    return sortedRows.slice(start, start + DEFAULT_PAGE_SIZE);
+  }, [currentRecordPage, sortedRows]);
 
   const groupedRows = useMemo(() => {
     const groups = new Map<string, PolicyRecord[]>();
-    for (const row of sortedRows) {
+    for (const row of paginatedRows) {
       const key = groupBy === "none" ? "All Records" : groupKey(row, groupBy);
       groups.set(key, [...(groups.get(key) ?? []), row]);
     }
     return Array.from(groups.entries());
-  }, [groupBy, sortedRows]);
+  }, [groupBy, paginatedRows]);
+
+  useEffect(() => {
+    setRecordPage(1);
+  }, [
+    dateBasis,
+    groupBy,
+    insurerFilter,
+    period,
+    premiumFilter,
+    query,
+    riskFilter,
+    sortBy,
+    sortDirection,
+  ]);
 
   const totalGross = useMemo(
     () => filteredRows.reduce((sum, record) => sum + toNumber(record.gross_premium), 0),
@@ -714,6 +739,13 @@ export function RecordsPanel({
             </div>
           </div>
         ))}
+        <div className="crm-card">
+          <PaginationControls
+            page={currentRecordPage}
+            total={sortedRows.length}
+            onPageChange={setRecordPage}
+          />
+        </div>
       </section>
       {previewRecord ? (
         <RecordPreviewModal

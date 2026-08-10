@@ -1,6 +1,7 @@
 "use client";
 
 import { Download, Eye, Search } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -10,6 +11,10 @@ import {
 } from "@/app/protected/commission-payments/actions";
 import { ActionMessage } from "@/components/action-message";
 import { InsurerBadge } from "@/components/insurer-badge";
+import {
+  DEFAULT_PAGE_SIZE,
+  PaginationControls,
+} from "@/components/pagination-controls";
 import {
   downloadCommissionStatementPdf,
   downloadCommissionStatementsPdf,
@@ -197,7 +202,9 @@ export function CommissionPaymentsPanel({
     confirmCommissionPayment,
     {},
   );
+  const router = useRouter();
   const [query, setQuery] = useState("");
+  const [tablePage, setTablePage] = useState(1);
   const [dateSort, setDateSort] = useState<DateSort>("effective_asc");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [paidDate, setPaidDate] = useState(localIsoDate());
@@ -228,17 +235,23 @@ export function CommissionPaymentsPanel({
 
     return sortRowsByDate(matchedRows, dateSort);
   }, [dateSort, query, rows]);
-  const filteredIds = useMemo(
-    () => filteredRows.map((row) => row.commission_id),
-    [filteredRows],
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / DEFAULT_PAGE_SIZE));
+  const currentTablePage = Math.min(tablePage, pageCount);
+  const paginatedRows = useMemo(() => {
+    const start = (currentTablePage - 1) * DEFAULT_PAGE_SIZE;
+    return filteredRows.slice(start, start + DEFAULT_PAGE_SIZE);
+  }, [currentTablePage, filteredRows]);
+  const visibleIds = useMemo(
+    () => paginatedRows.map((row) => row.commission_id),
+    [paginatedRows],
   );
-  const selectedFilteredCount = filteredIds.filter((id) =>
+  const selectedVisibleCount = visibleIds.filter((id) =>
     selectedIds.includes(id),
   ).length;
-  const allFilteredSelected =
-    filteredIds.length > 0 && selectedFilteredCount === filteredIds.length;
-  const someFilteredSelected =
-    selectedFilteredCount > 0 && selectedFilteredCount < filteredIds.length;
+  const allVisibleSelected =
+    visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
+  const someVisibleSelected =
+    selectedVisibleCount > 0 && selectedVisibleCount < visibleIds.length;
   const selectAllRef = useRef<HTMLInputElement>(null);
   const statementGroups = useMemo(() => {
     const groups = new Map<string, CommissionPaymentRow[]>();
@@ -256,21 +269,31 @@ export function CommissionPaymentsPanel({
     );
   }
 
-  function toggleFilteredRows() {
+  function toggleVisibleRows() {
     setSelectedIds((current) => {
-      if (allFilteredSelected) {
-        return current.filter((id) => !filteredIds.includes(id));
+      if (allVisibleSelected) {
+        return current.filter((id) => !visibleIds.includes(id));
       }
 
-      return Array.from(new Set([...current, ...filteredIds]));
+      return Array.from(new Set([...current, ...visibleIds]));
     });
   }
 
   useEffect(() => {
     if (selectAllRef.current) {
-      selectAllRef.current.indeterminate = someFilteredSelected;
+      selectAllRef.current.indeterminate = someVisibleSelected;
     }
-  }, [someFilteredSelected]);
+  }, [someVisibleSelected]);
+
+  useEffect(() => {
+    setTablePage(1);
+  }, [dateSort, query]);
+
+  useEffect(() => {
+    if (!state.success) return;
+    setSelectedIds([]);
+    router.refresh();
+  }, [router, state.success]);
 
   function downloadAllStatements() {
     downloadCommissionStatementsPdf(
@@ -393,9 +416,9 @@ export function CommissionPaymentsPanel({
                   <th className="px-3 py-3">
                     <input
                       aria-label="Select all visible commissions"
-                      checked={allFilteredSelected}
-                      disabled={!filteredIds.length}
-                      onChange={toggleFilteredRows}
+                      checked={allVisibleSelected}
+                      disabled={!visibleIds.length}
+                      onChange={toggleVisibleRows}
                       ref={selectAllRef}
                       title="Select all visible rows"
                       type="checkbox"
@@ -411,7 +434,7 @@ export function CommissionPaymentsPanel({
                 </tr>
               </thead>
               <tbody>
-                {filteredRows.map((row) => (
+                {paginatedRows.map((row) => (
                   <tr key={row.commission_id}>
                     <td className="px-3 py-3">
                       <input
@@ -442,6 +465,11 @@ export function CommissionPaymentsPanel({
               </tbody>
             </table>
           </div>
+          <PaginationControls
+            page={currentTablePage}
+            total={filteredRows.length}
+            onPageChange={setTablePage}
+          />
         </div>
 
         <StatementPreview

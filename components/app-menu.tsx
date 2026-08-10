@@ -5,7 +5,6 @@ import {
   ChevronDown,
   FileText,
   Home,
-  PanelsTopLeft,
   Settings,
   TableProperties,
   Users,
@@ -18,7 +17,6 @@ const menuItems = [
   { href: "/protected/clients", label: "Clients", icon: Users },
   { href: "/protected/commission-payments", label: "Commission", icon: BadgeDollarSign },
   { href: "/protected/settings", label: "Settings", icon: Settings },
-  { href: "/protected/design-preview", label: "Design Preview", icon: PanelsTopLeft },
 ];
 
 export function AppMenu({

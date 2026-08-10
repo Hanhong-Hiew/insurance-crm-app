@@ -22,11 +22,15 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { AppMenu } from "@/components/app-menu";
 import { InsurerBadge } from "@/components/insurer-badge";
 import { KoverLogo } from "@/components/kover-logo";
+import {
+  DEFAULT_PAGE_SIZE,
+  PaginationControls,
+} from "@/components/pagination-controls";
 import { PremiumStatusSelect } from "@/components/premium-status-select";
 
 type PolicyRecord = {
@@ -396,6 +400,7 @@ export function CrmMainPanel({
   const [query, setQuery] = useState("");
   const [hideDashboardValues, setHideDashboardValues] = useState(false);
   const [newestLimit, setNewestLimit] = useState(5);
+  const [recordPage, setRecordPage] = useState(1);
   const [recordSort, setRecordSort] = useState<RecordSort>("effective_date");
   const [recordSortDirection, setRecordSortDirection] = useState<SortDirection>("asc");
   const [selected, setSelected] = useState<PolicyRecord | CommissionRecord | null>(
@@ -451,6 +456,16 @@ export function CrmMainPanel({
       );
     });
   }, [activeRows, recordSort, recordSortDirection]);
+  const pageCount = Math.max(1, Math.ceil(sortedRows.length / DEFAULT_PAGE_SIZE));
+  const currentRecordPage = Math.min(recordPage, pageCount);
+  const paginatedRows = useMemo(() => {
+    const start = (currentRecordPage - 1) * DEFAULT_PAGE_SIZE;
+    return sortedRows.slice(start, start + DEFAULT_PAGE_SIZE);
+  }, [currentRecordPage, sortedRows]);
+
+  useEffect(() => {
+    setRecordPage(1);
+  }, [query, recordSort, recordSortDirection, view]);
 
   const commissionSummary = useMemo(() => {
     const totals = new Map<string, { amount: number; unpaid: number; count: number }>();
@@ -788,7 +803,7 @@ export function CrmMainPanel({
             <div className="overflow-x-auto">
               {view === "commission" ? (
                 <CommissionTable
-                  rows={sortedRows as CommissionRecord[]}
+                  rows={paginatedRows as CommissionRecord[]}
                   setPreviewRecord={setPreviewRecord}
                   selected={selected}
                   setSelected={setSelected}
@@ -797,7 +812,7 @@ export function CrmMainPanel({
                 <div>
                   <CommissionSummary rows={commissionSummary} />
                   <CommissionTable
-                    rows={sortedRows as CommissionRecord[]}
+                    rows={paginatedRows as CommissionRecord[]}
                     setPreviewRecord={setPreviewRecord}
                     selected={selected}
                     setSelected={setSelected}
@@ -806,13 +821,18 @@ export function CrmMainPanel({
               ) : (
                 <PolicyTable
                   commissionSummaryByPolicy={commissionSummaryByPolicy}
-                  rows={sortedRows as PolicyRecord[]}
+                  rows={paginatedRows as PolicyRecord[]}
                   setPreviewRecord={setPreviewRecord}
                   selected={selected}
                   setSelected={setSelected}
                 />
               )}
             </div>
+            <PaginationControls
+              page={currentRecordPage}
+              total={sortedRows.length}
+              onPageChange={setRecordPage}
+            />
         </section>
       </main>
       {previewRecord ? (
