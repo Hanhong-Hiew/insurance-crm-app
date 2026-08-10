@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { AppMenu } from "@/components/app-menu";
 import { ClientsTable, type ClientTableRow } from "@/components/clients-table";
+import { CRM_LIST_LIMIT } from "@/lib/query-limits";
 import { createClient } from "@/lib/supabase/server";
 
 type ClientRow = {
@@ -45,8 +46,8 @@ async function ClientsContent() {
       .from("clients")
       .select("id, referral, client_name, business_registration_no, client_type, phone, email, address, notes")
       .order("client_name", { ascending: true })
-      .limit(500),
-    supabase.from("main_policy_view").select("client_id, policy_term_id").limit(2000),
+      .limit(CRM_LIST_LIMIT),
+    supabase.from("main_policy_view").select("client_id, policy_term_id").limit(CRM_LIST_LIMIT),
   ]);
 
   const clients = (clientsResult.data ?? []) as ClientRow[];

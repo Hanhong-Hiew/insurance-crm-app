@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { CrmMainPanel } from "@/components/crm-main-panel";
+import { CRM_LIST_LIMIT } from "@/lib/query-limits";
 import { createClient } from "@/lib/supabase/server";
 
 type RawCommissionRow = {
@@ -75,22 +76,22 @@ async function ProtectedContent() {
         .from("main_policy_view")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(50),
-      supabase.from("renewals_due_view").select("*").limit(40),
-      supabase.from("unpaid_premium_view").select("*").limit(40),
-      supabase.from("unpaid_commission_view").select("*").limit(40),
+        .limit(CRM_LIST_LIMIT),
+      supabase.from("renewals_due_view").select("*").limit(CRM_LIST_LIMIT),
+      supabase.from("unpaid_premium_view").select("*").limit(CRM_LIST_LIMIT),
+      supabase.from("unpaid_commission_view").select("*").limit(CRM_LIST_LIMIT),
       supabase
         .from("commissions")
         .select(
           "id, policy_term_id, calculation_percent, amount, unpaid_amount, status, paid_date, commission_payees(name), commission_payment_batches(statement_no), policy_terms(policy_number, effective_date, expiry_date, clients(client_name), insurance_types(name))",
         )
         .order("created_at", { ascending: false })
-        .limit(500),
-      supabase.from("main_policy_view").select("net_premium").limit(5000),
+        .limit(CRM_LIST_LIMIT),
+      supabase.from("main_policy_view").select("net_premium").limit(CRM_LIST_LIMIT),
       supabase
         .from("policy_terms")
         .select("id, split_pattern_id, commission_split_patterns(code, name)")
-        .limit(5000),
+        .limit(CRM_LIST_LIMIT),
     ]);
 
   const errors = [

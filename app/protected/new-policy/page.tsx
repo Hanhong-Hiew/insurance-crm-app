@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { AppMenu } from "@/components/app-menu";
 import { NewPolicyForm, type DuplicatePolicySource } from "@/components/new-policy-form";
+import { CRM_LIST_LIMIT } from "@/lib/query-limits";
 import { createClient } from "@/lib/supabase/server";
 
 type OptionRow = {
@@ -88,13 +89,13 @@ async function NewPolicyContent({ searchParams }: PageProps) {
         .from("clients")
         .select("id, client_name, business_registration_no, client_type, referral, phone, email, address")
         .order("client_name", { ascending: true })
-        .limit(100),
+        .limit(CRM_LIST_LIMIT),
       supabase
         .from("client_addresses")
         .select("id, client_id, address_label, address, is_default")
         .order("is_default", { ascending: false })
         .order("address_label", { ascending: true })
-        .limit(500),
+        .limit(CRM_LIST_LIMIT),
       supabase
         .from("insurance_types")
         .select("id, code, name")

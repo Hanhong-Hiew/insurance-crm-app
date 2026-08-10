@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { AppMenu } from "@/components/app-menu";
 import { PolicyEditForm } from "@/components/policy-edit-form";
+import { CRM_LIST_LIMIT } from "@/lib/query-limits";
 import { createClient } from "@/lib/supabase/server";
 
 type PageProps = {
@@ -52,7 +53,7 @@ async function EditPolicyContent({ params }: PageProps) {
       .select("id, client_id, address_label, address, is_default")
       .order("is_default", { ascending: false })
       .order("address_label", { ascending: true })
-      .limit(500),
+      .limit(CRM_LIST_LIMIT),
     supabase
       .from("insurance_types")
       .select("id, code, name")

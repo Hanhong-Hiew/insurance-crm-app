@@ -8,6 +8,7 @@ import {
   CommissionPaymentsPanel,
   type CommissionPaymentRow,
 } from "@/components/commission-payments-panel";
+import { CRM_LIST_LIMIT } from "@/lib/query-limits";
 import { createClient } from "@/lib/supabase/server";
 
 type RawCommissionRow = {
@@ -64,7 +65,7 @@ async function CommissionPaymentsContent() {
     .neq("status", "paid")
     .eq("policy_terms.premium_status", "paid")
     .order("created_at", { ascending: false })
-    .limit(1000);
+    .limit(CRM_LIST_LIMIT);
 
   const policyTermIds = Array.from(
     new Set(

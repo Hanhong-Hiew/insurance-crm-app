@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { AppMenu } from "@/components/app-menu";
 import { RecordsPanel, type PolicyRecord } from "@/components/records-panel";
+import { CRM_LIST_LIMIT } from "@/lib/query-limits";
 import { createClient } from "@/lib/supabase/server";
 
 type CommissionTotalRow = {
@@ -44,15 +45,15 @@ async function RecordsContent() {
       .from("main_policy_view")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(2000),
+      .limit(CRM_LIST_LIMIT),
     supabase
       .from("commissions")
       .select("policy_term_id, amount, unpaid_amount, status")
-      .limit(5000),
+      .limit(CRM_LIST_LIMIT),
     supabase
       .from("policy_terms")
       .select("id, split_pattern_id, commission_split_patterns(code, name)")
-      .limit(5000),
+      .limit(CRM_LIST_LIMIT),
   ]);
 
   const errors = [

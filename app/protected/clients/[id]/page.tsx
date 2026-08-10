@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { AppMenu } from "@/components/app-menu";
 import { ClientDetailForm } from "@/components/client-detail-form";
+import { CRM_LIST_LIMIT } from "@/lib/query-limits";
 import { createClient } from "@/lib/supabase/server";
 
 type PageProps = {
@@ -72,7 +73,7 @@ async function ClientDetailContent({ params }: PageProps) {
       .select("referral")
       .not("referral", "is", null)
       .order("referral", { ascending: true })
-      .limit(500),
+      .limit(CRM_LIST_LIMIT),
   ]);
 
   if (clientResult.error) throw clientResult.error;
