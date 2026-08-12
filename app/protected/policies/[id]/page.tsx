@@ -181,7 +181,7 @@ async function PolicyRecordContent({ params }: PageProps) {
               ],
               ["Sum Assured", money(record.primary_sum_assured)],
               ["Gross Premium", money(record.gross_premium)],
-              ["Net Premium", money(record.net_premium)],
+              ["Total Premium", money(record.total_premium)],
               ["Notes", clean(termNotesResult.data?.notes)],
             ]}
             title="Policy Term"

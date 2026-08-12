@@ -54,7 +54,7 @@ type PolicyTermRecord = {
   expiry_date: string | null;
   primary_sum_assured: number | string | null;
   gross_premium: number | string | null;
-  net_premium: number | string | null;
+  total_premium: number | string | null;
   premium_status: string | null;
   term_stage: string | null;
   quotation_status: string | null;
@@ -318,7 +318,7 @@ export function PolicyEditForm({
   const [effectiveDate, setEffectiveDate] = useState(toDdMmYyyy(term.effective_date));
   const [expiryDate, setExpiryDate] = useState(toDdMmYyyy(term.expiry_date));
   const [grossPremium, setGrossPremium] = useState(String(term.gross_premium ?? ""));
-  const [netPremium, setNetPremium] = useState(String(term.net_premium ?? ""));
+  const [totalPremium, setTotalPremium] = useState(String(term.total_premium ?? ""));
   const [selectedTypeId, setSelectedTypeId] = useState(term.insurance_type_id ?? "");
   const [selectedSplitId, setSelectedSplitId] = useState(term.split_pattern_id ?? "");
   const initialClientAddress = clientAddresses.find(
@@ -613,11 +613,11 @@ export function PolicyEditForm({
               value={grossPremium}
             />
           </Field>
-          <Field label="Net Premium">
+          <Field label="Total Premium">
             <CurrencyInput
-              name="net_premium"
-              onValueChange={setNetPremium}
-              value={netPremium}
+              name="total_premium"
+              onValueChange={setTotalPremium}
+              value={totalPremium}
             />
           </Field>
           <Field label="Split Pattern">

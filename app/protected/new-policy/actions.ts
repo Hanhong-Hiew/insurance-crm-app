@@ -190,7 +190,7 @@ export async function savePolicy(
     const expiryDate = parseDate(formData, "expiry_date");
     const primarySumAssured = moneyValue(formData, "primary_sum_assured");
     const grossPremium = moneyValue(formData, "gross_premium");
-    const netPremium = moneyValue(formData, "net_premium");
+    const totalPremium = moneyValue(formData, "total_premium");
     const premiumStatus = cleanPremiumStatus(textValue(formData, "premium_status"));
     const termStage = textValue(formData, "term_stage") === "quotation" ? "quotation" : "policy";
     const notes = optionalText(formData, "notes");
@@ -405,7 +405,7 @@ export async function savePolicy(
         expiry_date: expiryDate,
         primary_sum_assured: primarySumAssured,
         gross_premium: grossPremium,
-        net_premium: netPremium,
+        total_premium: totalPremium,
         gross_commission_percent: grossCommissionPercent,
         net_commission_percent: netCommissionPercent,
         premium_status: premiumStatus,

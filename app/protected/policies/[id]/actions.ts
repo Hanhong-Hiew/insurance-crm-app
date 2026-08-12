@@ -235,7 +235,7 @@ export async function startRenewal(formData: FormData) {
       expiry_date: expiryDate,
       primary_sum_assured: previousTerm.primary_sum_assured,
       gross_premium: previousTerm.gross_premium,
-      net_premium: previousTerm.net_premium,
+      total_premium: previousTerm.total_premium,
       gross_commission_percent: previousTerm.gross_commission_percent,
       net_commission_percent: previousTerm.net_commission_percent,
       premium_status: "unpaid",

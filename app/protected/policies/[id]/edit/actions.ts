@@ -188,7 +188,7 @@ export async function updatePolicy(
 
     const splitPatternId = optionalText(formData, "split_pattern_id");
     const grossPremium = moneyValue(formData, "gross_premium");
-    const netPremium = moneyValue(formData, "net_premium");
+    const totalPremium = moneyValue(formData, "total_premium");
     const primarySumAssured = moneyValue(formData, "primary_sum_assured");
     const businessRegistrationNo = optionalText(formData, "business_registration_no");
     const clientType = cleanClientType(textValue(formData, "client_type"));
@@ -233,7 +233,7 @@ export async function updatePolicy(
         primary_sum_assured: primarySumAssured,
         gross_premium: grossPremium,
         gross_commission_percent: rateSetting?.gross_commission_percent ?? null,
-        net_premium: netPremium,
+        total_premium: totalPremium,
         net_commission_percent: rateSetting?.net_commission_percent ?? null,
         premium_status: textValue(formData, "premium_status"),
         term_stage: termStage,

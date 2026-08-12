@@ -44,7 +44,7 @@ export type PolicyRecord = {
   expiry_date: string | null;
   primary_sum_assured: number | string | null;
   gross_premium: number | string | null;
-  net_premium: number | string | null;
+  total_premium: number | string | null;
   premium_status: string | null;
   term_stage: string | null;
   quotation_status: string | null;
@@ -930,7 +930,7 @@ function RecordPreviewModal({
                 <CommissionStatusBadge key="commission" summary={commissionSummary} />,
               ],
               ["Sum Assured", money(record.primary_sum_assured)],
-              ["Net Premium", money(record.net_premium)],
+              ["Total Premium", money(record.total_premium)],
               ["Renewal", clean(record.renewal_status)],
               ["Make / Model", clean(record.make_model)],
               ["Year", clean(record.year_of_manufacture)],

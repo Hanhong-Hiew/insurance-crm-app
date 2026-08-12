@@ -92,7 +92,7 @@ export type DuplicatePolicySource = {
   insurer_id?: string | null;
   marine?: RiskDefaults;
   motor?: RiskDefaults;
-  net_premium?: number | string | null;
+  total_premium?: number | string | null;
   primary_risk_label?: string | null;
   primary_sum_assured?: number | string | null;
   split_pattern_id?: string | null;
@@ -298,7 +298,7 @@ export function NewPolicyForm({
   const [expiryDate, setExpiryDate] = useState(initialDuplicate?.expiry_date ?? "");
   const [expiryTouched, setExpiryTouched] = useState(false);
   const [grossPremium, setGrossPremium] = useState(defaultText(initialDuplicate?.gross_premium));
-  const [netPremium, setNetPremium] = useState(defaultText(initialDuplicate?.net_premium));
+  const [totalPremium, setTotalPremium] = useState(defaultText(initialDuplicate?.total_premium));
   const [customCommission, setCustomCommission] = useState(false);
   const [customTotalAmount, setCustomTotalAmount] = useState("");
   const [customReason, setCustomReason] = useState("");
@@ -326,7 +326,7 @@ export function NewPolicyForm({
     setExpiryDate("");
     setExpiryTouched(false);
     setGrossPremium("");
-    setNetPremium("");
+    setTotalPremium("");
     setCustomCommission(false);
     setCustomTotalAmount("");
     setCustomReason("");
@@ -750,11 +750,11 @@ export function NewPolicyForm({
           />
         </Field>
 
-        <Field label="Net Premium">
+        <Field label="Total Premium">
           <CurrencyInput
-            name="net_premium"
-            onValueChange={setNetPremium}
-            value={netPremium}
+            name="total_premium"
+            onValueChange={setTotalPremium}
+            value={totalPremium}
           />
         </Field>
 

@@ -49,7 +49,7 @@ type PolicyRecord = {
   expiry_date: string | null;
   primary_sum_assured: number | string | null;
   gross_premium: number | string | null;
-  net_premium: number | string | null;
+  total_premium: number | string | null;
   premium_status: string | null;
   term_stage: string | null;
   quotation_status: string | null;
@@ -117,7 +117,7 @@ type RecordSort =
 type CrmMainPanelProps = {
   summary: DashboardSummary | null;
   commissions: CommissionRecord[];
-  netPremiumTotal: number;
+  totalPremiumTotal: number;
   policies: PolicyRecord[];
   renewals: PolicyRecord[];
   unpaidPremium: PolicyRecord[];
@@ -387,7 +387,7 @@ function recordSortValue(record: PolicyRecord | CommissionRecord, sort: RecordSo
 
 export function CrmMainPanel({
   commissions,
-  netPremiumTotal,
+  totalPremiumTotal,
   summary,
   policies,
   renewals,
@@ -532,9 +532,9 @@ export function CrmMainPanel({
         order: 3,
       },
       {
-        label: "Net Premium",
-        value: money(netPremiumTotal),
-        numericValue: netPremiumTotal,
+        label: "Total Premium",
+        value: money(totalPremiumTotal),
+        numericValue: totalPremiumTotal,
         icon: <CircleDollarSign className="h-5 w-5" />,
         colorClass: "text-indigo-700 bg-indigo-50",
         order: 4,
@@ -574,7 +574,7 @@ export function CrmMainPanel({
         order: 8,
       },
     ],
-    [netPremiumTotal, policies, summary],
+    [totalPremiumTotal, policies, summary],
   );
 
   const newestPolicies = useMemo(
@@ -938,7 +938,7 @@ function DashboardPreviewModal({
                     ["Expiry", formatDate(record.expiry_date)],
                     ["Sum Assured", money(record.primary_sum_assured)],
                     ["Gross Premium", money(record.gross_premium)],
-                    ["Net Premium", money(record.net_premium)],
+                    ["Total Premium", money(record.total_premium)],
                     ["Premium", clean(record.premium_status)],
                     ["Stage", `${stageFullLabel(record)} / ${stageMeta(record)}`],
                     ["Renewal", clean(record.renewal_status)],

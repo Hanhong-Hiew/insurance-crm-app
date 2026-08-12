@@ -249,7 +249,7 @@ async function getDuplicatePolicySource(
     gross_premium: numberLike(term.gross_premium),
     insurance_type_id: textFrom(term.insurance_type_id),
     insurer_id: textFrom(term.insurer_id),
-    net_premium: numberLike(term.net_premium),
+    total_premium: numberLike(term.total_premium),
     primary_risk_label: textFrom(policySeries?.primary_risk_label),
     primary_sum_assured: numberLike(term.primary_sum_assured),
     split_pattern_id: textFrom(term.split_pattern_id),
