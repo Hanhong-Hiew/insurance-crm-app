@@ -19,6 +19,7 @@ import {
   downloadCommissionStatementPdf,
   downloadCommissionStatementsPdf,
 } from "@/lib/commission-statement-pdf";
+import { formatPercent } from "@/lib/format";
 
 export type CommissionPaymentRow = {
   amount: number | string | null;
@@ -56,9 +57,7 @@ function money(value: number | string | null | undefined) {
 }
 
 function percent(value: number | string | null | undefined) {
-  const amount = toNumber(value);
-  if (!amount) return "-";
-  return `${(amount * 100).toFixed(2)}%`;
+  return formatPercent(value);
 }
 
 function formatDate(value: string | null | undefined) {

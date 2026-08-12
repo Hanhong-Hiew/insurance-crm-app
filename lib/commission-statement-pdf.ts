@@ -1,3 +1,5 @@
+import { formatPercent } from "@/lib/format";
+
 export type CommissionStatementPdfRow = {
   amount: number | string | null;
   calculation_percent: number | string | null;
@@ -73,9 +75,7 @@ function money(value: number | string | null | undefined) {
 }
 
 function percent(value: number | string | null | undefined) {
-  const amount = toNumber(value);
-  if (!amount) return "-";
-  return `${(amount * 100).toFixed(2)}%`;
+  return formatPercent(value);
 }
 
 function formatDate(value: string | null | undefined) {

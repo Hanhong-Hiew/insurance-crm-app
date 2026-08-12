@@ -24,6 +24,7 @@ import {
   toNumber,
   type CommissionRule,
 } from "@/lib/commission";
+import { formatPercent } from "@/lib/format";
 
 type OptionRow = {
   id: string;
@@ -799,13 +800,13 @@ export function NewPolicyForm({
         <div className="rounded-lg border border-sky-100 bg-sky-50/60 px-3 py-2">
           <p className="text-xs font-semibold uppercase text-sky-700">Gross Rate</p>
           <p className="mt-1 text-sm font-semibold text-slate-950">
-            {selectedRate ? `${(toNumber(selectedRate.gross_commission_percent) * 100).toFixed(2)}%` : "-"}
+            {formatPercent(selectedRate?.gross_commission_percent)}
           </p>
         </div>
         <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2">
           <p className="text-xs font-semibold uppercase text-emerald-700">Net Rate</p>
           <p className="mt-1 text-sm font-semibold text-slate-950">
-            {selectedRate ? `${(toNumber(selectedRate.net_commission_percent) * 100).toFixed(2)}%` : "-"}
+            {formatPercent(selectedRate?.net_commission_percent)}
           </p>
         </div>
         <div className="rounded-lg border border-orange-100 bg-orange-50/60 px-3 py-2">
@@ -863,7 +864,7 @@ export function NewPolicyForm({
                         />
                         {row.payee_name}
                       </td>
-                      <td className="px-3 py-2">{(row.calculation_percent * 100).toFixed(2)}%</td>
+                      <td className="px-3 py-2">{formatPercent(row.calculation_percent)}</td>
                       <td className="px-3 py-2">
                         {customCommission ? (
                           <div className="grid gap-1">

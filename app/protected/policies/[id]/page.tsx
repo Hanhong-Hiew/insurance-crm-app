@@ -7,6 +7,7 @@ import { AppMenu } from "@/components/app-menu";
 import { PolicyActionsCard } from "@/components/policy-actions-card";
 import { InsurerBadge } from "@/components/insurer-badge";
 import { PremiumStatusSelect } from "@/components/premium-status-select";
+import { formatPercent } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 
 type PageProps = {
@@ -26,9 +27,7 @@ function money(value: unknown) {
 }
 
 function percent(value: unknown) {
-  const amount = Number(value ?? 0);
-  if (!Number.isFinite(amount) || amount === 0) return "-";
-  return `${(amount * 100).toFixed(0)}%`;
+  return formatPercent(typeof value === "string" || typeof value === "number" ? value : null);
 }
 
 function clean(value: unknown) {

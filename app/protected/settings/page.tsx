@@ -6,6 +6,7 @@ import { Suspense } from "react";
 
 import { AppMenu } from "@/components/app-menu";
 import { SettingsRowForm } from "@/components/settings-row-form";
+import { formatPercent } from "@/lib/format";
 import { createClient } from "@/lib/supabase/server";
 import {
   saveCommissionRate,
@@ -57,9 +58,7 @@ type SplitRule = {
 };
 
 function percent(value: number | string | null) {
-  const numeric = Number(value ?? 0);
-  if (!Number.isFinite(numeric) || numeric === 0) return "-";
-  return `${(numeric * 100).toFixed(0)}%`;
+  return formatPercent(value);
 }
 
 function percentInputValue(value: number | string | null) {

@@ -27,6 +27,7 @@ import {
   PaginationControls,
 } from "@/components/pagination-controls";
 import { PremiumStatusSelect } from "@/components/premium-status-select";
+import { formatPercent } from "@/lib/format";
 
 export type PolicyRecord = {
   policy_term_id: string;
@@ -136,9 +137,7 @@ function money(value: number | string | null | undefined) {
 }
 
 function percent(value: number | string | null | undefined) {
-  const amount = toNumber(value);
-  if (!amount) return "-";
-  return `${(amount * 100).toFixed(0)}%`;
+  return formatPercent(value);
 }
 
 function clean(value: string | number | null | undefined) {
