@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Eye, Printer, Search } from "lucide-react";
+import { Download, Eye, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
@@ -18,8 +18,6 @@ import {
 import {
   downloadCommissionStatementPdf,
   downloadCommissionStatementsPdf,
-  printCommissionStatementPdf,
-  printCommissionStatementsPdf,
 } from "@/lib/commission-statement-pdf";
 import { formatPercent } from "@/lib/format";
 
@@ -240,9 +238,10 @@ export function CommissionPaymentsPanel({
   const [notes, setNotes] = useState("");
   const [paidQuery, setPaidQuery] = useState("");
   const [paidQuickFilter, setPaidQuickFilter] = useState<PaidStatementQuickFilter>("this_month");
-  const [paidMonth, setPaidMonth] = useState(() => monthInputValue(localIsoDate()));
   const [paidFromDate, setPaidFromDate] = useState("");
+  const [paidFromDateText, setPaidFromDateText] = useState("");
   const [paidToDate, setPaidToDate] = useState("");
+  const [paidToDateText, setPaidToDateText] = useState("");
   const [selectedStatementIds, setSelectedStatementIds] = useState<string[]>([]);
   const selectedRows = useMemo(
     () =>
@@ -325,7 +324,6 @@ export function CommissionPaymentsPanel({
         if (paidQuickFilter === "this_month" && paidMonthValue !== thisMonth) return false;
         if (paidQuickFilter === "last_month" && paidMonthValue !== lastMonth) return false;
         if (paidQuickFilter === "this_year" && !paidDateValue.startsWith(String(today.getFullYear()))) return false;
-        if (paidQuickFilter === "all" && paidMonth && paidMonthValue !== paidMonth) return false;
         if (paidTime < fromTime || paidTime > toTime) return false;
         if (paidPayee !== "all" && payeeName !== paidPayee) return false;
         if (
@@ -352,7 +350,7 @@ export function CommissionPaymentsPanel({
         if (dateDiff) return dateDiff;
         return clean(b.statement_no).localeCompare(clean(a.statement_no));
       });
-  }, [paidFromDate, paidMonth, paidPayee, paidQuery, paidQuickFilter, paidStatements, paidToDate]);
+  }, [paidFromDate, paidPayee, paidQuery, paidQuickFilter, paidStatements, paidToDate]);
   const selectedPaidStatements = useMemo(
     () =>
       filteredPaidStatements.filter((statement) =>
@@ -433,10 +431,6 @@ export function CommissionPaymentsPanel({
     downloadCommissionStatementsPdf(statements.map(statementPdfInput));
   }
 
-  function printPaidStatements(statements: PaidCommissionStatement[]) {
-    printCommissionStatementsPdf(statements.map(statementPdfInput));
-  }
-
   function updatePaidDate(value: string) {
     setPaidDateText(value);
     setPaidDate(displayDateToIso(value));
@@ -448,6 +442,23 @@ export function CommissionPaymentsPanel({
       setPaidDate(iso);
       setPaidDateText(isoToDisplayDate(iso));
     }
+  }
+
+  function updatePaidFromDate(value: string) {
+    setPaidFromDateText(value);
+    setPaidFromDate(displayDateToIso(value));
+  }
+
+  function updatePaidToDate(value: string) {
+    setPaidToDateText(value);
+    setPaidToDate(displayDateToIso(value));
+  }
+
+  function normalisePaidStatementDate(
+    isoValue: string,
+    setText: (value: string) => void,
+  ) {
+    if (isoValue) setText(isoToDisplayDate(isoValue));
   }
 
   return (
@@ -616,7 +627,7 @@ export function CommissionPaymentsPanel({
             </p>
           </div>
         </div>
-        <div className="grid gap-3 border-b border-slate-100 p-4 lg:grid-cols-[1fr_150px_150px_150px_150px_auto_auto] lg:items-end">
+        <div className="grid gap-3 border-b border-slate-100 p-4 lg:grid-cols-[1fr_160px_150px_150px_150px_auto] lg:items-end">
           <label>
             <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
               Search
@@ -643,20 +654,8 @@ export function CommissionPaymentsPanel({
               <option value="this_month">This month</option>
               <option value="last_month">Last month</option>
               <option value="this_year">This year</option>
-              <option value="all">Custom/all</option>
+              <option value="all">Custom range/all</option>
             </select>
-          </label>
-          <label>
-            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
-              Month
-            </span>
-            <input
-              className="crm-control w-full"
-              disabled={paidQuickFilter !== "all"}
-              onChange={(event) => setPaidMonth(event.target.value)}
-              type="month"
-              value={paidMonth}
-            />
           </label>
           <label>
             <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
@@ -664,9 +663,12 @@ export function CommissionPaymentsPanel({
             </span>
             <input
               className="crm-control w-full"
-              onChange={(event) => setPaidFromDate(event.target.value)}
-              type="date"
-              value={paidFromDate}
+              inputMode="numeric"
+              onBlur={() => normalisePaidStatementDate(paidFromDate, setPaidFromDateText)}
+              onChange={(event) => updatePaidFromDate(event.target.value)}
+              placeholder="dd/mm/yyyy"
+              type="text"
+              value={paidFromDateText}
             />
           </label>
           <label>
@@ -675,9 +677,12 @@ export function CommissionPaymentsPanel({
             </span>
             <input
               className="crm-control w-full"
-              onChange={(event) => setPaidToDate(event.target.value)}
-              type="date"
-              value={paidToDate}
+              inputMode="numeric"
+              onBlur={() => normalisePaidStatementDate(paidToDate, setPaidToDateText)}
+              onChange={(event) => updatePaidToDate(event.target.value)}
+              placeholder="dd/mm/yyyy"
+              type="text"
+              value={paidToDateText}
             />
           </label>
           <label>
@@ -698,15 +703,6 @@ export function CommissionPaymentsPanel({
             </select>
           </label>
           <div className="flex gap-2">
-            <button
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!selectedPaidStatements.length}
-              onClick={() => printPaidStatements(selectedPaidStatements)}
-              type="button"
-            >
-              <Printer className="h-4 w-4" />
-              Print selected
-            </button>
             <button
               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={!selectedPaidStatements.length}
@@ -737,7 +733,7 @@ export function CommissionPaymentsPanel({
                 <th className="px-3 py-3 text-right">Policies</th>
                 <th className="px-3 py-3 text-right">Total</th>
                 <th className="px-3 py-3">Notes</th>
-                <th className="px-3 py-3 text-right">Actions</th>
+                <th className="px-3 py-3 text-right">Download</th>
               </tr>
             </thead>
             <tbody>
@@ -764,14 +760,6 @@ export function CommissionPaymentsPanel({
                   </td>
                   <td className="px-3 py-3">
                     <div className="flex justify-end gap-2">
-                      <button
-                        className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
-                        onClick={() => printCommissionStatementPdf(statementPdfInput(statement))}
-                        type="button"
-                      >
-                        <Printer className="mr-1 h-3.5 w-3.5" />
-                        Print
-                      </button>
                       <button
                         className="inline-flex h-8 items-center justify-center rounded-lg border border-sky-200 bg-white px-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-50"
                         onClick={() => downloadCommissionStatementPdf(statementPdfInput(statement))}
