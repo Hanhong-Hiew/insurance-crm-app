@@ -565,11 +565,41 @@ function downloadPdf(pdf: string, fileName: string) {
   URL.revokeObjectURL(url);
 }
 
+function printPdf(pdf: string) {
+  const blob = new Blob([pdf], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const frame = document.createElement("iframe");
+  frame.style.bottom = "0";
+  frame.style.height = "0";
+  frame.style.opacity = "0";
+  frame.style.position = "fixed";
+  frame.style.right = "0";
+  frame.style.width = "0";
+  frame.src = url;
+  document.body.appendChild(frame);
+  frame.onload = () => {
+    frame.contentWindow?.focus();
+    frame.contentWindow?.print();
+    window.setTimeout(() => {
+      frame.remove();
+      URL.revokeObjectURL(url);
+    }, 1000);
+  };
+}
+
 export function downloadCommissionStatementPdf(input: CommissionStatementPdfInput) {
   downloadPdf(
     buildPdf([input]),
     `${fileNameDate(input.paidDate)}_${fileNamePart(input.payeeName)}_commission statement.pdf`,
   );
+}
+
+export function printCommissionStatementPdf(input: CommissionStatementPdfInput) {
+  printPdf(buildPdf([input]));
+}
+
+export function printCommissionStatementsPdf(inputs: CommissionStatementPdfInput[]) {
+  printPdf(buildPdf(inputs));
 }
 
 export function downloadCommissionStatementsPdf(inputs: CommissionStatementPdfInput[]) {

@@ -42,6 +42,10 @@ function moneyNumber(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function clean(value: string | null | undefined) {
+  return value?.trim() || "-";
+}
+
 async function nextStatementNo(supabase: Awaited<ReturnType<typeof createClient>>) {
   const year = new Date().getFullYear();
   const prefix = `COMM-${year}-`;
@@ -78,10 +82,9 @@ export async function confirmCommissionPayment(
     const { data, error } = await supabase
       .from("commissions")
       .select(
-        "id, payee_id, calculation_percent, amount, unpaid_amount, commission_payees(id, name), policy_terms!inner(policy_number, effective_date, expiry_date, gross_premium, premium_status, clients(client_name), insurers(insurer_name), insurance_types(name))",
+        "id, payee_id, calculation_percent, amount, unpaid_amount, commission_payees(id, name), policy_terms(policy_number, effective_date, expiry_date, gross_premium, premium_status, clients(client_name), insurers(insurer_name), insurance_types(name))",
       )
       .in("id", selectedIds)
-      .eq("policy_terms.premium_status", "paid")
       .neq("status", "paid");
     if (error) throw error;
 
@@ -90,7 +93,19 @@ export async function confirmCommissionPayment(
     if (rows.length !== selectedIds.length) {
       return {
         error:
-          "Some selected commissions are unavailable, already paid, or linked to unpaid premiums.",
+          `Only ${rows.length} of ${selectedIds.length} selected commission rows are still available. Refresh the page and try again.`,
+      };
+    }
+    const unpaidPremiumRows = rows.filter(
+      (row) => String(row.policy_terms?.premium_status ?? "").toLowerCase() !== "paid",
+    );
+    if (unpaidPremiumRows.length) {
+      const sampleClients = unpaidPremiumRows
+        .slice(0, 3)
+        .map((row) => clean(firstValue(row.policy_terms?.clients)?.client_name))
+        .join(", ");
+      return {
+        error: `Cannot mark commission paid before premium is paid. Check: ${sampleClients}.`,
       };
     }
 

@@ -4,9 +4,10 @@
 -- After Step 1 succeeds, run this SQL by itself in Supabase SQL Editor.
 --
 -- Split code: H/HENRY
--- Logic: Hanhong 50% and Henry 50% of the gross commission rate.
+-- Logic: Hanhong gets 50% of the gross commission rate.
+-- Henry is only a reference in this split name and is not a payable agent.
 -- Example: if Motor gross commission rate is 10%, Hanhong gets 5%
--- and Henry gets 5%, both calculated from gross premium.
+-- calculated from gross premium. No Henry commission row should be created.
 
 do $$
 declare
@@ -76,7 +77,6 @@ end $$;
 do $$
 declare
   hanhong_payee_id uuid;
-  henry_payee_id uuid;
   split_pattern_id_value uuid;
 begin
   select id
@@ -96,22 +96,6 @@ begin
   end if;
 
   select id
-  into henry_payee_id
-  from public.commission_payees
-  where lower(trim(name)) = 'henry'
-  limit 1;
-
-  if henry_payee_id is null then
-    insert into public.commission_payees (name, active, notes)
-    values ('Henry', true, 'Auto-created for H/HENRY split')
-    returning id into henry_payee_id;
-  else
-    update public.commission_payees
-    set active = true
-    where id = henry_payee_id;
-  end if;
-
-  select id
   into split_pattern_id_value
   from public.commission_split_patterns
   where upper(trim(code)) = 'H/HENRY'
@@ -124,7 +108,7 @@ begin
       'H/HENRY',
       'Hanhong / Henry',
       true,
-      'Hanhong 50%, Henry 50% of gross commission rate'
+      'Hanhong 50% of gross commission rate. Henry is not payable.'
     )
     returning id into split_pattern_id_value;
   else
@@ -133,7 +117,7 @@ begin
       code = 'H/HENRY',
       name = 'Hanhong / Henry',
       active = true,
-      notes = 'Hanhong 50%, Henry 50% of gross commission rate'
+      notes = 'Hanhong 50% of gross commission rate. Henry is not payable.'
     where id = split_pattern_id_value;
   end if;
 
@@ -149,23 +133,13 @@ begin
     subtract_percent,
     sort_order
   )
-  values
-    (
-      split_pattern_id_value,
-      hanhong_payee_id,
-      'gross_commission_share',
-      0.5,
-      null,
-      null,
-      1
-    ),
-    (
-      split_pattern_id_value,
-      henry_payee_id,
-      'gross_commission_share',
-      0.5,
-      null,
-      null,
-      2
-    );
+  values (
+    split_pattern_id_value,
+    hanhong_payee_id,
+    'gross_commission_share',
+    0.5,
+    null,
+    null,
+    1
+  );
 end $$;

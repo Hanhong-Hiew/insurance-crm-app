@@ -7,6 +7,7 @@ import { AppMenu } from "@/components/app-menu";
 import {
   CommissionPaymentsPanel,
   type CommissionPaymentRow,
+  type PaidCommissionStatement,
 } from "@/components/commission-payments-panel";
 import { CRM_LIST_LIMIT } from "@/lib/query-limits";
 import { createClient } from "@/lib/supabase/server";
@@ -37,6 +38,33 @@ type PolicyViewRow = {
   vehicle_no: string | null;
 };
 
+type PaidStatementViewRow = {
+  amount_payable: number | string | null;
+  batch_id: string | null;
+  client_name_snapshot: string | null;
+  commission_id: string | null;
+  commission_percent_snapshot: number | string | null;
+  effective_date_snapshot: string | null;
+  expiry_date_snapshot: string | null;
+  gross_premium_snapshot: number | string | null;
+  insurance_type_snapshot: string | null;
+  insurer_name_snapshot: string | null;
+  item_id: string | null;
+  notes: string | null;
+  paid_date: string | null;
+  payee_id: string | null;
+  payee_name: string | null;
+  policy_number_snapshot: string | null;
+  statement_no: string | null;
+  statement_status: string | null;
+  total_amount: number | string | null;
+};
+
+type CommissionTermLookupRow = {
+  id: string;
+  policy_term_id: string | null;
+};
+
 function firstValue<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -57,22 +85,57 @@ async function CommissionPaymentsContent() {
     redirect("/auth/login");
   }
 
-  const { data, error } = await supabase
-    .from("commissions")
-    .select(
-      "id, payee_id, calculation_percent, amount, unpaid_amount, status, commission_payees(id, name), policy_terms!inner(id, policy_number, effective_date, expiry_date, gross_premium, premium_status, clients(client_name), insurers(insurer_name), insurance_types(name))",
-    )
-    .neq("status", "paid")
-    .eq("policy_terms.premium_status", "paid")
-    .order("created_at", { ascending: false })
-    .limit(CRM_LIST_LIMIT);
+  const [unpaidResult, paidStatementResult] = await Promise.all([
+    supabase
+      .from("commissions")
+      .select(
+        "id, payee_id, calculation_percent, amount, unpaid_amount, status, commission_payees(id, name), policy_terms!inner(id, policy_number, effective_date, expiry_date, gross_premium, premium_status, clients(client_name), insurers(insurer_name), insurance_types(name))",
+      )
+      .neq("status", "paid")
+      .eq("policy_terms.premium_status", "paid")
+      .order("created_at", { ascending: false })
+      .limit(CRM_LIST_LIMIT),
+    supabase
+      .from("commission_payment_statement_view")
+      .select("*")
+      .eq("statement_status", "paid")
+      .order("paid_date", { ascending: false, nullsFirst: false })
+      .limit(CRM_LIST_LIMIT * 5),
+  ]);
 
   const policyTermIds = Array.from(
     new Set(
-      ((data ?? []) as RawCommissionRow[])
+      ((unpaidResult.data ?? []) as RawCommissionRow[])
         .map((row) => row.policy_terms?.id)
         .filter((id): id is string => Boolean(id)),
     ),
+  );
+  const paidStatementRows = (paidStatementResult.data ?? []) as PaidStatementViewRow[];
+  const paidCommissionIds = Array.from(
+    new Set(
+      paidStatementRows
+        .map((row) => row.commission_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const paidCommissionTermResult = paidCommissionIds.length
+    ? await supabase
+        .from("commissions")
+        .select("id, policy_term_id")
+        .in("id", paidCommissionIds)
+    : { data: [], error: null };
+  const paidPolicyTermIds = Array.from(
+    new Set(
+      ((paidCommissionTermResult.data ?? []) as CommissionTermLookupRow[])
+        .map((row) => row.policy_term_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  );
+  const paidPolicyTermByCommissionId = new Map(
+    ((paidCommissionTermResult.data ?? []) as CommissionTermLookupRow[]).map((row) => [
+      row.id,
+      row.policy_term_id,
+    ]),
   );
   const vehicleResult = policyTermIds.length
     ? await supabase
@@ -80,14 +143,26 @@ async function CommissionPaymentsContent() {
         .select("policy_term_id, vehicle_no")
         .in("policy_term_id", policyTermIds)
     : { data: [], error: null };
+  const paidVehicleResult = paidPolicyTermIds.length
+    ? await supabase
+        .from("main_policy_view")
+        .select("policy_term_id, vehicle_no")
+        .in("policy_term_id", paidPolicyTermIds)
+    : { data: [], error: null };
   const vehicleByTermId = new Map(
     ((vehicleResult.data ?? []) as PolicyViewRow[]).map((row) => [
       row.policy_term_id,
       row.vehicle_no,
     ]),
   );
+  const paidVehicleByTermId = new Map(
+    ((paidVehicleResult.data ?? []) as PolicyViewRow[]).map((row) => [
+      row.policy_term_id,
+      row.vehicle_no,
+    ]),
+  );
 
-  const rows = ((data ?? []) as RawCommissionRow[]).map((row): CommissionPaymentRow => {
+  const rows = ((unpaidResult.data ?? []) as RawCommissionRow[]).map((row): CommissionPaymentRow => {
     const payee = firstValue(row.commission_payees);
     const term = row.policy_terms;
     const client = firstValue(term?.clients);
@@ -112,15 +187,60 @@ async function CommissionPaymentsContent() {
       vehicle_no: term?.id ? vehicleByTermId.get(term.id) ?? null : null,
     };
   });
+  const paidStatementMap = new Map<string, PaidCommissionStatement>();
+  for (const row of paidStatementRows) {
+    if (!row.batch_id) continue;
+    const statement = paidStatementMap.get(row.batch_id) ?? {
+      batch_id: row.batch_id,
+      notes: row.notes,
+      paid_date: row.paid_date,
+      payee_id: row.payee_id,
+      payee_name: row.payee_name,
+      rows: [],
+      statement_no: row.statement_no,
+      total_amount: row.total_amount,
+    };
+
+    if (row.commission_id || row.item_id) {
+      const policyTermId = row.commission_id
+        ? paidPolicyTermByCommissionId.get(row.commission_id) ?? null
+        : null;
+      statement.rows.push({
+        amount: row.amount_payable,
+        calculation_percent: row.commission_percent_snapshot,
+        client_name: row.client_name_snapshot,
+        commission_id: row.commission_id ?? row.item_id ?? `${row.batch_id}-${statement.rows.length}`,
+        effective_date: row.effective_date_snapshot,
+        expiry_date: row.expiry_date_snapshot,
+        gross_premium: row.gross_premium_snapshot,
+        insurer_name: row.insurer_name_snapshot,
+        insurance_type: row.insurance_type_snapshot,
+        payee_id: row.payee_id ?? row.batch_id,
+        payee_name: row.payee_name,
+        policy_number: row.policy_number_snapshot,
+        status: row.statement_status,
+        unpaid_amount: row.amount_payable,
+        vehicle_no: policyTermId ? paidVehicleByTermId.get(policyTermId) ?? null : null,
+      });
+    }
+    paidStatementMap.set(row.batch_id, statement);
+  }
+  const paidStatements = Array.from(paidStatementMap.values());
 
   return (
     <PageShell>
-      {error || vehicleResult.error ? (
+      {unpaidResult.error || paidStatementResult.error || vehicleResult.error || paidCommissionTermResult.error || paidVehicleResult.error ? (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          {[error?.message, vehicleResult.error?.message].filter(Boolean).join(" ")}
+          {[
+            unpaidResult.error?.message,
+            paidStatementResult.error?.message,
+            vehicleResult.error?.message,
+            paidCommissionTermResult.error?.message,
+            paidVehicleResult.error?.message,
+          ].filter(Boolean).join(" ")}
         </div>
       ) : null}
-      <CommissionPaymentsPanel rows={rows} />
+      <CommissionPaymentsPanel paidStatements={paidStatements} rows={rows} />
     </PageShell>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { Download, Eye, Search } from "lucide-react";
+import { Download, Eye, Printer, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
@@ -18,6 +18,8 @@ import {
 import {
   downloadCommissionStatementPdf,
   downloadCommissionStatementsPdf,
+  printCommissionStatementPdf,
+  printCommissionStatementsPdf,
 } from "@/lib/commission-statement-pdf";
 import { formatPercent } from "@/lib/format";
 
@@ -39,7 +41,19 @@ export type CommissionPaymentRow = {
   vehicle_no: string | null;
 };
 
+export type PaidCommissionStatement = {
+  batch_id: string;
+  notes: string | null;
+  paid_date: string | null;
+  payee_id: string | null;
+  payee_name: string | null;
+  rows: CommissionPaymentRow[];
+  statement_no: string | null;
+  total_amount: number | string | null;
+};
+
 type DateSort = "effective_asc" | "effective_desc" | "expiry_asc" | "expiry_desc";
+type PaidStatementQuickFilter = "all" | "this_month" | "last_month" | "this_year";
 
 function toNumber(value: number | string | null | undefined) {
   const parsed = Number(value ?? 0);
@@ -72,6 +86,19 @@ function localIsoDate(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function monthInputValue(value: string | null | undefined) {
+  const match = String(value ?? "").match(/^(\d{4})-(\d{2})/);
+  return match ? `${match[1]}-${match[2]}` : "";
+}
+
+function statementPdfInput(statement: PaidCommissionStatement) {
+  return {
+    paidDate: statement.paid_date ?? "",
+    payeeName: clean(statement.payee_name),
+    rows: toStatementPdfRows(sortRowsByDate(statement.rows, "effective_asc")),
+  };
 }
 
 function isoToDisplayDate(value: string) {
@@ -193,8 +220,10 @@ function toStatementPdfRows(rows: CommissionPaymentRow[]) {
 }
 
 export function CommissionPaymentsPanel({
+  paidStatements,
   rows,
 }: {
+  paidStatements: PaidCommissionStatement[];
   rows: CommissionPaymentRow[];
 }) {
   const [state, formAction] = useActionState<CommissionPaymentState, FormData>(
@@ -209,6 +238,12 @@ export function CommissionPaymentsPanel({
   const [paidDate, setPaidDate] = useState(localIsoDate());
   const [paidDateText, setPaidDateText] = useState(() => isoToDisplayDate(localIsoDate()));
   const [notes, setNotes] = useState("");
+  const [paidQuery, setPaidQuery] = useState("");
+  const [paidQuickFilter, setPaidQuickFilter] = useState<PaidStatementQuickFilter>("this_month");
+  const [paidMonth, setPaidMonth] = useState(() => monthInputValue(localIsoDate()));
+  const [paidFromDate, setPaidFromDate] = useState("");
+  const [paidToDate, setPaidToDate] = useState("");
+  const [selectedStatementIds, setSelectedStatementIds] = useState<string[]>([]);
   const selectedRows = useMemo(
     () =>
       sortRowsByDate(
@@ -259,6 +294,76 @@ export function CommissionPaymentsPanel({
     }
     return Array.from(groups.values());
   }, [selectedRows]);
+  const payeeOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          paidStatements
+            .map((statement) => clean(statement.payee_name))
+            .filter((name) => name !== "-"),
+        ),
+      ).sort((a, b) => a.localeCompare(b)),
+    [paidStatements],
+  );
+  const [paidPayee, setPaidPayee] = useState("all");
+  const filteredPaidStatements = useMemo(() => {
+    const q = paidQuery.trim().toLowerCase();
+    const today = new Date();
+    const thisMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    const lastMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+    const lastMonth = `${lastMonthDate.getFullYear()}-${String(lastMonthDate.getMonth() + 1).padStart(2, "0")}`;
+    const fromTime = paidFromDate ? dateTime(paidFromDate) : Number.NEGATIVE_INFINITY;
+    const toTime = paidToDate ? dateTime(paidToDate) : Number.POSITIVE_INFINITY;
+
+    return [...paidStatements]
+      .filter((statement) => {
+        const paidDateValue = statement.paid_date ?? "";
+        const paidMonthValue = monthInputValue(paidDateValue);
+        const paidTime = dateTime(paidDateValue);
+        const payeeName = clean(statement.payee_name);
+
+        if (paidQuickFilter === "this_month" && paidMonthValue !== thisMonth) return false;
+        if (paidQuickFilter === "last_month" && paidMonthValue !== lastMonth) return false;
+        if (paidQuickFilter === "this_year" && !paidDateValue.startsWith(String(today.getFullYear()))) return false;
+        if (paidQuickFilter === "all" && paidMonth && paidMonthValue !== paidMonth) return false;
+        if (paidTime < fromTime || paidTime > toTime) return false;
+        if (paidPayee !== "all" && payeeName !== paidPayee) return false;
+        if (
+          q &&
+          ![
+            statement.statement_no,
+            statement.payee_name,
+            statement.notes,
+            ...statement.rows.flatMap((row) => [
+              row.client_name,
+              row.policy_number,
+              row.vehicle_no,
+              row.insurer_name,
+              row.insurance_type,
+            ]),
+          ].some((value) => String(value ?? "").toLowerCase().includes(q))
+        ) {
+          return false;
+        }
+        return true;
+      })
+      .sort((a, b) => {
+        const dateDiff = dateTime(b.paid_date) - dateTime(a.paid_date);
+        if (dateDiff) return dateDiff;
+        return clean(b.statement_no).localeCompare(clean(a.statement_no));
+      });
+  }, [paidFromDate, paidMonth, paidPayee, paidQuery, paidQuickFilter, paidStatements, paidToDate]);
+  const selectedPaidStatements = useMemo(
+    () =>
+      filteredPaidStatements.filter((statement) =>
+        selectedStatementIds.includes(statement.batch_id),
+      ),
+    [filteredPaidStatements, selectedStatementIds],
+  );
+  const visibleStatementIds = filteredPaidStatements.map((statement) => statement.batch_id);
+  const allVisibleStatementsSelected =
+    visibleStatementIds.length > 0 &&
+    visibleStatementIds.every((id) => selectedStatementIds.includes(id));
 
   function toggleSelected(id: string) {
     setSelectedIds((current) =>
@@ -275,6 +380,23 @@ export function CommissionPaymentsPanel({
       }
 
       return Array.from(new Set([...current, ...visibleIds]));
+    });
+  }
+
+  function togglePaidStatement(id: string) {
+    setSelectedStatementIds((current) =>
+      current.includes(id)
+        ? current.filter((currentId) => currentId !== id)
+        : [...current, id],
+    );
+  }
+
+  function toggleVisibleStatements() {
+    setSelectedStatementIds((current) => {
+      if (allVisibleStatementsSelected) {
+        return current.filter((id) => !visibleStatementIds.includes(id));
+      }
+      return Array.from(new Set([...current, ...visibleStatementIds]));
     });
   }
 
@@ -305,6 +427,14 @@ export function CommissionPaymentsPanel({
         };
       }),
     );
+  }
+
+  function downloadPaidStatements(statements: PaidCommissionStatement[]) {
+    downloadCommissionStatementsPdf(statements.map(statementPdfInput));
+  }
+
+  function printPaidStatements(statements: PaidCommissionStatement[]) {
+    printCommissionStatementsPdf(statements.map(statementPdfInput));
   }
 
   function updatePaidDate(value: string) {
@@ -475,6 +605,195 @@ export function CommissionPaymentsPanel({
           paidDate={paidDate}
           statementGroups={statementGroups}
         />
+      </section>
+
+      <section className="crm-card print:hidden">
+        <div className="crm-card-header">
+          <div>
+            <h2 className="font-semibold text-slate-950">Paid Statements</h2>
+            <p className="text-sm text-slate-500">
+              Reprint saved commission statements by month, payee, date, or statement number.
+            </p>
+          </div>
+        </div>
+        <div className="grid gap-3 border-b border-slate-100 p-4 lg:grid-cols-[1fr_150px_150px_150px_150px_auto_auto] lg:items-end">
+          <label>
+            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+              Search
+            </span>
+            <span className="relative block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className="crm-control w-full pl-9"
+                onChange={(event) => setPaidQuery(event.target.value)}
+                placeholder="Statement, client, policy, vehicle"
+                value={paidQuery}
+              />
+            </span>
+          </label>
+          <label>
+            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+              Quick Filter
+            </span>
+            <select
+              className="crm-control w-full"
+              onChange={(event) => setPaidQuickFilter(event.target.value as PaidStatementQuickFilter)}
+              value={paidQuickFilter}
+            >
+              <option value="this_month">This month</option>
+              <option value="last_month">Last month</option>
+              <option value="this_year">This year</option>
+              <option value="all">Custom/all</option>
+            </select>
+          </label>
+          <label>
+            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+              Month
+            </span>
+            <input
+              className="crm-control w-full"
+              disabled={paidQuickFilter !== "all"}
+              onChange={(event) => setPaidMonth(event.target.value)}
+              type="month"
+              value={paidMonth}
+            />
+          </label>
+          <label>
+            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+              From
+            </span>
+            <input
+              className="crm-control w-full"
+              onChange={(event) => setPaidFromDate(event.target.value)}
+              type="date"
+              value={paidFromDate}
+            />
+          </label>
+          <label>
+            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+              To
+            </span>
+            <input
+              className="crm-control w-full"
+              onChange={(event) => setPaidToDate(event.target.value)}
+              type="date"
+              value={paidToDate}
+            />
+          </label>
+          <label>
+            <span className="mb-1 block text-xs font-semibold uppercase text-slate-500">
+              Payee
+            </span>
+            <select
+              className="crm-control w-full"
+              onChange={(event) => setPaidPayee(event.target.value)}
+              value={paidPayee}
+            >
+              <option value="all">All payees</option>
+              {payeeOptions.map((payee) => (
+                <option key={payee} value={payee}>
+                  {payee}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex gap-2">
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!selectedPaidStatements.length}
+              onClick={() => printPaidStatements(selectedPaidStatements)}
+              type="button"
+            >
+              <Printer className="h-4 w-4" />
+              Print selected
+            </button>
+            <button
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-3 text-sm font-semibold text-sky-700 shadow-sm transition hover:bg-sky-50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!selectedPaidStatements.length}
+              onClick={() => downloadPaidStatements(selectedPaidStatements)}
+              type="button"
+            >
+              <Download className="h-4 w-4" />
+              Download selected
+            </button>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="crm-table min-w-[920px]">
+            <thead>
+              <tr>
+                <th className="px-3 py-3">
+                  <input
+                    aria-label="Select all visible paid statements"
+                    checked={allVisibleStatementsSelected}
+                    disabled={!visibleStatementIds.length}
+                    onChange={toggleVisibleStatements}
+                    type="checkbox"
+                  />
+                </th>
+                <th className="px-3 py-3">Statement</th>
+                <th className="px-3 py-3">Paid Date</th>
+                <th className="px-3 py-3">Payee</th>
+                <th className="px-3 py-3 text-right">Policies</th>
+                <th className="px-3 py-3 text-right">Total</th>
+                <th className="px-3 py-3">Notes</th>
+                <th className="px-3 py-3 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredPaidStatements.map((statement) => (
+                <tr key={statement.batch_id}>
+                  <td className="px-3 py-3">
+                    <input
+                      checked={selectedStatementIds.includes(statement.batch_id)}
+                      onChange={() => togglePaidStatement(statement.batch_id)}
+                      type="checkbox"
+                    />
+                  </td>
+                  <td className="px-3 py-3 font-semibold text-slate-950">
+                    {clean(statement.statement_no)}
+                  </td>
+                  <td className="px-3 py-3">{formatDate(statement.paid_date)}</td>
+                  <td className="px-3 py-3">{clean(statement.payee_name)}</td>
+                  <td className="px-3 py-3 text-right">{statement.rows.length}</td>
+                  <td className="px-3 py-3 text-right font-semibold">
+                    {money(statement.total_amount)}
+                  </td>
+                  <td className="max-w-[220px] px-3 py-3 text-sm text-slate-500">
+                    {clean(statement.notes)}
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                        onClick={() => printCommissionStatementPdf(statementPdfInput(statement))}
+                        type="button"
+                      >
+                        <Printer className="mr-1 h-3.5 w-3.5" />
+                        Print
+                      </button>
+                      <button
+                        className="inline-flex h-8 items-center justify-center rounded-lg border border-sky-200 bg-white px-2 text-xs font-semibold text-sky-700 transition hover:bg-sky-50"
+                        onClick={() => downloadCommissionStatementPdf(statementPdfInput(statement))}
+                        type="button"
+                      >
+                        <Download className="mr-1 h-3.5 w-3.5" />
+                        PDF
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!filteredPaidStatements.length ? (
+                <tr>
+                  <td className="px-3 py-6 text-center text-sm text-slate-500" colSpan={8}>
+                    No paid statements match the current filters.
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
       </section>
     </form>
   );
