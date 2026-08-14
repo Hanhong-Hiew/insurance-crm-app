@@ -321,8 +321,8 @@ function StageBadge({ record }: { record: PolicyRecord }) {
     <span
       className={`inline-flex min-w-8 items-center justify-center rounded-full px-2 py-1 text-xs font-semibold ${
         isQuotation
-          ? "bg-orange-50 text-orange-800 ring-1 ring-orange-200"
-          : "bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200"
+          ? "bg-orange-100 text-orange-900 ring-1 ring-orange-300"
+          : "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-300"
       }`}
       title={`${stageFullLabel(record)} / ${stageMeta(record)}`}
     >
@@ -355,12 +355,12 @@ function CommissionStatusBadge({ summary }: { summary?: PolicyCommissionSummary 
   const status = summary?.status ?? "none";
   const className =
     status === "paid"
-      ? "bg-emerald-50 text-emerald-800 ring-emerald-200"
+      ? "bg-emerald-100 text-emerald-900 ring-emerald-300"
       : status === "partial"
-        ? "bg-yellow-50 text-yellow-800 ring-yellow-200"
+        ? "bg-yellow-100 text-yellow-900 ring-yellow-300"
         : status === "unpaid"
-          ? "bg-rose-50 text-rose-800 ring-rose-200"
-          : "bg-slate-50 text-slate-500 ring-slate-200";
+          ? "bg-rose-100 text-rose-900 ring-rose-300"
+          : "bg-slate-100 text-slate-700 ring-slate-300";
 
   return (
     <span
@@ -1026,7 +1026,20 @@ function PolicyTable({
   setSelected: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="crm-table min-w-[1080px]">
+    <table className="crm-table min-w-[1300px] table-fixed">
+      <colgroup>
+        <col className="w-[98px]" />
+        <col className="w-[98px]" />
+        <col className="w-[330px]" />
+        <col className="w-[125px]" />
+        <col className="w-[90px]" />
+        <col className="w-[120px]" />
+        <col className="w-[58px]" />
+        <col className="w-[60px]" />
+        <col className="w-[80px]" />
+        <col className="w-[120px]" />
+        <col className="w-[118px]" />
+      </colgroup>
       <thead>
         <tr>
           <th className="px-3 py-2 font-medium">Effective</th>
@@ -1066,7 +1079,7 @@ function PolicyTable({
                 <DateBadge value={row.expiry_date} />
               </td>
               <td className="px-3 py-2 font-medium">
-                <span className="flex items-center gap-2">
+                <span className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
                   <button
                     aria-label={`Preview ${clean(row.client_name)}`}
                     className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 transition hover:border-sky-200 hover:bg-sky-50"
@@ -1079,9 +1092,10 @@ function PolicyTable({
                     <Eye className="h-4 w-4" />
                   </button>
                   <Link
-                    className="crm-two-line text-slate-950 hover:text-sky-700"
+                    className="crm-two-line min-w-0 text-[13px] leading-tight text-slate-950 hover:text-sky-700"
                     href={`/protected/policies/${row.policy_term_id}`}
                     onClick={(event) => event.stopPropagation()}
+                    title={clean(row.client_name)}
                   >
                     {clean(row.client_name)}
                   </Link>
