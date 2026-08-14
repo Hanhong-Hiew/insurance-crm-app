@@ -13,12 +13,12 @@ function normalizedStatus(value: string | null | undefined): PremiumStatus {
 
 function statusClass(status: PremiumStatus) {
   if (status === "paid") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-800";
+    return "border-emerald-300 bg-emerald-100 text-emerald-900";
   }
   if (status === "partial") {
-    return "border-amber-200 bg-amber-50 text-amber-800";
+    return "border-amber-300 bg-amber-100 text-amber-900";
   }
-  return "border-red-200 bg-red-50 text-red-800";
+  return "border-red-300 bg-red-100 text-red-900";
 }
 
 export function PremiumStatusSelect({

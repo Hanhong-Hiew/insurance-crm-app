@@ -154,19 +154,19 @@ function formatDate(value: string | null | undefined) {
 
 function dateHighlightClass(value: string | null | undefined) {
   const parsed = parseDate(value);
-  if (!parsed) return "bg-slate-50 text-slate-600 ring-slate-100";
+  if (!parsed) return "bg-slate-100 text-slate-700 ring-slate-200";
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1);
 
   if (sameMonth(parsed, today)) {
-    return "bg-emerald-50 text-emerald-800 ring-emerald-100";
+    return "bg-emerald-100 text-emerald-900 ring-emerald-200";
   }
   if (sameMonth(parsed, nextMonth)) {
-    return "bg-yellow-50 text-yellow-800 ring-yellow-100";
+    return "bg-yellow-100 text-yellow-900 ring-yellow-200";
   }
-  return "bg-slate-50 text-slate-600 ring-slate-100";
+  return "bg-slate-100 text-slate-700 ring-slate-200";
 }
 
 function DateBadge({ value }: { value: string | null | undefined }) {
@@ -176,6 +176,19 @@ function DateBadge({ value }: { value: string | null | undefined }) {
     >
       {formatDate(value)}
     </span>
+  );
+}
+
+function PremiumAmountCell({ record }: { record: PolicyRecord }) {
+  return (
+    <div className="grid gap-0.5 leading-tight">
+      <span className="whitespace-nowrap font-semibold text-slate-900">
+        {money(record.gross_premium)}
+      </span>
+      <span className="whitespace-nowrap text-xs font-medium text-slate-500">
+        {money(record.total_premium)}
+      </span>
+    </div>
   );
 }
 
@@ -976,8 +989,8 @@ function PolicyTable({
           <th className="px-3 py-2 font-medium">Stage</th>
           <th className="px-3 py-2 font-medium">Split</th>
           <th className="px-3 py-2 font-medium">Comm</th>
-          <th className="px-3 py-2 font-medium">Gross</th>
           <th className="px-3 py-2 font-medium">Premium</th>
+          <th className="px-3 py-2 font-medium">Payment</th>
         </tr>
       </thead>
       <tbody>
@@ -1010,7 +1023,7 @@ function PolicyTable({
                     <Eye className="h-4 w-4" />
                   </button>
                   <Link
-                    className="text-slate-950 hover:text-sky-700"
+                    className="crm-two-line text-slate-950 hover:text-sky-700"
                     href={`/protected/policies/${row.policy_term_id}`}
                     onClick={(event) => event.stopPropagation()}
                   >
@@ -1028,12 +1041,14 @@ function PolicyTable({
                 </span>
               </td>
               <td className="px-3 py-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2 py-0.5 text-xs font-medium text-sky-700">
+                <span className="inline-flex max-w-36 items-center gap-1.5 rounded-full border border-sky-200 bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800">
                   <RiskIcon record={row} />
-                  {clean(row.insurance_type)}
+                  <span className="crm-two-line">{clean(row.insurance_type)}</span>
                 </span>
               </td>
-              <td className="px-3 py-2 text-slate-700">{vehicleNo(row)}</td>
+              <td className="px-3 py-2 text-slate-700">
+                <span className="crm-two-line">{vehicleNo(row)}</span>
+              </td>
               <td className="px-3 py-2 text-slate-700">
                 <InsurerBadge name={row.insurer_name} />
               </td>
@@ -1046,7 +1061,9 @@ function PolicyTable({
                   summary={commissionSummaryByPolicy.get(row.policy_term_id)}
                 />
               </td>
-              <td className="px-3 py-2 text-slate-700">{money(row.gross_premium)}</td>
+              <td className="px-3 py-2 text-slate-700">
+                <PremiumAmountCell record={row} />
+              </td>
               <td className="px-3 py-2 text-slate-700">
                 <PremiumStatusSelect
                   policyTermId={row.policy_term_id}

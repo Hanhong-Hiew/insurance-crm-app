@@ -14,28 +14,28 @@ function colorClass(name: string | null | undefined) {
   const normalized = String(name ?? "").toLowerCase();
 
   if (normalized.includes("great eastern")) {
-    return "border-red-100 bg-red-50 text-red-700";
+    return "border-red-200 bg-red-100 text-red-800";
   }
   if (normalized.includes("etiqa takaful")) {
-    return "border-yellow-100 bg-yellow-50 text-yellow-800";
+    return "border-yellow-200 bg-yellow-100 text-yellow-900";
   }
   if (normalized.includes("etiqa general")) {
-    return "border-orange-100 bg-orange-50 text-orange-700";
+    return "border-orange-200 bg-orange-100 text-orange-800";
   }
   if (normalized.includes("qbe")) {
-    return "border-purple-100 bg-purple-50 text-purple-700";
+    return "border-purple-200 bg-purple-100 text-purple-800";
   }
   if (normalized.includes("tokio")) {
-    return "border-emerald-100 bg-emerald-50 text-emerald-700";
+    return "border-emerald-200 bg-emerald-100 text-emerald-800";
   }
   if (normalized.includes("progressive")) {
-    return "border-pink-100 bg-pink-50 text-pink-700";
+    return "border-pink-200 bg-pink-100 text-pink-800";
   }
   if (normalized.includes("allianz")) {
-    return "border-sky-100 bg-sky-50 text-sky-700";
+    return "border-sky-200 bg-sky-100 text-sky-800";
   }
 
-  return "border-slate-100 bg-slate-50 text-slate-700";
+  return "border-slate-200 bg-slate-100 text-slate-800";
 }
 
 export function InsurerBadge({ name, wrap = false }: InsurerBadgeProps) {
