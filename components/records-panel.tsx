@@ -977,7 +977,20 @@ function PolicyTable({
   setPreviewRecord: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="crm-table min-w-[1080px]">
+    <table className="crm-table min-w-[1240px] table-fixed lg:min-w-[1120px]">
+      <colgroup>
+        <col className="w-[92px] lg:w-[84px]" />
+        <col className="w-[92px] lg:w-[84px]" />
+        <col className="w-[250px] lg:w-[220px]" />
+        <col className="w-[155px] lg:w-[140px]" />
+        <col className="w-[135px] lg:w-[115px]" />
+        <col className="w-[140px] lg:w-[130px]" />
+        <col className="w-[58px]" />
+        <col className="w-[62px]" />
+        <col className="w-[86px]" />
+        <col className="w-[135px] lg:w-[125px]" />
+        <col className="w-[125px] lg:w-[118px]" />
+      </colgroup>
       <thead>
         <tr>
           <th className="px-3 py-2 font-medium">Effective</th>
@@ -1009,7 +1022,7 @@ function PolicyTable({
               <td className="px-3 py-2 text-slate-700">
                 <DateBadge value={row.expiry_date} />
               </td>
-              <td className="px-3 py-2 font-medium">
+              <td className="overflow-hidden px-3 py-2 font-medium">
                 <span className="flex w-full items-center gap-2">
                   <button
                     aria-label={`Preview ${clean(row.client_name)}`}
@@ -1042,16 +1055,20 @@ function PolicyTable({
                 </span>
               </td>
               <td className="px-3 py-2">
-                <span className="inline-flex max-w-36 items-center gap-1.5 rounded-full border border-sky-200 bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800">
+                <span className="inline-flex w-full min-w-0 items-center gap-1.5 rounded-full border border-sky-200 bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800">
                   <RiskIcon record={row} />
-                  <span className="crm-two-line">{clean(row.insurance_type)}</span>
+                  <span className="crm-two-line min-w-0 flex-1">
+                    {clean(row.insurance_type)}
+                  </span>
                 </span>
               </td>
               <td className="px-3 py-2 text-slate-700">
-                <span className="crm-two-line">{vehicleNo(row)}</span>
+                <span className="crm-two-line min-w-0 text-sm leading-tight">
+                  {vehicleNo(row)}
+                </span>
               </td>
               <td className="px-3 py-2 text-slate-700">
-                <InsurerBadge name={row.insurer_name} />
+                <InsurerBadge name={row.insurer_name} wrap />
               </td>
               <td className="px-3 py-2">
                 <StageBadge record={row} />
