@@ -208,7 +208,7 @@ function dateHighlightClass(value: string | null | undefined) {
 function DateBadge({ value }: { value: string | null | undefined }) {
   return (
     <span
-      className={`inline-flex min-w-24 justify-center rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ${dateHighlightClass(value)}`}
+      className={`inline-flex w-full min-w-0 justify-center rounded-full px-1.5 py-0.5 text-xs font-semibold ring-1 ${dateHighlightClass(value)}`}
     >
       {formatDate(value)}
     </span>
@@ -221,11 +221,11 @@ function count(value: number | string | null | undefined) {
 
 function PremiumAmountCell({ record }: { record: PolicyRecord }) {
   return (
-    <div className="grid gap-0.5 leading-tight">
-      <span className="whitespace-nowrap font-semibold text-slate-900">
+    <div className="grid min-w-0 gap-0.5 leading-tight">
+      <span className="truncate whitespace-nowrap font-semibold text-slate-900">
         {money(record.gross_premium)}
       </span>
-      <span className="whitespace-nowrap text-xs font-medium text-slate-500">
+      <span className="truncate whitespace-nowrap text-xs font-medium text-slate-500">
         {money(record.total_premium)}
       </span>
     </div>
@@ -1026,19 +1026,19 @@ function PolicyTable({
   setSelected: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="crm-table min-w-[1240px] table-fixed lg:min-w-[1120px]">
+    <table className="crm-table min-w-[1280px] table-fixed">
       <colgroup>
-        <col className="w-[92px] lg:w-[84px]" />
-        <col className="w-[92px] lg:w-[84px]" />
-        <col className="w-[250px] lg:w-[220px]" />
-        <col className="w-[155px] lg:w-[140px]" />
-        <col className="w-[135px] lg:w-[115px]" />
-        <col className="w-[140px] lg:w-[130px]" />
+        <col className="w-[96px]" />
+        <col className="w-[96px]" />
+        <col className="w-[250px]" />
+        <col className="w-[155px]" />
+        <col className="w-[140px]" />
+        <col className="w-[140px]" />
         <col className="w-[58px]" />
         <col className="w-[62px]" />
         <col className="w-[86px]" />
-        <col className="w-[135px] lg:w-[125px]" />
-        <col className="w-[125px] lg:w-[118px]" />
+        <col className="w-[140px]" />
+        <col className="w-[105px]" />
       </colgroup>
       <thead>
         <tr>
@@ -1072,10 +1072,10 @@ function PolicyTable({
                 window.location.href = `/protected/policies/${row.policy_term_id}`;
               }}
             >
-              <td className="px-3 py-2">
+              <td className="overflow-hidden px-2 py-2">
                 <DateBadge value={row.effective_date} />
               </td>
-              <td className="px-3 py-2">
+              <td className="overflow-hidden px-2 py-2">
                 <DateBadge value={row.expiry_date} />
               </td>
               <td className="overflow-hidden px-3 py-2 font-medium">
@@ -1110,7 +1110,7 @@ function PolicyTable({
                   </Link>
                 </span>
               </td>
-              <td className="px-3 py-2">
+              <td className="overflow-hidden px-3 py-2">
                 <span className="inline-flex w-full min-w-0 items-center gap-1.5 rounded-full border border-sky-200 bg-sky-100 px-2 py-0.5 text-xs font-medium text-sky-800">
                   <RiskIcon record={row} />
                   <span className="crm-two-line min-w-0 flex-1">
@@ -1118,28 +1118,33 @@ function PolicyTable({
                   </span>
                 </span>
               </td>
-              <td className="px-3 py-2">
+              <td className="overflow-hidden px-3 py-2">
                 <span className="crm-two-line min-w-0 text-sm leading-tight">
                   {vehicleNo(row)}
                 </span>
               </td>
-              <td className="px-3 py-2">
+              <td className="overflow-hidden px-3 py-2">
                 <InsurerBadge name={row.insurer_name} wrap />
               </td>
-              <td className="px-3 py-2">
+              <td className="overflow-hidden px-2 py-2">
                 <StageBadge record={row} />
               </td>
-              <td className="px-3 py-2">{splitCode(row)}</td>
-              <td className="px-3 py-2">
+              <td className="overflow-hidden px-2 py-2">
+                <span className="crm-two-line min-w-0 text-xs leading-tight">
+                  {splitCode(row)}
+                </span>
+              </td>
+              <td className="overflow-hidden px-2 py-2">
                 <CommissionStatusBadge
                   summary={commissionSummaryByPolicy.get(row.policy_term_id)}
                 />
               </td>
-              <td className="px-3 py-2">
+              <td className="overflow-hidden px-2 py-2">
                 <PremiumAmountCell record={row} />
               </td>
-              <td className="px-3 py-2">
+              <td className="overflow-hidden px-2 py-2">
                 <PremiumStatusSelect
+                  compact
                   policyTermId={row.policy_term_id}
                   status={row.premium_status}
                 />

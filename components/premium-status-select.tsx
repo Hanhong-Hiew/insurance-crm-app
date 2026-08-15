@@ -22,9 +22,11 @@ function statusClass(status: PremiumStatus) {
 }
 
 export function PremiumStatusSelect({
+  compact = false,
   policyTermId,
   status,
 }: {
+  compact?: boolean;
   policyTermId: string;
   status: string | null | undefined;
 }) {
@@ -68,13 +70,16 @@ export function PremiumStatusSelect({
 
   return (
     <div
+      className={compact ? "min-w-0" : undefined}
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
       title={hasError ? "Premium status could not be updated." : undefined}
     >
       <select
         aria-label="Premium payment status"
-        className={`h-8 min-w-28 rounded-full border px-2 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-sky-100 disabled:cursor-wait ${
+        className={`h-8 rounded-full border px-2 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-sky-100 disabled:cursor-wait ${
+          compact ? "w-full min-w-0" : "min-w-28"
+        } ${
           isPending ? "animate-pulse ring-2 ring-sky-100" : ""
         } ${statusClass(
           selectedStatus,
