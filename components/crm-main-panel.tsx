@@ -1026,20 +1026,7 @@ function PolicyTable({
   setSelected: (record: PolicyRecord) => void;
 }) {
   return (
-    <table className="crm-table min-w-[1300px] table-fixed">
-      <colgroup>
-        <col className="w-[98px]" />
-        <col className="w-[98px]" />
-        <col className="w-[330px]" />
-        <col className="w-[125px]" />
-        <col className="w-[90px]" />
-        <col className="w-[120px]" />
-        <col className="w-[58px]" />
-        <col className="w-[60px]" />
-        <col className="w-[80px]" />
-        <col className="w-[120px]" />
-        <col className="w-[118px]" />
-      </colgroup>
+    <table className="crm-table min-w-[1080px]">
       <thead>
         <tr>
           <th className="px-3 py-2 font-medium">Effective</th>
@@ -1079,7 +1066,7 @@ function PolicyTable({
                 <DateBadge value={row.expiry_date} />
               </td>
               <td className="px-3 py-2 font-medium">
-                <span className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+                <span className="flex w-full items-center gap-2">
                   <button
                     aria-label={`Preview ${clean(row.client_name)}`}
                     className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-sky-700 transition hover:border-sky-200 hover:bg-sky-50"
@@ -1092,7 +1079,7 @@ function PolicyTable({
                     <Eye className="h-4 w-4" />
                   </button>
                   <Link
-                    className="crm-two-line min-w-0 text-[13px] leading-tight text-slate-950 hover:text-sky-700"
+                    className="crm-two-line min-w-0 flex-1 text-xs leading-tight text-slate-950 hover:text-sky-700"
                     href={`/protected/policies/${row.policy_term_id}`}
                     onClick={(event) => event.stopPropagation()}
                     title={clean(row.client_name)}
