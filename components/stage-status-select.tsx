@@ -19,11 +19,9 @@ function stageClass(stage: TermStage) {
 }
 
 export function StageStatusSelect({
-  compact = false,
   policyTermId,
   stage,
 }: {
-  compact?: boolean;
   policyTermId: string;
   stage: string | null | undefined;
 }) {
@@ -45,6 +43,8 @@ export function StageStatusSelect({
   }, [saved]);
 
   function updateStage(nextStage: TermStage) {
+    if (nextStage === selectedStage || isPending) return;
+
     setSelectedStage(nextStage);
     setHasError(false);
     setSaved(false);
@@ -65,27 +65,30 @@ export function StageStatusSelect({
     });
   }
 
+  const nextStage = selectedStage === "policy" ? "quotation" : "policy";
+  const label = selectedStage === "policy" ? "P" : "Q";
+  const fullLabel = selectedStage === "policy" ? "Policy issued" : "Quotation only";
+
   return (
     <div
-      className={compact ? "min-w-0" : undefined}
+      className="min-w-0"
       onClick={(event) => event.stopPropagation()}
       onDoubleClick={(event) => event.stopPropagation()}
-      title={hasError ? "Stage could not be updated." : undefined}
+      title={hasError ? "Stage could not be updated." : fullLabel}
     >
-      <select
-        aria-label="Policy stage"
-        className={`h-8 rounded-full border px-2 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-sky-100 disabled:cursor-wait ${
-          compact ? "w-full min-w-0" : "min-w-24"
-        } ${isPending ? "animate-pulse ring-2 ring-sky-100" : ""} ${stageClass(
+      <button
+        aria-label={`Current stage: ${fullLabel}. Click to change stage.`}
+        className={`inline-flex h-8 w-full min-w-0 items-center justify-center rounded-full border px-2 text-xs font-bold outline-none transition hover:brightness-95 focus:ring-2 focus:ring-sky-100 disabled:cursor-wait ${
+          isPending ? "animate-pulse ring-2 ring-sky-100" : ""
+        } ${stageClass(
           selectedStage,
         )}`}
         disabled={isPending}
-        onChange={(event) => updateStage(event.target.value as TermStage)}
-        value={selectedStage}
+        onClick={() => updateStage(nextStage)}
+        type="button"
       >
-        <option value="policy">P</option>
-        <option value="quotation">Q</option>
-      </select>
+        {label}
+      </button>
       {hasError ? (
         <span className="ml-2 text-xs font-semibold text-red-700">Failed</span>
       ) : null}

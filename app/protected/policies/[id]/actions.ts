@@ -113,9 +113,24 @@ export async function setTermStage(formData: FormData) {
     throw new Error("Stage must be policy or quotation.");
   }
 
+  const values =
+    termStage === "quotation"
+      ? {
+          term_stage: "quotation",
+          quotation_status: "draft",
+          policy_status: null,
+          renewal_status: "quoting",
+        }
+      : {
+          term_stage: "policy",
+          quotation_status: null,
+          policy_status: "active",
+          renewal_status: "policy_issued",
+        };
+
   const { error } = await supabase
     .from("policy_terms")
-    .update({ term_stage: termStage })
+    .update(values)
     .eq("id", policyTermId);
   if (error) throw error;
 
@@ -124,7 +139,7 @@ export async function setTermStage(formData: FormData) {
     userId,
     policyTermId,
     "term_stage_update",
-    `Set stage to ${termStage}.`,
+    `Set stage to ${termStage === "quotation" ? "quotation only" : "policy issued"}.`,
   );
   revalidatePath("/protected");
   revalidatePath("/protected/records");

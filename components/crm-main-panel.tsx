@@ -1129,7 +1129,6 @@ function PolicyTable({
               </td>
               <td className="overflow-hidden px-2 py-2">
                 <StageStatusSelect
-                  compact
                   policyTermId={row.policy_term_id}
                   stage={row.term_stage}
                 />
