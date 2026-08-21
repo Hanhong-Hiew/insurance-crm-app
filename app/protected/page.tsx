@@ -78,7 +78,12 @@ async function ProtectedContent() {
         .order("created_at", { ascending: false })
         .limit(CRM_LIST_LIMIT),
       supabase.from("renewals_due_view").select("*").limit(CRM_LIST_LIMIT),
-      supabase.from("unpaid_premium_view").select("*").limit(CRM_LIST_LIMIT),
+      supabase
+        .from("main_policy_view")
+        .select("*")
+        .in("premium_status", ["unpaid", "partial"])
+        .order("expiry_date", { ascending: true })
+        .limit(CRM_LIST_LIMIT),
       supabase.from("unpaid_commission_view").select("*").limit(CRM_LIST_LIMIT),
       supabase
         .from("commissions")

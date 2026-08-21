@@ -32,6 +32,7 @@ import {
   PaginationControls,
 } from "@/components/pagination-controls";
 import { PremiumStatusSelect } from "@/components/premium-status-select";
+import { StageStatusSelect } from "@/components/stage-status-select";
 import { formatPercent } from "@/lib/format";
 
 type PolicyRecord = {
@@ -1127,10 +1128,17 @@ function PolicyTable({
                 <InsurerBadge name={row.insurer_name} wrap />
               </td>
               <td className="overflow-hidden px-2 py-2">
-                <StageBadge record={row} />
+                <StageStatusSelect
+                  compact
+                  policyTermId={row.policy_term_id}
+                  stage={row.term_stage}
+                />
               </td>
               <td className="overflow-hidden px-2 py-2">
-                <span className="crm-two-line min-w-0 text-xs leading-tight">
+                <span
+                  className="block min-w-0 truncate whitespace-nowrap text-xs leading-tight"
+                  title={splitCode(row)}
+                >
                   {splitCode(row)}
                 </span>
               </td>
@@ -1273,7 +1281,14 @@ function CommissionTable({
               </td>
               <td className="px-3 py-2">{clean(row.insurance_type)}</td>
               <td className="px-3 py-2">{clean(row.policy_number)}</td>
-              <td className="px-3 py-2">{clean(row.payee_name)}</td>
+              <td className="px-3 py-2">
+                <span
+                  className="block max-w-28 truncate whitespace-nowrap"
+                  title={clean(row.payee_name)}
+                >
+                  {clean(row.payee_name)}
+                </span>
+              </td>
               <td className="px-3 py-2">{percent(row.calculation_percent)}</td>
               <td className="px-3 py-2">{money(row.amount)}</td>
               <td className="px-3 py-2">{money(row.unpaid_amount)}</td>

@@ -27,6 +27,7 @@ import {
   PaginationControls,
 } from "@/components/pagination-controls";
 import { PremiumStatusSelect } from "@/components/premium-status-select";
+import { StageStatusSelect } from "@/components/stage-status-select";
 import { formatPercent } from "@/lib/format";
 
 export type PolicyRecord = {
@@ -1071,10 +1072,17 @@ function PolicyTable({
                 <InsurerBadge name={row.insurer_name} wrap />
               </td>
               <td className="overflow-hidden px-2 py-2">
-                <StageBadge record={row} />
+                <StageStatusSelect
+                  compact
+                  policyTermId={row.policy_term_id}
+                  stage={row.term_stage}
+                />
               </td>
               <td className="overflow-hidden px-2 py-2 text-slate-700">
-                <span className="crm-two-line min-w-0 text-xs leading-tight">
+                <span
+                  className="block min-w-0 truncate whitespace-nowrap text-xs leading-tight"
+                  title={splitCode(row)}
+                >
                   {splitCode(row)}
                 </span>
               </td>

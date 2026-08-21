@@ -104,6 +104,33 @@ export async function setPremiumStatus(formData: FormData) {
   revalidatePath(`/protected/policies/${policyTermId}`);
 }
 
+export async function setTermStage(formData: FormData) {
+  const policyTermId = textValue(formData, "policy_term_id");
+  const termStage = textValue(formData, "term_stage");
+  const { supabase, userId } = await requireUser();
+
+  if (!["policy", "quotation"].includes(termStage)) {
+    throw new Error("Stage must be policy or quotation.");
+  }
+
+  const { error } = await supabase
+    .from("policy_terms")
+    .update({ term_stage: termStage })
+    .eq("id", policyTermId);
+  if (error) throw error;
+
+  await logActivity(
+    supabase,
+    userId,
+    policyTermId,
+    "term_stage_update",
+    `Set stage to ${termStage}.`,
+  );
+  revalidatePath("/protected");
+  revalidatePath("/protected/records");
+  revalidatePath(`/protected/policies/${policyTermId}`);
+}
+
 export async function markCommissionsPaid(formData: FormData) {
   const policyTermId = textValue(formData, "policy_term_id");
   const { supabase, userId } = await requireUser();
