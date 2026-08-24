@@ -10,12 +10,11 @@ import {
   type MarineBillingRow,
   type MarineDeclarationRow,
   type MarineOpenCoverRow,
-  type MarinePolicyOption,
 } from "@/components/marine-open-cover-panel";
 import { CRM_LIST_LIMIT } from "@/lib/query-limits";
 import { createClient } from "@/lib/supabase/server";
 
-type MarinePolicyViewRow = MarinePolicyOption & {
+type MarinePolicyViewRow = Omit<MarineOpenCoverRow, "notes" | "open_cover_id" | "status"> & {
   insurance_type?: string | null;
   insurance_type_code?: string | null;
 };
@@ -50,58 +49,82 @@ async function MarineContent() {
     redirect("/auth/login");
   }
 
-  const [
-    marinePoliciesResult,
-    openCoversResult,
-    declarationsResult,
-    billingsResult,
-    commissionsResult,
-  ] = await Promise.all([
-    supabase
-      .from("main_policy_view")
-      .select(
-        "policy_term_id, client_name, policy_number, insurer_name, effective_date, expiry_date, insurance_type, insurance_type_code",
+  const marinePoliciesResult = await supabase
+    .from("main_policy_view")
+    .select(
+      "policy_term_id, client_name, policy_number, insurer_name, effective_date, expiry_date, insurance_type, insurance_type_code",
+    )
+    .eq("insurance_type_code", "marine_open_cover")
+    .order("client_name", { ascending: true })
+    .limit(CRM_LIST_LIMIT);
+
+  const policies = (marinePoliciesResult.data ?? []) as MarinePolicyViewRow[];
+  const policyTermIds = policies.map((policy) => policy.policy_term_id);
+  const autoOpenCoverResult = policies.length
+    ? await supabase.from("marine_open_covers").upsert(
+        policies.map((policy) => ({
+          policy_term_id: policy.policy_term_id,
+          status: "active",
+        })),
+        { ignoreDuplicates: true, onConflict: "policy_term_id" },
       )
-      .ilike("insurance_type", "%marine%")
-      .order("client_name", { ascending: true })
-      .limit(CRM_LIST_LIMIT),
-    supabase
-      .from("marine_open_covers")
-      .select("id, policy_term_id, status, notes")
-      .order("created_at", { ascending: false })
-      .limit(CRM_LIST_LIMIT),
-    supabase
-      .from("marine_declarations")
-      .select(
-        "id, open_cover_id, declaration_date, certificate_no, sum_insured, vessel, goods_description, gross_premium, total_premium, billing_month, billing_status",
-      )
-      .order("declaration_date", { ascending: false })
-      .limit(CRM_LIST_LIMIT),
-    supabase
-      .from("marine_monthly_billings")
-      .select(
-        "id, open_cover_id, billing_month, gross_premium_total, total_premium_total, payment_status, paid_date, commission_status, commission_paid_date",
-      )
-      .order("billing_month", { ascending: false })
-      .limit(CRM_LIST_LIMIT),
-    supabase
-      .from("marine_billing_commissions")
-      .select(
-        "id, billing_id, payee_name_snapshot, calculation_percent, amount, unpaid_amount, status, paid_date",
-      )
-      .order("created_at", { ascending: false })
-      .limit(CRM_LIST_LIMIT * 4),
-  ]);
+    : { error: null };
+
+  const openCoversResult = policyTermIds.length
+    ? await supabase
+        .from("marine_open_covers")
+        .select("id, policy_term_id, status, notes")
+        .in("policy_term_id", policyTermIds)
+        .order("created_at", { ascending: false })
+        .limit(CRM_LIST_LIMIT)
+    : { data: [], error: null };
+  const openCoverIds = ((openCoversResult.data ?? []) as MarineOpenCoverDbRow[]).map(
+    (cover) => cover.id,
+  );
+
+  const declarationsResult = openCoverIds.length
+    ? await supabase
+        .from("marine_declarations")
+        .select(
+          "id, open_cover_id, declaration_date, certificate_no, sum_insured, vessel, goods_description, gross_premium, total_premium, billing_month, billing_status",
+        )
+        .in("open_cover_id", openCoverIds)
+        .order("declaration_date", { ascending: false })
+        .limit(CRM_LIST_LIMIT)
+    : { data: [], error: null };
+  const billingsResult = openCoverIds.length
+    ? await supabase
+        .from("marine_monthly_billings")
+        .select(
+          "id, open_cover_id, billing_month, gross_premium_total, total_premium_total, payment_status, paid_date, commission_status, commission_paid_date",
+        )
+        .in("open_cover_id", openCoverIds)
+        .order("billing_month", { ascending: false })
+        .limit(CRM_LIST_LIMIT)
+    : { data: [], error: null };
+  const billingIds = ((billingsResult.data ?? []) as MarineBillingDbRow[]).map(
+    (bill) => bill.id,
+  );
+  const commissionsResult = billingIds.length
+    ? await supabase
+        .from("marine_billing_commissions")
+        .select(
+          "id, billing_id, payee_name_snapshot, calculation_percent, amount, unpaid_amount, status, paid_date",
+        )
+        .in("billing_id", billingIds)
+        .order("created_at", { ascending: false })
+        .limit(CRM_LIST_LIMIT * 4)
+    : { data: [], error: null };
 
   const errors = [
     marinePoliciesResult.error?.message,
+    autoOpenCoverResult.error?.message,
     openCoversResult.error?.message,
     declarationsResult.error?.message,
     billingsResult.error?.message,
     commissionsResult.error?.message,
   ].filter((message): message is string => Boolean(message));
 
-  const policies = (marinePoliciesResult.data ?? []) as MarinePolicyViewRow[];
   const policyByTermId = new Map(
     policies.map((policy) => [policy.policy_term_id, policy]),
   );
@@ -162,7 +185,6 @@ async function MarineContent() {
       ) : null}
       <MarineOpenCoverPanel
         billings={billings}
-        candidates={policies}
         commissions={commissions}
         declarations={declarations}
         openCovers={openCovers}

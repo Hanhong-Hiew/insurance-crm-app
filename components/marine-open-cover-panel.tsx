@@ -9,12 +9,11 @@ import {
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
-import { useActionState, useMemo } from "react";
+import { useActionState, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
   createMarineMonthlyBill,
-  registerMarineOpenCover,
   saveMarineDeclaration,
   setMarineBillingPaymentStatus,
   setMarineCommissionStatus,
@@ -127,6 +126,49 @@ function monthInputValue(value: string | null | undefined) {
   return value.slice(0, 7);
 }
 
+function normalizeDateText(value: string) {
+  const raw = value.trim();
+  if (!raw) return "";
+
+  const match = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
+  if (!match) return raw;
+
+  const day = match[1].padStart(2, "0");
+  const month = match[2].padStart(2, "0");
+  const rawYear = match[3];
+  const year =
+    rawYear.length === 2
+      ? Number(rawYear) >= 70
+        ? `19${rawYear}`
+        : `20${rawYear}`
+      : rawYear;
+
+  const date = new Date(`${year}-${month}-${day}T00:00:00Z`);
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getUTCDate() !== Number(day) ||
+    date.getUTCMonth() + 1 !== Number(month) ||
+    date.getUTCFullYear() !== Number(year)
+  ) {
+    return raw;
+  }
+
+  return `${day}/${month}/${year}`;
+}
+
+function displayToIso(value: string) {
+  const normalized = normalizeDateText(value);
+  const match = normalized.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) return "";
+  return `${match[3]}-${match[2]}-${match[1]}`;
+}
+
+function isoToDisplay(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
 function statusClass(status: string | null | undefined, kind: "commission" | "payment") {
   const normalized = String(status ?? "").toLowerCase();
   if (normalized === "paid") {
@@ -140,23 +182,71 @@ function statusClass(status: string | null | undefined, kind: "commission" | "pa
     : "border-red-300 bg-red-100 text-red-900";
 }
 
+function RequiredMark() {
+  return <span className="text-red-500">*</span>;
+}
+
+function DateInput({
+  defaultValue = "",
+  name,
+  required = false,
+}: {
+  defaultValue?: string;
+  name: string;
+  required?: boolean;
+}) {
+  const [value, setValue] = useState(isoToDisplay(defaultValue) || defaultValue);
+  const pickerRef = useRef<HTMLInputElement>(null);
+
+  function commit(nextValue: string) {
+    setValue(normalizeDateText(nextValue));
+  }
+
+  return (
+    <div className="flex h-10 overflow-hidden rounded-lg border border-slate-200 bg-white transition focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100">
+      <input
+        className="min-w-0 flex-1 bg-white px-3 text-sm text-slate-700 outline-none placeholder:text-slate-400"
+        inputMode="numeric"
+        name={name}
+        onBlur={(event) => commit(event.target.value)}
+        onChange={(event) => setValue(event.target.value)}
+        placeholder="dd/mm/yyyy"
+        required={required}
+        type="text"
+        value={value}
+      />
+      <button
+        aria-label="Open calendar"
+        className="relative flex w-10 items-center justify-center border-l border-sky-100 bg-sky-50 text-sky-700"
+        onClick={() => pickerRef.current?.showPicker?.()}
+        type="button"
+      >
+        <CalendarDays className="h-4 w-4" />
+        <input
+          aria-hidden="true"
+          className="pointer-events-none absolute h-px w-px opacity-0"
+          onChange={(event) => setValue(isoToDisplay(event.target.value))}
+          ref={pickerRef}
+          tabIndex={-1}
+          type="date"
+          value={displayToIso(value)}
+        />
+      </button>
+    </div>
+  );
+}
+
 export function MarineOpenCoverPanel({
   billings,
-  candidates,
   commissions,
   declarations,
   openCovers,
 }: {
   billings: MarineBillingRow[];
-  candidates: MarinePolicyOption[];
   commissions: MarineBillingCommissionRow[];
   declarations: MarineDeclarationRow[];
   openCovers: MarineOpenCoverRow[];
 }) {
-  const [registerState, registerAction] = useActionState<MarineActionState, FormData>(
-    registerMarineOpenCover,
-    {},
-  );
   const [declarationState, declarationAction] = useActionState<
     MarineActionState,
     FormData
@@ -181,6 +271,23 @@ export function MarineOpenCoverPanel({
     }
     return grouped;
   }, [commissions]);
+
+  const declarationCountByOpenCover = useMemo(() => {
+    const grouped = new Map<string, number>();
+    for (const row of declarations) {
+      grouped.set(row.open_cover_id, (grouped.get(row.open_cover_id) ?? 0) + 1);
+    }
+    return grouped;
+  }, [declarations]);
+
+  const unpaidBillCountByOpenCover = useMemo(() => {
+    const grouped = new Map<string, number>();
+    for (const row of billings) {
+      if (row.payment_status === "paid") continue;
+      grouped.set(row.open_cover_id, (grouped.get(row.open_cover_id) ?? 0) + 1);
+    }
+    return grouped;
+  }, [billings]);
 
   const stats = useMemo(
     () => [
@@ -234,53 +341,12 @@ export function MarineOpenCoverPanel({
         ))}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[0.85fr_1.15fr]">
-        <section className="crm-card">
-          <div className="crm-card-header">
-            <h2 className="font-semibold text-slate-900">Register Open Cover</h2>
-            <p className="text-xs text-slate-500">
-              Link an existing marine policy as the annual master open cover.
-            </p>
-          </div>
-          <form action={registerAction} className="grid gap-3 p-4">
-            <ActionMessage
-              message={registerState.error}
-              messageKey={registerState.resultId}
-              tone="error"
-            />
-            <ActionMessage
-              message={registerState.success}
-              messageKey={registerState.resultId}
-              tone="success"
-            />
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
-              Marine Policy
-              <select className="crm-control" name="policy_term_id" required>
-                <option value="">Choose marine policy</option>
-                {candidates.map((policy) => (
-                  <option key={policy.policy_term_id} value={policy.policy_term_id}>
-                    {clean(policy.client_name)} / {clean(policy.policy_number)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
-              Notes
-              <textarea
-                className="crm-control min-h-20 py-2"
-                name="notes"
-                placeholder="Optional"
-              />
-            </label>
-            <SubmitButton label="Register" />
-          </form>
-        </section>
-
+      <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
         <section className="crm-card">
           <div className="crm-card-header">
             <h2 className="font-semibold text-slate-900">Add Declaration</h2>
             <p className="text-xs text-slate-500">
-              Only date and premium are required. Certificate details stay optional.
+              Create a policy with Risk = Marine Open Cover first. It appears here automatically.
             </p>
           </div>
           <form action={declarationAction} className="grid gap-3 p-4 md:grid-cols-2">
@@ -297,7 +363,9 @@ export function MarineOpenCoverPanel({
               />
             </div>
             <label className="grid gap-1 text-sm font-semibold text-slate-700 md:col-span-2">
-              Open Cover
+              <span>
+                Open Cover <RequiredMark />
+              </span>
               <select className="crm-control" name="open_cover_id" required>
                 <option value="">Choose open cover</option>
                 {openCovers.map((cover) => (
@@ -308,15 +376,19 @@ export function MarineOpenCoverPanel({
               </select>
             </label>
             <label className="grid gap-1 text-sm font-semibold text-slate-700">
-              Date *
-              <input className="crm-control" name="declaration_date" required type="date" />
+              <span>
+                Date <RequiredMark />
+              </span>
+              <DateInput name="declaration_date" required />
             </label>
             <label className="grid gap-1 text-sm font-semibold text-slate-700">
               Certificate No
               <input className="crm-control" name="certificate_no" placeholder="Optional" />
             </label>
             <label className="grid gap-1 text-sm font-semibold text-slate-700">
-              Gross Premium *
+              <span>
+                Gross Premium <RequiredMark />
+              </span>
               <CurrencyInput name="gross_premium" required />
             </label>
             <label className="grid gap-1 text-sm font-semibold text-slate-700">
@@ -344,6 +416,66 @@ export function MarineOpenCoverPanel({
             </div>
           </form>
         </section>
+
+        <section className="crm-card overflow-hidden">
+          <div className="crm-card-header">
+            <h2 className="font-semibold text-slate-900">Open Covers</h2>
+            <p className="text-xs text-slate-500">
+              These come from policies where Risk is Marine Open Cover.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="crm-table min-w-[720px]">
+              <thead>
+                <tr>
+                  <th>Client</th>
+                  <th>Policy</th>
+                  <th>Term</th>
+                  <th>Certs</th>
+                  <th>Unpaid Bills</th>
+                  <th>Open</th>
+                </tr>
+              </thead>
+              <tbody>
+                {openCovers.length ? (
+                  openCovers.map((cover) => (
+                    <tr key={cover.open_cover_id}>
+                      <td className="px-3 py-3 font-semibold text-slate-900">
+                        <span className="crm-two-line max-w-56">
+                          {clean(cover.client_name)}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3">{clean(cover.policy_number)}</td>
+                      <td className="px-3 py-3">
+                        {formatDate(cover.effective_date)} - {formatDate(cover.expiry_date)}
+                      </td>
+                      <td className="px-3 py-3">
+                        {declarationCountByOpenCover.get(cover.open_cover_id) ?? 0}
+                      </td>
+                      <td className="px-3 py-3">
+                        {unpaidBillCountByOpenCover.get(cover.open_cover_id) ?? 0}
+                      </td>
+                      <td className="px-3 py-3">
+                        <Link
+                          className="text-sm font-semibold text-sky-700 hover:text-sky-800"
+                          href={`/protected/policies/${cover.policy_term_id}`}
+                        >
+                          Record
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td className="px-3 py-8 text-center text-slate-500" colSpan={6}>
+                      No Marine Open Cover policies yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
 
       <section className="crm-card">
@@ -366,15 +498,25 @@ export function MarineOpenCoverPanel({
               tone="success"
             />
           </div>
-          <select className="crm-control" name="open_cover_id" required>
-            <option value="">Choose open cover</option>
-            {openCovers.map((cover) => (
-              <option key={cover.open_cover_id} value={cover.open_cover_id}>
-                {clean(cover.client_name)} / {clean(cover.policy_number)}
-              </option>
-            ))}
-          </select>
-          <input className="crm-control" name="billing_month" required type="month" />
+          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <span>
+              Open Cover <RequiredMark />
+            </span>
+            <select className="crm-control" name="open_cover_id" required>
+              <option value="">Choose open cover</option>
+              {openCovers.map((cover) => (
+                <option key={cover.open_cover_id} value={cover.open_cover_id}>
+                  {clean(cover.client_name)} / {clean(cover.policy_number)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm font-semibold text-slate-700">
+            <span>
+              Billing Month <RequiredMark />
+            </span>
+            <input className="crm-control" name="billing_month" required type="month" />
+          </label>
           <SubmitButton label="Create Bill" />
         </form>
       </section>
@@ -449,11 +591,9 @@ export function MarineOpenCoverPanel({
                             <option value="partial">Partial</option>
                             <option value="paid">Paid</option>
                           </select>
-                          <input
-                            className="crm-control h-9 text-xs"
+                          <DateInput
                             defaultValue={bill.paid_date ?? ""}
                             name="paid_date"
-                            type="date"
                           />
                           <SubmitButton label="Save" small />
                         </form>
@@ -472,11 +612,9 @@ export function MarineOpenCoverPanel({
                             <option value="unpaid">Unpaid</option>
                             <option value="paid">Paid</option>
                           </select>
-                          <input
-                            className="crm-control h-9 text-xs"
+                          <DateInput
                             defaultValue={bill.commission_paid_date ?? ""}
                             name="commission_paid_date"
-                            type="date"
                           />
                           <SubmitButton label="Save" small />
                         </form>
@@ -518,12 +656,15 @@ export function MarineOpenCoverPanel({
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">
-        <div className="crm-card overflow-hidden">
+        <div className="crm-card overflow-hidden xl:col-span-2">
           <div className="crm-card-header">
-            <h2 className="font-semibold text-slate-900">Recent Declarations</h2>
+            <h2 className="font-semibold text-slate-900">Certificates / Declarations</h2>
+            <p className="text-xs text-slate-500">
+              Every certificate or declaration you enter is listed here.
+            </p>
           </div>
           <div className="overflow-x-auto">
-            <table className="crm-table min-w-[760px]">
+            <table className="crm-table min-w-[920px]">
               <thead>
                 <tr>
                   <th>Date</th>
@@ -558,56 +699,7 @@ export function MarineOpenCoverPanel({
                 ) : (
                   <tr>
                     <td className="px-3 py-8 text-center text-slate-500" colSpan={6}>
-                      No declarations yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div className="crm-card overflow-hidden">
-          <div className="crm-card-header">
-            <h2 className="font-semibold text-slate-900">Open Covers</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="crm-table min-w-[680px]">
-              <thead>
-                <tr>
-                  <th>Client</th>
-                  <th>Policy</th>
-                  <th>Insurer</th>
-                  <th>Term</th>
-                  <th>Open</th>
-                </tr>
-              </thead>
-              <tbody>
-                {openCovers.length ? (
-                  openCovers.map((cover) => (
-                    <tr key={cover.open_cover_id}>
-                      <td className="px-3 py-3 font-semibold text-slate-900">
-                        {clean(cover.client_name)}
-                      </td>
-                      <td className="px-3 py-3">{clean(cover.policy_number)}</td>
-                      <td className="px-3 py-3">{clean(cover.insurer_name)}</td>
-                      <td className="px-3 py-3">
-                        {formatDate(cover.effective_date)} - {formatDate(cover.expiry_date)}
-                      </td>
-                      <td className="px-3 py-3">
-                        <Link
-                          className="text-sm font-semibold text-sky-700 hover:text-sky-800"
-                          href={`/protected/policies/${cover.policy_term_id}`}
-                        >
-                          Record
-                        </Link>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td className="px-3 py-8 text-center text-slate-500" colSpan={5}>
-                      Register a marine open cover first.
+                      No certificate or declaration rows yet.
                     </td>
                   </tr>
                 )}

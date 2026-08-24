@@ -6,6 +6,58 @@
 -- - marine_monthly_billings groups declarations by month for premium collection
 -- - marine_billing_commissions stores monthly commission rows
 
+do $$
+begin
+  if exists (
+    select 1
+    from public.insurance_types
+    where code = 'marine_open_cover'
+  ) then
+    update public.insurance_types
+    set
+      active = true,
+      name = 'Marine Open Cover',
+      notes = 'Monthly declaration marine workflow. Use Marine Insurance for one-off marine policies.'
+    where code = 'marine_open_cover';
+  else
+    insert into public.insurance_types (code, name, active, notes)
+    values (
+      'marine_open_cover',
+      'Marine Open Cover',
+      true,
+      'Monthly declaration marine workflow. Use Marine Insurance for one-off marine policies.'
+    );
+  end if;
+end $$;
+
+insert into public.commission_rate_settings (
+  insurance_type_id,
+  gross_commission_percent,
+  net_commission_percent,
+  active,
+  notes
+)
+select
+  marine_open_cover.id,
+  coalesce(marine_rate.gross_commission_percent, 0.15),
+  coalesce(marine_rate.net_commission_percent, 0.11),
+  true,
+  'Default Marine Open Cover rate. Edit in Settings if needed.'
+from public.insurance_types marine_open_cover
+left join public.insurance_types marine
+  on marine.code in ('marine_insurance', 'marine')
+  or lower(marine.name) = 'marine insurance'
+left join public.commission_rate_settings marine_rate
+  on marine_rate.insurance_type_id = marine.id
+  and marine_rate.active = true
+where marine_open_cover.code = 'marine_open_cover'
+  and not exists (
+    select 1
+    from public.commission_rate_settings existing
+    where existing.insurance_type_id = marine_open_cover.id
+  )
+limit 1;
+
 create table if not exists public.marine_open_covers (
   id uuid primary key default gen_random_uuid(),
   policy_term_id uuid not null references public.policy_terms(id) on delete cascade,

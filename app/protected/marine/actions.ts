@@ -46,10 +46,51 @@ function moneyValue(formData: FormData, key: string) {
   return Math.round(value * 100) / 100;
 }
 
+function parseDateText(value: string) {
+  const raw = value.trim();
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  const match = raw.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
+  if (!match) return "";
+
+  const day = match[1].padStart(2, "0");
+  const month = match[2].padStart(2, "0");
+  const rawYear = match[3];
+  const year =
+    rawYear.length === 2
+      ? Number(rawYear) >= 70
+        ? `19${rawYear}`
+        : `20${rawYear}`
+      : rawYear;
+
+  const parsed = new Date(`${year}-${month}-${day}T00:00:00Z`);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getUTCDate() !== Number(day) ||
+    parsed.getUTCMonth() + 1 !== Number(month) ||
+    parsed.getUTCFullYear() !== Number(year)
+  ) {
+    return "";
+  }
+
+  return `${year}-${month}-${day}`;
+}
+
 function requiredDate(formData: FormData, key: string) {
-  const value = textValue(formData, key);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    throw new Error(`${key.replaceAll("_", " ")} is required.`);
+  const value = parseDateText(textValue(formData, key));
+  if (!value) {
+    throw new Error(`${key.replaceAll("_", " ")} must use dd/mm/yyyy format.`);
+  }
+  return value;
+}
+
+function optionalDate(formData: FormData, key: string) {
+  const raw = textValue(formData, key);
+  if (!raw) return null;
+  const value = parseDateText(raw);
+  if (!value) {
+    throw new Error(`${key.replaceAll("_", " ")} must use dd/mm/yyyy format.`);
   }
   return value;
 }
@@ -100,28 +141,6 @@ async function finishMarineAction(
       resultId: Date.now(),
     };
   }
-}
-
-export async function registerMarineOpenCover(
-  _previousState: MarineActionState,
-  formData: FormData,
-): Promise<MarineActionState> {
-  return finishMarineAction(async () => {
-    const supabase = await requireSupabase();
-    const policyTermId = textValue(formData, "policy_term_id");
-    if (!policyTermId) throw new Error("Choose a marine policy to register.");
-
-    const { error } = await supabase.from("marine_open_covers").upsert(
-      {
-        notes: optionalText(formData, "notes"),
-        policy_term_id: policyTermId,
-        status: "active",
-      },
-      { onConflict: "policy_term_id" },
-    );
-    if (error) throw error;
-    return "Marine open cover registered.";
-  }, "Marine open cover could not be registered.");
 }
 
 export async function saveMarineDeclaration(
@@ -304,7 +323,7 @@ export async function setMarineBillingPaymentStatus(
     const supabase = await requireSupabase();
     const billingId = textValue(formData, "billing_id");
     const paymentStatus = textValue(formData, "payment_status");
-    const paidDate = optionalText(formData, "paid_date");
+    const paidDate = optionalDate(formData, "paid_date");
     if (!billingId) throw new Error("Billing row is required.");
     if (!["unpaid", "partial", "paid"].includes(paymentStatus)) {
       throw new Error("Payment status is invalid.");
@@ -342,7 +361,7 @@ export async function setMarineCommissionStatus(
     const supabase = await requireSupabase();
     const billingId = textValue(formData, "billing_id");
     const commissionStatus = textValue(formData, "commission_status");
-    const paidDate = optionalText(formData, "commission_paid_date");
+    const paidDate = optionalDate(formData, "commission_paid_date");
     if (!billingId) throw new Error("Billing row is required.");
     if (!["unpaid", "paid"].includes(commissionStatus)) {
       throw new Error("Commission status is invalid.");
