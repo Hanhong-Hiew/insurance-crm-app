@@ -6,6 +6,7 @@ import {
   FileText,
   Home,
   Settings,
+  Ship,
   TableProperties,
   Users,
 } from "lucide-react";
@@ -16,6 +17,7 @@ const menuItems = [
   { href: "/protected/records", label: "Records", icon: TableProperties },
   { href: "/protected/clients", label: "Clients", icon: Users },
   { href: "/protected/commission-payments", label: "Commission", icon: BadgeDollarSign },
+  { href: "/protected/marine", label: "Marine", icon: Ship },
   { href: "/protected/settings", label: "Settings", icon: Settings },
 ];
 
