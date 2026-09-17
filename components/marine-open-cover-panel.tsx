@@ -5,7 +5,6 @@ import {
   CalendarDays,
   FilePlus2,
   ReceiptText,
-  Ship,
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
@@ -13,7 +12,6 @@ import { useActionState, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
-  createMarineMonthlyBill,
   saveMarineDeclaration,
   setMarineBillingPaymentStatus,
   setMarineCommissionStatus,
@@ -315,10 +313,6 @@ export function MarineOpenCoverPanel({
     MarineActionState,
     FormData
   >(saveMarineDeclaration, {});
-  const [billingState, billingAction] = useActionState<MarineActionState, FormData>(
-    createMarineMonthlyBill,
-    {},
-  );
   const [paymentState, paymentAction] = useActionState<MarineActionState, FormData>(
     setMarineBillingPaymentStatus,
     {},
@@ -365,10 +359,9 @@ export function MarineOpenCoverPanel({
       },
       {
         icon: <FilePlus2 className="h-4 w-4" />,
-        label: "Unbilled Certs",
+        label: "Certificates",
         value: wholeNumber(
           declarations
-          .filter((row) => row.billing_status === "unbilled")
             .reduce((sum, row) => sum + toNumber(row.certificate_count), 0),
         ),
       },
@@ -415,7 +408,7 @@ export function MarineOpenCoverPanel({
           <div className="crm-card-header">
             <h2 className="font-semibold text-slate-900">Add Declaration</h2>
             <p className="text-xs text-slate-500">
-              One declaration per open cover month. If the month is still unbilled, saving again updates it.
+              Saving this also creates or updates the monthly bill and commission.
             </p>
           </div>
           <form action={declarationAction} className="grid gap-3 p-4 md:grid-cols-2">
@@ -547,49 +540,6 @@ export function MarineOpenCoverPanel({
           </div>
         </section>
       </div>
-
-      <section className="crm-card">
-        <div className="crm-card-header">
-          <h2 className="font-semibold text-slate-900">Create Monthly Bill</h2>
-          <p className="text-xs text-slate-500">
-            Groups declarations by open cover and month, then calculates monthly commission.
-          </p>
-        </div>
-        <form action={billingAction} className="grid gap-3 p-4 md:grid-cols-[1fr_180px_auto]">
-          <div className="md:col-span-full">
-            <ActionMessage
-              message={billingState.error}
-              messageKey={billingState.resultId}
-              tone="error"
-            />
-            <ActionMessage
-              message={billingState.success}
-              messageKey={billingState.resultId}
-              tone="success"
-            />
-          </div>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
-            <span>
-              Open Cover <RequiredMark />
-            </span>
-            <select className="crm-control" name="open_cover_id" required>
-              <option value="">Choose open cover</option>
-              {openCovers.map((cover) => (
-                <option key={cover.open_cover_id} value={cover.open_cover_id}>
-                  {clean(cover.client_name)} / {clean(cover.policy_number)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm font-semibold text-slate-700">
-            <span>
-              Billing Month <RequiredMark />
-            </span>
-            <MonthYearInput name="billing_month" />
-          </label>
-          <SubmitButton label="Create Bill" />
-        </form>
-      </section>
 
       <section className="crm-card overflow-hidden">
         <div className="crm-card-header">

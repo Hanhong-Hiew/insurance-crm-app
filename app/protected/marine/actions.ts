@@ -145,6 +145,139 @@ async function finishMarineAction(
   }
 }
 
+async function refreshMarineMonthlyBill(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  openCoverId: string,
+  billingMonth: string,
+) {
+  const { data: declarations, error: declarationError } = await supabase
+    .from("marine_declarations")
+    .select("id, gross_premium, total_premium")
+    .eq("open_cover_id", openCoverId)
+    .eq("billing_month", billingMonth);
+  if (declarationError) throw declarationError;
+  if (!(declarations ?? []).length) {
+    throw new Error("No declarations found for this month.");
+  }
+
+  const { data: openCover, error: openCoverError } = await supabase
+    .from("marine_open_covers")
+    .select("policy_term_id")
+    .eq("id", openCoverId)
+    .single();
+  if (openCoverError) throw openCoverError;
+
+  const grossTotal = (declarations ?? []).reduce(
+    (sum, row) => sum + toNumber(row.gross_premium),
+    0,
+  );
+  const totalPremium = (declarations ?? []).reduce(
+    (sum, row) => sum + toNumber(row.total_premium),
+    0,
+  );
+
+  const { data: existingBill, error: existingBillError } = await supabase
+    .from("marine_monthly_billings")
+    .select("id, payment_status, commission_status")
+    .eq("open_cover_id", openCoverId)
+    .eq("billing_month", billingMonth)
+    .maybeSingle();
+  if (existingBillError) throw existingBillError;
+  if (existingBill?.payment_status === "paid") {
+    throw new Error("This monthly bill is already paid. It cannot be refreshed.");
+  }
+  if (existingBill?.commission_status === "paid") {
+    throw new Error("This monthly bill already has paid commission. It cannot be refreshed.");
+  }
+
+  const { data: bill, error: billError } = await supabase
+    .from("marine_monthly_billings")
+    .upsert(
+      {
+        billing_month: billingMonth,
+        gross_premium_total: grossTotal,
+        open_cover_id: openCoverId,
+        total_premium_total: totalPremium,
+      },
+      { onConflict: "open_cover_id,billing_month" },
+    )
+    .select("id")
+    .single();
+  if (billError) throw billError;
+
+  const { data: paidCommissionRows, error: paidLookupError } = await supabase
+    .from("marine_billing_commissions")
+    .select("id")
+    .eq("billing_id", bill.id)
+    .eq("status", "paid")
+    .limit(1);
+  if (paidLookupError) throw paidLookupError;
+  if ((paidCommissionRows ?? []).length) {
+    throw new Error("This bill already has paid commission rows. It cannot be refreshed.");
+  }
+
+  const { error: linkError } = await supabase
+    .from("marine_declarations")
+    .update({
+      billing_status: "billed",
+      monthly_billing_id: bill.id,
+    })
+    .eq("open_cover_id", openCoverId)
+    .eq("billing_month", billingMonth);
+  if (linkError) throw linkError;
+
+  const { error: deleteCommissionError } = await supabase
+    .from("marine_billing_commissions")
+    .delete()
+    .eq("billing_id", bill.id);
+  if (deleteCommissionError) throw deleteCommissionError;
+
+  const { data: term, error: termError } = await supabase
+    .from("policy_terms")
+    .select("split_pattern_id, gross_commission_percent, net_commission_percent")
+    .eq("id", openCover.policy_term_id)
+    .single();
+  if (termError) throw termError;
+
+  if (term?.split_pattern_id && grossTotal > 0) {
+    const { data: rules, error: rulesError } = await supabase
+      .from("commission_split_rules")
+      .select(
+        "payee_id, rule_type, share_percent, fixed_percent, subtract_percent, commission_payees(name)",
+      )
+      .eq("split_pattern_id", term.split_pattern_id)
+      .order("sort_order", { ascending: true });
+    if (rulesError) throw rulesError;
+
+    const commissionRows = calculateCommissionRows({
+      grossCommissionPercent: toNumber(term.gross_commission_percent),
+      grossPremium: grossTotal,
+      netCommissionPercent: toNumber(term.net_commission_percent),
+      rules: ((rules ?? []) as SplitRuleRow[]).map((rule) => ({
+        ...rule,
+        payee_name: firstValue(rule.commission_payees)?.name ?? null,
+      })),
+    });
+
+    if (commissionRows.length) {
+      const { error: commissionError } = await supabase
+        .from("marine_billing_commissions")
+        .insert(
+          commissionRows.map((row) => ({
+            amount: row.amount,
+            billing_id: bill.id,
+            calculation_percent: row.calculation_percent,
+            payee_id: row.payee_id,
+            payee_name_snapshot: row.payee_name,
+            status: "unpaid",
+            unpaid_amount: row.amount,
+          })),
+        );
+      if (commissionError) throw commissionError;
+    }
+  }
+}
+
 export async function saveMarineDeclaration(
   _previousState: MarineActionState,
   formData: FormData,
@@ -163,6 +296,32 @@ export async function saveMarineDeclaration(
     if (grossPremium === null) throw new Error("Gross premium is required.");
     if (totalPremium === null) throw new Error("Total premium is required.");
 
+    const { data: existingBill, error: existingBillError } = await supabase
+      .from("marine_monthly_billings")
+      .select("id, payment_status, commission_status")
+      .eq("open_cover_id", openCoverId)
+      .eq("billing_month", billingMonth)
+      .maybeSingle();
+    if (existingBillError) throw existingBillError;
+    if (existingBill?.payment_status === "paid") {
+      throw new Error("This monthly bill is already paid. It cannot be changed.");
+    }
+    if (existingBill?.commission_status === "paid") {
+      throw new Error("This monthly commission is already paid. It cannot be recalculated.");
+    }
+    if (existingBill?.id) {
+      const { data: paidCommissionRows, error: paidLookupError } = await supabase
+        .from("marine_billing_commissions")
+        .select("id")
+        .eq("billing_id", existingBill.id)
+        .eq("status", "paid")
+        .limit(1);
+      if (paidLookupError) throw paidLookupError;
+      if ((paidCommissionRows ?? []).length) {
+        throw new Error("This monthly commission is already paid. It cannot be recalculated.");
+      }
+    }
+
     const { data: existingDeclarations, error: existingError } = await supabase
       .from("marine_declarations")
       .select("id, billing_status")
@@ -172,12 +331,10 @@ export async function saveMarineDeclaration(
     if (existingError) throw existingError;
 
     const existingDeclaration = existingDeclarations?.[0];
-    if (existingDeclaration && existingDeclaration.billing_status !== "unbilled") {
-      throw new Error("This month has already been billed. Create a new month instead.");
-    }
 
     const values = {
       billing_month: billingMonth,
+      billing_status: "unbilled",
       certificate_count: certificateCount,
       gross_premium: grossPremium,
       notes: optionalText(formData, "notes"),
@@ -193,149 +350,11 @@ export async function saveMarineDeclaration(
           .eq("id", existingDeclaration.id)
       : await supabase.from("marine_declarations").insert(values);
     if (result.error) throw result.error;
-    return "Marine declaration saved.";
+
+    await refreshMarineMonthlyBill(supabase, openCoverId, billingMonth);
+
+    return "Marine declaration saved and monthly bill updated.";
   }, "Marine declaration could not be saved.");
-}
-
-export async function createMarineMonthlyBill(
-  _previousState: MarineActionState,
-  formData: FormData,
-): Promise<MarineActionState> {
-  return finishMarineAction(async () => {
-    const supabase = await requireSupabase();
-    const openCoverId = textValue(formData, "open_cover_id");
-    const billingMonth = monthStart(textValue(formData, "billing_month"));
-    if (!openCoverId) throw new Error("Choose an open cover.");
-
-    const { data: declarations, error: declarationError } = await supabase
-      .from("marine_declarations")
-      .select("id, gross_premium, total_premium")
-      .eq("open_cover_id", openCoverId)
-      .eq("billing_month", billingMonth);
-    if (declarationError) throw declarationError;
-    if (!(declarations ?? []).length) {
-      throw new Error("No declarations found for this month.");
-    }
-
-    const { data: openCover, error: openCoverError } = await supabase
-      .from("marine_open_covers")
-      .select("policy_term_id")
-      .eq("id", openCoverId)
-      .single();
-    if (openCoverError) throw openCoverError;
-
-    const grossTotal = (declarations ?? []).reduce(
-      (sum, row) => sum + toNumber(row.gross_premium),
-      0,
-    );
-    const totalPremium = (declarations ?? []).reduce(
-      (sum, row) => sum + toNumber(row.total_premium),
-      0,
-    );
-
-    const { data: existingBill, error: existingBillError } = await supabase
-      .from("marine_monthly_billings")
-      .select("id, payment_status, commission_status")
-      .eq("open_cover_id", openCoverId)
-      .eq("billing_month", billingMonth)
-      .maybeSingle();
-    if (existingBillError) throw existingBillError;
-    if (existingBill?.payment_status === "paid") {
-      throw new Error("This monthly bill is already paid. It cannot be refreshed.");
-    }
-    if (existingBill?.commission_status === "paid") {
-      throw new Error("This monthly bill already has paid commission. It cannot be refreshed.");
-    }
-
-    const { data: bill, error: billError } = await supabase
-      .from("marine_monthly_billings")
-      .upsert(
-        {
-          billing_month: billingMonth,
-          gross_premium_total: grossTotal,
-          open_cover_id: openCoverId,
-          total_premium_total: totalPremium,
-        },
-        { onConflict: "open_cover_id,billing_month" },
-      )
-      .select("id")
-      .single();
-    if (billError) throw billError;
-
-    const { data: paidCommissionRows, error: paidLookupError } = await supabase
-      .from("marine_billing_commissions")
-      .select("id")
-      .eq("billing_id", bill.id)
-      .eq("status", "paid")
-      .limit(1);
-    if (paidLookupError) throw paidLookupError;
-    if ((paidCommissionRows ?? []).length) {
-      throw new Error("This bill already has paid commission rows. It cannot be refreshed.");
-    }
-
-    const { error: linkError } = await supabase
-      .from("marine_declarations")
-      .update({
-        billing_status: "billed",
-        monthly_billing_id: bill.id,
-      })
-      .eq("open_cover_id", openCoverId)
-      .eq("billing_month", billingMonth);
-    if (linkError) throw linkError;
-
-    const { error: deleteCommissionError } = await supabase
-      .from("marine_billing_commissions")
-      .delete()
-      .eq("billing_id", bill.id);
-    if (deleteCommissionError) throw deleteCommissionError;
-
-    const { data: term, error: termError } = await supabase
-      .from("policy_terms")
-      .select("split_pattern_id, gross_commission_percent, net_commission_percent")
-      .eq("id", openCover.policy_term_id)
-      .single();
-    if (termError) throw termError;
-
-    if (term?.split_pattern_id && grossTotal > 0) {
-      const { data: rules, error: rulesError } = await supabase
-        .from("commission_split_rules")
-        .select(
-          "payee_id, rule_type, share_percent, fixed_percent, subtract_percent, commission_payees(name)",
-        )
-        .eq("split_pattern_id", term.split_pattern_id)
-        .order("sort_order", { ascending: true });
-      if (rulesError) throw rulesError;
-
-      const commissionRows = calculateCommissionRows({
-        grossCommissionPercent: toNumber(term.gross_commission_percent),
-        grossPremium: grossTotal,
-        netCommissionPercent: toNumber(term.net_commission_percent),
-        rules: ((rules ?? []) as SplitRuleRow[]).map((rule) => ({
-          ...rule,
-          payee_name: firstValue(rule.commission_payees)?.name ?? null,
-        })),
-      });
-
-      if (commissionRows.length) {
-        const { error: commissionError } = await supabase
-          .from("marine_billing_commissions")
-          .insert(
-            commissionRows.map((row) => ({
-              amount: row.amount,
-              billing_id: bill.id,
-              calculation_percent: row.calculation_percent,
-              payee_id: row.payee_id,
-              payee_name_snapshot: row.payee_name,
-              status: "unpaid",
-              unpaid_amount: row.amount,
-            })),
-          );
-        if (commissionError) throw commissionError;
-      }
-    }
-
-    return "Marine monthly bill created.";
-  }, "Marine monthly bill could not be created.");
 }
 
 export async function setMarineBillingPaymentStatus(
@@ -412,7 +431,7 @@ export async function setMarineCommissionStatus(
 
       for (const row of rows ?? []) {
         const { error } = await supabase
-            .from("marine_billing_commissions")
+          .from("marine_billing_commissions")
           .update({
             paid_date: null,
             status: "unpaid",
