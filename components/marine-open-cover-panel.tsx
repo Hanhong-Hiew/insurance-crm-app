@@ -40,16 +40,13 @@ export type MarineOpenCoverRow = MarinePolicyOption & {
 export type MarineDeclarationRow = {
   billing_month: string | null;
   billing_status: string | null;
-  certificate_no: string | null;
+  certificate_count: number | string | null;
   client_name: string | null;
-  declaration_date: string | null;
-  goods_description: string | null;
   gross_premium: number | string | null;
   id: string;
   open_cover_id: string;
   sum_insured: number | string | null;
   total_premium: number | string | null;
-  vessel: string | null;
 };
 
 export type MarineBillingCommissionRow = {
@@ -86,6 +83,12 @@ function toNumber(value: number | string | null | undefined) {
   if (value === null || value === undefined || value === "") return 0;
   const parsed = Number(String(value).replace(/,/g, ""));
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function wholeNumber(value: number | string | null | undefined) {
+  return new Intl.NumberFormat("en-MY", {
+    maximumFractionDigits: 0,
+  }).format(toNumber(value));
 }
 
 function money(value: number | string | null | undefined) {
@@ -275,7 +278,10 @@ export function MarineOpenCoverPanel({
   const declarationCountByOpenCover = useMemo(() => {
     const grouped = new Map<string, number>();
     for (const row of declarations) {
-      grouped.set(row.open_cover_id, (grouped.get(row.open_cover_id) ?? 0) + 1);
+      grouped.set(
+        row.open_cover_id,
+        (grouped.get(row.open_cover_id) ?? 0) + toNumber(row.certificate_count),
+      );
     }
     return grouped;
   }, [declarations]);
@@ -298,10 +304,12 @@ export function MarineOpenCoverPanel({
       },
       {
         icon: <FilePlus2 className="h-4 w-4" />,
-        label: "Unbilled Declarations",
-        value: declarations
+        label: "Unbilled Certs",
+        value: wholeNumber(
+          declarations
           .filter((row) => row.billing_status === "unbilled")
-          .length.toLocaleString("en-MY"),
+            .reduce((sum, row) => sum + toNumber(row.certificate_count), 0),
+        ),
       },
       {
         icon: <ReceiptText className="h-4 w-4" />,
@@ -346,7 +354,7 @@ export function MarineOpenCoverPanel({
           <div className="crm-card-header">
             <h2 className="font-semibold text-slate-900">Add Declaration</h2>
             <p className="text-xs text-slate-500">
-              Create a policy with Risk = Marine Open Cover first. It appears here automatically.
+              One declaration per open cover month. If the month is still unbilled, saving again updates it.
             </p>
           </div>
           <form action={declarationAction} className="grid gap-3 p-4 md:grid-cols-2">
@@ -377,13 +385,22 @@ export function MarineOpenCoverPanel({
             </label>
             <label className="grid gap-1 text-sm font-semibold text-slate-700">
               <span>
-                Date <RequiredMark />
+                Declaration Month <RequiredMark />
               </span>
-              <DateInput name="declaration_date" required />
+              <input className="crm-control" name="billing_month" required type="month" />
             </label>
             <label className="grid gap-1 text-sm font-semibold text-slate-700">
-              Certificate No
-              <input className="crm-control" name="certificate_no" placeholder="Optional" />
+              <span>
+                No. of Certificates <RequiredMark />
+              </span>
+              <input
+                className="crm-control"
+                min={1}
+                name="certificate_count"
+                placeholder="Example: 12"
+                required
+                type="number"
+              />
             </label>
             <label className="grid gap-1 text-sm font-semibold text-slate-700">
               <span>
@@ -398,14 +415,6 @@ export function MarineOpenCoverPanel({
             <label className="grid gap-1 text-sm font-semibold text-slate-700">
               Sum Insured
               <CurrencyInput name="sum_insured" />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold text-slate-700">
-              Vessel
-              <input className="crm-control" name="vessel" placeholder="Optional" />
-            </label>
-            <label className="grid gap-1 text-sm font-semibold text-slate-700 md:col-span-2">
-              Goods Description
-              <input className="crm-control" name="goods_description" placeholder="Optional" />
             </label>
             <label className="grid gap-1 text-sm font-semibold text-slate-700 md:col-span-2">
               Notes
@@ -450,7 +459,7 @@ export function MarineOpenCoverPanel({
                         {formatDate(cover.effective_date)} - {formatDate(cover.expiry_date)}
                       </td>
                       <td className="px-3 py-3">
-                        {declarationCountByOpenCover.get(cover.open_cover_id) ?? 0}
+                        {wholeNumber(declarationCountByOpenCover.get(cover.open_cover_id) ?? 0)}
                       </td>
                       <td className="px-3 py-3">
                         {unpaidBillCountByOpenCover.get(cover.open_cover_id) ?? 0}
@@ -546,7 +555,7 @@ export function MarineOpenCoverPanel({
               <tr>
                 <th>Month</th>
                 <th>Client</th>
-                <th>Declarations</th>
+                <th>Certificates</th>
                 <th>Premium</th>
                 <th>Payment</th>
                 <th>Commission</th>
@@ -567,7 +576,7 @@ export function MarineOpenCoverPanel({
                           {clean(bill.client_name)}
                         </span>
                       </td>
-                      <td className="px-3 py-3">{bill.declaration_count}</td>
+                      <td className="px-3 py-3">{wholeNumber(bill.declaration_count)}</td>
                       <td className="px-3 py-3">
                         <p className="font-semibold text-slate-950">
                           {money(bill.gross_premium_total)}
@@ -660,40 +669,36 @@ export function MarineOpenCoverPanel({
           <div className="crm-card-header">
             <h2 className="font-semibold text-slate-900">Certificates / Declarations</h2>
             <p className="text-xs text-slate-500">
-              Every certificate or declaration you enter is listed here.
+              Every monthly certificate total you enter is listed here.
             </p>
           </div>
           <div className="overflow-x-auto">
-            <table className="crm-table min-w-[920px]">
+            <table className="crm-table min-w-[760px]">
               <thead>
                 <tr>
-                  <th>Date</th>
+                  <th>Month</th>
                   <th>Client</th>
-                  <th>Cert No</th>
+                  <th>Certificates</th>
                   <th>Premium</th>
+                  <th>Sum Insured</th>
                   <th>Status</th>
-                  <th>Optional Details</th>
                 </tr>
               </thead>
               <tbody>
                 {declarations.length ? (
                   declarations.map((row) => (
                     <tr key={row.id}>
-                      <td className="px-3 py-3">{formatDate(row.declaration_date)}</td>
+                      <td className="px-3 py-3">{formatMonth(row.billing_month)}</td>
                       <td className="px-3 py-3 font-semibold text-slate-900">
                         {clean(row.client_name)}
                       </td>
-                      <td className="px-3 py-3">{clean(row.certificate_no)}</td>
+                      <td className="px-3 py-3">{wholeNumber(row.certificate_count)}</td>
                       <td className="px-3 py-3">
                         <p className="font-semibold">{money(row.gross_premium)}</p>
                         <p className="text-xs text-slate-500">{money(row.total_premium)}</p>
                       </td>
+                      <td className="px-3 py-3">{money(row.sum_insured)}</td>
                       <td className="px-3 py-3">{clean(row.billing_status)}</td>
-                      <td className="px-3 py-3 text-xs text-slate-600">
-                        <p>Sum: {money(row.sum_insured)}</p>
-                        <p>Vessel: {clean(row.vessel)}</p>
-                        <p className="crm-two-line">Goods: {clean(row.goods_description)}</p>
-                      </td>
                     </tr>
                   ))
                 ) : (

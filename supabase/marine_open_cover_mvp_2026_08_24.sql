@@ -91,11 +91,9 @@ create table if not exists public.marine_declarations (
   id uuid primary key default gen_random_uuid(),
   open_cover_id uuid not null references public.marine_open_covers(id) on delete cascade,
   monthly_billing_id uuid references public.marine_monthly_billings(id) on delete set null,
-  declaration_date date not null,
-  certificate_no text,
+  certificate_count integer not null default 0
+    check (certificate_count >= 0),
   sum_insured numeric(14, 2),
-  vessel text,
-  goods_description text,
   gross_premium numeric(14, 2) not null default 0,
   total_premium numeric(14, 2) not null default 0,
   billing_month date not null,

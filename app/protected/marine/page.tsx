@@ -86,10 +86,10 @@ async function MarineContent() {
     ? await supabase
         .from("marine_declarations")
         .select(
-          "id, open_cover_id, declaration_date, certificate_no, sum_insured, vessel, goods_description, gross_premium, total_premium, billing_month, billing_status",
+          "id, open_cover_id, certificate_count, sum_insured, gross_premium, total_premium, billing_month, billing_status",
         )
         .in("open_cover_id", openCoverIds)
-        .order("declaration_date", { ascending: false })
+        .order("billing_month", { ascending: false })
         .limit(CRM_LIST_LIMIT)
     : { data: [], error: null };
   const billingsResult = openCoverIds.length
@@ -156,7 +156,10 @@ async function MarineContent() {
   for (const row of declarations) {
     if (!row.billing_month) continue;
     const key = `${row.open_cover_id}:${row.billing_month}`;
-    declarationsByBill.set(key, (declarationsByBill.get(key) ?? 0) + 1);
+    declarationsByBill.set(
+      key,
+      (declarationsByBill.get(key) ?? 0) + Number(row.certificate_count ?? 0),
+    );
   }
   const commissionTotalByBill = new Map<string, number>();
   for (const row of commissions) {

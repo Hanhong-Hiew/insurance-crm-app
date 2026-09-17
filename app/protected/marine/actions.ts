@@ -46,6 +46,16 @@ function moneyValue(formData: FormData, key: string) {
   return Math.round(value * 100) / 100;
 }
 
+function integerValue(formData: FormData, key: string) {
+  const raw = textValue(formData, key).replace(/,/g, "");
+  if (!raw) return null;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`${key.replaceAll("_", " ")} must be a whole number.`);
+  }
+  return value;
+}
+
 function parseDateText(value: string) {
   const raw = value.trim();
   if (!raw) return "";
@@ -75,14 +85,6 @@ function parseDateText(value: string) {
   }
 
   return `${year}-${month}-${day}`;
-}
-
-function requiredDate(formData: FormData, key: string) {
-  const value = parseDateText(textValue(formData, key));
-  if (!value) {
-    throw new Error(`${key.replaceAll("_", " ")} must use dd/mm/yyyy format.`);
-  }
-  return value;
 }
 
 function optionalDate(formData: FormData, key: string) {
@@ -150,26 +152,47 @@ export async function saveMarineDeclaration(
   return finishMarineAction(async () => {
     const supabase = await requireSupabase();
     const openCoverId = textValue(formData, "open_cover_id");
-    const declarationDate = requiredDate(formData, "declaration_date");
+    const billingMonth = monthStart(textValue(formData, "billing_month"));
+    const certificateCount = integerValue(formData, "certificate_count");
     const grossPremium = moneyValue(formData, "gross_premium");
     const totalPremium = moneyValue(formData, "total_premium") ?? grossPremium;
     if (!openCoverId) throw new Error("Choose an open cover.");
+    if (certificateCount === null || certificateCount < 1) {
+      throw new Error("No. of certificates is required.");
+    }
     if (grossPremium === null) throw new Error("Gross premium is required.");
     if (totalPremium === null) throw new Error("Total premium is required.");
 
-    const { error } = await supabase.from("marine_declarations").insert({
-      billing_month: monthStart(declarationDate),
-      certificate_no: optionalText(formData, "certificate_no"),
-      declaration_date: declarationDate,
-      goods_description: optionalText(formData, "goods_description"),
+    const { data: existingDeclarations, error: existingError } = await supabase
+      .from("marine_declarations")
+      .select("id, billing_status")
+      .eq("open_cover_id", openCoverId)
+      .eq("billing_month", billingMonth)
+      .limit(1);
+    if (existingError) throw existingError;
+
+    const existingDeclaration = existingDeclarations?.[0];
+    if (existingDeclaration && existingDeclaration.billing_status !== "unbilled") {
+      throw new Error("This month has already been billed. Create a new month instead.");
+    }
+
+    const values = {
+      billing_month: billingMonth,
+      certificate_count: certificateCount,
       gross_premium: grossPremium,
       notes: optionalText(formData, "notes"),
       open_cover_id: openCoverId,
       sum_insured: moneyValue(formData, "sum_insured"),
       total_premium: totalPremium,
-      vessel: optionalText(formData, "vessel"),
-    });
-    if (error) throw error;
+    };
+
+    const result = existingDeclaration
+      ? await supabase
+          .from("marine_declarations")
+          .update(values)
+          .eq("id", existingDeclaration.id)
+      : await supabase.from("marine_declarations").insert(values);
+    if (result.error) throw result.error;
     return "Marine declaration saved.";
   }, "Marine declaration could not be saved.");
 }
