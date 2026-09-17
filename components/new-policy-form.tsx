@@ -92,6 +92,8 @@ export type DuplicatePolicySource = {
   insurer_id?: string | null;
   marine?: RiskDefaults;
   motor?: RiskDefaults;
+  notes?: string | null;
+  premium_status?: string | null;
   total_premium?: number | string | null;
   primary_risk_label?: string | null;
   primary_sum_assured?: number | string | null;
@@ -304,38 +306,46 @@ export function NewPolicyForm({
   const [customReason, setCustomReason] = useState("");
   const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
 
-  function resetForm() {
-    formRef.current?.reset();
-    setUseDuplicateSource(false);
+  function applyDuplicateSource(source: DuplicatePolicySource | null) {
+    setUseDuplicateSource(Boolean(source));
     setFormResetKey((current) => current + 1);
-    setClientName("");
-    setSelectedClientId("");
-    setBusinessRegistrationNo("");
-    setClientType("individual");
-    setClientReferral("");
-    setClientPhone("");
-    setClientEmail("");
-    setClientAddress("");
-    setSelectedClientAddressId("");
-    setClientAddressLabel("");
+    setClientName(source?.client_name ?? "");
+    setSelectedClientId(source?.client_id ?? "");
+    setBusinessRegistrationNo(source?.business_registration_no ?? "");
+    setClientType(source?.client_type ?? "individual");
+    setClientReferral(source?.client_referral ?? "");
+    setClientPhone(source?.client_phone ?? "");
+    setClientEmail(source?.client_email ?? "");
+    setClientAddress(source?.client_address ?? "");
+    setSelectedClientAddressId(source?.client_address_id ?? "");
+    setClientAddressLabel(source?.client_address_label ?? "");
     setShowClientSuggestions(false);
     setShowReferralSuggestions(false);
-    setSelectedTypeId("");
-    setSelectedSplitId("");
-    setEffectiveDate("");
-    setExpiryDate("");
-    setExpiryTouched(false);
-    setGrossPremium("");
-    setTotalPremium("");
+    setSelectedTypeId(source?.insurance_type_id ?? "");
+    setSelectedSplitId(source?.split_pattern_id ?? "");
+    setEffectiveDate(source?.effective_date ?? "");
+    setExpiryDate(source?.expiry_date ?? "");
+    setExpiryTouched(Boolean(source?.expiry_date));
+    setGrossPremium(defaultText(source?.gross_premium));
+    setTotalPremium(defaultText(source?.total_premium));
     setCustomCommission(false);
     setCustomTotalAmount("");
     setCustomReason("");
     setCustomAmounts({});
   }
 
+  function resetForm() {
+    formRef.current?.reset();
+    applyDuplicateSource(null);
+  }
+
   useEffect(() => {
     if (state.success) resetForm();
   }, [state.resultId, state.success]);
+
+  useEffect(() => {
+    applyDuplicateSource(duplicateSource);
+  }, [duplicateSource]);
 
   const selectedType = useMemo(
     () => insuranceTypes.find((type) => type.id === selectedTypeId),
@@ -779,7 +789,11 @@ export function NewPolicyForm({
         </Field>
 
         <Field label="Premium Status">
-          <select className={fieldClass} defaultValue="unpaid" name="premium_status">
+          <select
+            className={fieldClass}
+            defaultValue={activeDuplicate?.premium_status ?? "unpaid"}
+            name="premium_status"
+          >
             <option value="unpaid">Unpaid</option>
             <option value="partial">Partial</option>
             <option value="paid">Paid</option>
@@ -923,6 +937,7 @@ export function NewPolicyForm({
           <Field label="Notes">
             <textarea
               className={`${fieldClass} min-h-28 py-2`}
+              defaultValue={activeDuplicate?.notes ?? ""}
               name="notes"
               placeholder="Internal notes"
             />

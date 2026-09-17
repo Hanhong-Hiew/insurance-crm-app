@@ -1049,6 +1049,8 @@ function PolicyTable({
                     className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
                     href={`/protected/new-policy?duplicate=${row.policy_term_id}`}
                     onClick={(event) => event.stopPropagation()}
+                    onDoubleClick={(event) => event.stopPropagation()}
+                    onMouseDown={(event) => event.stopPropagation()}
                     title="Duplicate into new policy draft"
                   >
                     <Copy className="h-3.5 w-3.5" />

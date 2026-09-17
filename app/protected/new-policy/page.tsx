@@ -249,6 +249,8 @@ async function getDuplicatePolicySource(
     gross_premium: numberLike(term.gross_premium),
     insurance_type_id: textFrom(term.insurance_type_id),
     insurer_id: textFrom(term.insurer_id),
+    notes: textFrom(term.notes),
+    premium_status: textFrom(term.premium_status) || "unpaid",
     total_premium: numberLike(term.total_premium),
     primary_risk_label: textFrom(policySeries?.primary_risk_label),
     primary_sum_assured: numberLike(term.primary_sum_assured),
