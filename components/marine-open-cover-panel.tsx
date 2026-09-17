@@ -124,11 +124,6 @@ function percent(value: number | string | null | undefined) {
   }).format(number)}%`;
 }
 
-function monthInputValue(value: string | null | undefined) {
-  if (!value) return new Date().toISOString().slice(0, 7);
-  return value.slice(0, 7);
-}
-
 function normalizeDateText(value: string) {
   const raw = value.trim();
   if (!raw) return "";
@@ -187,6 +182,72 @@ function statusClass(status: string | null | undefined, kind: "commission" | "pa
 
 function RequiredMark() {
   return <span className="text-red-500">*</span>;
+}
+
+const monthOptions = [
+  ["01", "January"],
+  ["02", "February"],
+  ["03", "March"],
+  ["04", "April"],
+  ["05", "May"],
+  ["06", "June"],
+  ["07", "July"],
+  ["08", "August"],
+  ["09", "September"],
+  ["10", "October"],
+  ["11", "November"],
+  ["12", "December"],
+] as const;
+
+function currentMonthYear() {
+  const now = new Date();
+  return {
+    month: String(now.getMonth() + 1).padStart(2, "0"),
+    year: String(now.getFullYear()),
+  };
+}
+
+function yearOptions() {
+  const currentYear = new Date().getFullYear();
+  return Array.from({ length: 7 }, (_, index) => String(currentYear - 3 + index));
+}
+
+function MonthYearInput({
+  name,
+}: {
+  name: string;
+}) {
+  const current = currentMonthYear();
+  const [month, setMonth] = useState(current.month);
+  const [year, setYear] = useState(current.year);
+
+  return (
+    <div className="grid grid-cols-[1fr_120px] gap-2">
+      <input name={name} type="hidden" value={`${year}-${month}`} />
+      <select
+        className="crm-control"
+        onChange={(event) => setMonth(event.target.value)}
+        value={month}
+      >
+        {monthOptions.map(([value, label]) => (
+          <option key={value} value={value}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <select
+        className="crm-control"
+        onChange={(event) => setYear(event.target.value)}
+        value={year}
+      >
+        {yearOptions().map((value) => (
+          <option key={value} value={value}>
+            {value}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
 }
 
 function DateInput({
@@ -387,7 +448,7 @@ export function MarineOpenCoverPanel({
               <span>
                 Declaration Month <RequiredMark />
               </span>
-              <input className="crm-control" name="billing_month" required type="month" />
+              <MonthYearInput name="billing_month" />
             </label>
             <label className="grid gap-1 text-sm font-semibold text-slate-700">
               <span>
@@ -524,7 +585,7 @@ export function MarineOpenCoverPanel({
             <span>
               Billing Month <RequiredMark />
             </span>
-            <input className="crm-control" name="billing_month" required type="month" />
+            <MonthYearInput name="billing_month" />
           </label>
           <SubmitButton label="Create Bill" />
         </form>
