@@ -101,7 +101,8 @@ create table if not exists public.marine_declarations (
     check (billing_status in ('unbilled', 'billed', 'paid')),
   notes text,
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
+  updated_at timestamptz not null default now(),
+  unique (open_cover_id, billing_month)
 );
 
 create index if not exists marine_declarations_open_cover_month_idx

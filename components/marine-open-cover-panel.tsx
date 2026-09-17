@@ -4,17 +4,30 @@ import {
   Anchor,
   CalendarDays,
   FilePlus2,
+  Pencil,
   ReceiptText,
+  Save,
+  Trash2,
+  X,
   WalletCards,
 } from "lucide-react";
 import Link from "next/link";
-import { useActionState, useMemo, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useActionState,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useFormStatus } from "react-dom";
 
 import {
+  deleteMarineDeclaration,
   saveMarineDeclaration,
   setMarineBillingPaymentStatus,
   setMarineCommissionStatus,
+  updateMarineDeclaration,
   type MarineActionState,
 } from "@/app/protected/marine/actions";
 import { ActionMessage } from "@/components/action-message";
@@ -42,6 +55,7 @@ export type MarineDeclarationRow = {
   client_name: string | null;
   gross_premium: number | string | null;
   id: string;
+  notes: string | null;
   open_cover_id: string;
   sum_insured: number | string | null;
   total_premium: number | string | null;
@@ -95,6 +109,11 @@ function money(value: number | string | null | undefined) {
     minimumFractionDigits: 2,
     style: "currency",
   }).format(toNumber(value)).replace("MYR", "RM");
+}
+
+function moneyInputValue(value: number | string | null | undefined) {
+  if (value === null || value === undefined || value === "") return "";
+  return toNumber(value).toFixed(2);
 }
 
 function formatDate(value: string | null | undefined) {
@@ -211,19 +230,25 @@ function yearOptions() {
 }
 
 function MonthYearInput({
+  defaultValue,
+  formId,
   name,
 }: {
+  defaultValue?: string | null;
+  formId?: string;
   name: string;
 }) {
   const current = currentMonthYear();
-  const [month, setMonth] = useState(current.month);
-  const [year, setYear] = useState(current.year);
+  const defaultParts = defaultValue?.match(/^(\d{4})-(\d{2})/) ?? null;
+  const [month, setMonth] = useState(defaultParts?.[2] ?? current.month);
+  const [year, setYear] = useState(defaultParts?.[1] ?? current.year);
 
   return (
     <div className="grid grid-cols-[1fr_120px] gap-2">
-      <input name={name} type="hidden" value={`${year}-${month}`} />
+      <input form={formId} name={name} type="hidden" value={`${year}-${month}`} />
       <select
         className="crm-control"
+        form={formId}
         onChange={(event) => setMonth(event.target.value)}
         value={month}
       >
@@ -235,6 +260,7 @@ function MonthYearInput({
       </select>
       <select
         className="crm-control"
+        form={formId}
         onChange={(event) => setYear(event.target.value)}
         value={year}
       >
@@ -244,6 +270,36 @@ function MonthYearInput({
           </option>
         ))}
       </select>
+    </div>
+  );
+}
+
+function MoneyEditInput({
+  defaultValue,
+  formId,
+  name,
+  required = false,
+}: {
+  defaultValue?: number | string | null;
+  formId: string;
+  name: string;
+  required?: boolean;
+}) {
+  return (
+    <div className="flex h-9 min-w-36 overflow-hidden rounded-lg border border-slate-200 bg-white focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100">
+      <span className="flex items-center border-r border-sky-100 bg-sky-50 px-2 text-xs font-semibold text-sky-700">
+        RM
+      </span>
+      <input
+        className="min-w-0 flex-1 bg-white px-2 text-sm text-slate-700 outline-none"
+        defaultValue={moneyInputValue(defaultValue)}
+        form={formId}
+        inputMode="decimal"
+        name={name}
+        pattern="[0-9,]+([.][0-9]{0,2})?"
+        required={required}
+        type="text"
+      />
     </div>
   );
 }
@@ -313,6 +369,14 @@ export function MarineOpenCoverPanel({
     MarineActionState,
     FormData
   >(saveMarineDeclaration, {});
+  const [updateState, updateAction] = useActionState<MarineActionState, FormData>(
+    updateMarineDeclaration,
+    {},
+  );
+  const [deleteState, deleteAction] = useActionState<MarineActionState, FormData>(
+    deleteMarineDeclaration,
+    {},
+  );
   const [paymentState, paymentAction] = useActionState<MarineActionState, FormData>(
     setMarineBillingPaymentStatus,
     {},
@@ -321,6 +385,20 @@ export function MarineOpenCoverPanel({
     MarineActionState,
     FormData
   >(setMarineCommissionStatus, {});
+  const [editingDeclarationId, setEditingDeclarationId] = useState<string | null>(
+    null,
+  );
+
+  useEffect(() => {
+    if (updateState.success || deleteState.success) {
+      setEditingDeclarationId(null);
+    }
+  }, [deleteState.success, updateState.success]);
+
+  const declarationRowState =
+    (updateState.resultId ?? 0) >= (deleteState.resultId ?? 0)
+      ? updateState
+      : deleteState;
 
   const commissionRowsByBilling = useMemo(() => {
     const grouped = new Map<string, MarineBillingCommissionRow[]>();
@@ -677,14 +755,31 @@ export function MarineOpenCoverPanel({
 
       <section className="grid gap-5 xl:grid-cols-2">
         <div className="crm-card overflow-hidden xl:col-span-2">
-          <div className="crm-card-header">
-            <h2 className="font-semibold text-slate-900">Certificates / Declarations</h2>
+          <div className="crm-card-header flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="font-semibold text-slate-900">Certificates / Declarations</h2>
+              <p className="text-xs text-slate-500">
+                Every monthly certificate total you enter is listed here.
+              </p>
+            </div>
             <p className="text-xs text-slate-500">
-              Every monthly certificate total you enter is listed here.
+              Paid months are locked from edit and delete.
             </p>
           </div>
+          <div className="grid gap-2 border-b border-slate-100 p-4">
+            <ActionMessage
+              message={declarationRowState.error}
+              messageKey={declarationRowState.resultId}
+              tone="error"
+            />
+            <ActionMessage
+              message={declarationRowState.success}
+              messageKey={declarationRowState.resultId}
+              tone="success"
+            />
+          </div>
           <div className="overflow-x-auto">
-            <table className="crm-table min-w-[760px]">
+            <table className="crm-table min-w-[1080px]">
               <thead>
                 <tr>
                   <th>Month</th>
@@ -693,28 +788,135 @@ export function MarineOpenCoverPanel({
                   <th>Premium</th>
                   <th>Sum Insured</th>
                   <th>Status</th>
+                  <th>Notes</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {declarations.length ? (
-                  declarations.map((row) => (
-                    <tr key={row.id}>
-                      <td className="px-3 py-3">{formatMonth(row.billing_month)}</td>
-                      <td className="px-3 py-3 font-semibold text-slate-900">
-                        {clean(row.client_name)}
-                      </td>
-                      <td className="px-3 py-3">{wholeNumber(row.certificate_count)}</td>
-                      <td className="px-3 py-3">
-                        <p className="font-semibold">{money(row.gross_premium)}</p>
-                        <p className="text-xs text-slate-500">{money(row.total_premium)}</p>
-                      </td>
-                      <td className="px-3 py-3">{money(row.sum_insured)}</td>
-                      <td className="px-3 py-3">{clean(row.billing_status)}</td>
-                    </tr>
-                  ))
+                  declarations.map((row) => {
+                    const formId = `marine-declaration-${row.id}`;
+                    const isEditing = editingDeclarationId === row.id;
+
+                    if (isEditing) {
+                      return (
+                        <tr key={row.id}>
+                          <td className="px-3 py-3">
+                            <MonthYearInput
+                              defaultValue={row.billing_month}
+                              formId={formId}
+                              name="billing_month"
+                            />
+                          </td>
+                          <td className="px-3 py-3 font-semibold text-slate-900">
+                            <span className="crm-two-line max-w-56">
+                              {clean(row.client_name)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-3">
+                            <input
+                              className="crm-control h-9 w-24"
+                              defaultValue={toNumber(row.certificate_count) || ""}
+                              form={formId}
+                              min={1}
+                              name="certificate_count"
+                              required
+                              type="number"
+                            />
+                          </td>
+                          <td className="px-3 py-3">
+                            <div className="grid gap-2">
+                              <MoneyEditInput
+                                defaultValue={row.gross_premium}
+                                formId={formId}
+                                name="gross_premium"
+                                required
+                              />
+                              <MoneyEditInput
+                                defaultValue={row.total_premium}
+                                formId={formId}
+                                name="total_premium"
+                              />
+                            </div>
+                          </td>
+                          <td className="px-3 py-3">
+                            <MoneyEditInput
+                              defaultValue={row.sum_insured}
+                              formId={formId}
+                              name="sum_insured"
+                            />
+                          </td>
+                          <td className="px-3 py-3">{clean(row.billing_status)}</td>
+                          <td className="px-3 py-3">
+                            <textarea
+                              className="crm-control min-h-20 w-56 py-2 text-sm"
+                              defaultValue={row.notes ?? ""}
+                              form={formId}
+                              name="notes"
+                            />
+                          </td>
+                          <td className="px-3 py-3">
+                            <form action={updateAction} className="flex gap-2" id={formId}>
+                              <input name="declaration_id" type="hidden" value={row.id} />
+                              <IconSubmitButton
+                                icon={<Save className="h-4 w-4" />}
+                                label="Save declaration"
+                              />
+                              <button
+                                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+                                onClick={() => setEditingDeclarationId(null)}
+                                title="Cancel edit"
+                                type="button"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                            </form>
+                          </td>
+                        </tr>
+                      );
+                    }
+
+                    return (
+                      <tr key={row.id}>
+                        <td className="px-3 py-3">{formatMonth(row.billing_month)}</td>
+                        <td className="px-3 py-3 font-semibold text-slate-900">
+                          {clean(row.client_name)}
+                        </td>
+                        <td className="px-3 py-3">{wholeNumber(row.certificate_count)}</td>
+                        <td className="px-3 py-3">
+                          <p className="font-semibold">{money(row.gross_premium)}</p>
+                          <p className="text-xs text-slate-500">{money(row.total_premium)}</p>
+                        </td>
+                        <td className="px-3 py-3">{money(row.sum_insured)}</td>
+                        <td className="px-3 py-3">{clean(row.billing_status)}</td>
+                        <td className="max-w-56 px-3 py-3 text-sm text-slate-600">
+                          <span className="crm-two-line">{clean(row.notes)}</span>
+                        </td>
+                        <td className="px-3 py-3">
+                          <div className="flex gap-2">
+                            <button
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-sky-100 bg-white text-sky-700 transition hover:bg-sky-50"
+                              onClick={() => setEditingDeclarationId(row.id)}
+                              title="Edit declaration"
+                              type="button"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                            <form action={deleteAction}>
+                              <input name="declaration_id" type="hidden" value={row.id} />
+                              <DeleteDeclarationButton
+                                clientName={row.client_name ?? "this declaration"}
+                                month={formatMonth(row.billing_month)}
+                              />
+                            </form>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
                 ) : (
                   <tr>
-                    <td className="px-3 py-8 text-center text-slate-500" colSpan={6}>
+                    <td className="px-3 py-8 text-center text-slate-500" colSpan={8}>
                       No certificate or declaration rows yet.
                     </td>
                   </tr>
@@ -725,6 +927,53 @@ export function MarineOpenCoverPanel({
         </div>
       </section>
     </div>
+  );
+}
+
+function IconSubmitButton({
+  icon,
+  label,
+}: {
+  icon: ReactNode;
+  label: string;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-sky-700 text-white shadow-sm transition hover:bg-sky-800 disabled:cursor-wait disabled:opacity-60"
+      disabled={pending}
+      title={label}
+      type="submit"
+    >
+      {pending ? "..." : icon}
+    </button>
+  );
+}
+
+function DeleteDeclarationButton({
+  clientName,
+  month,
+}: {
+  clientName: string;
+  month: string;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-100 bg-white text-red-600 transition hover:bg-red-50 disabled:cursor-wait disabled:opacity-60"
+      disabled={pending}
+      onClick={(event) => {
+        if (!window.confirm(`Delete ${month} declaration for ${clientName}?`)) {
+          event.preventDefault();
+        }
+      }}
+      title="Delete declaration"
+      type="submit"
+    >
+      <Trash2 className="h-4 w-4" />
+    </button>
   );
 }
 

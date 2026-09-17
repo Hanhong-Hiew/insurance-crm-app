@@ -145,6 +145,83 @@ async function finishMarineAction(
   }
 }
 
+async function assertMarineBillCanChange(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  bill:
+    | {
+        commission_status?: string | null;
+        id?: string | null;
+        payment_status?: string | null;
+      }
+    | null
+    | undefined,
+  label = "This monthly bill",
+) {
+  if (!bill?.id) return;
+  if (bill.payment_status === "paid") {
+    throw new Error(`${label} is already paid. It cannot be changed.`);
+  }
+  if (bill.commission_status === "paid") {
+    throw new Error(`${label} already has paid commission. It cannot be changed.`);
+  }
+
+  const { data: paidCommissionRows, error: paidLookupError } = await supabase
+    .from("marine_billing_commissions")
+    .select("id")
+    .eq("billing_id", bill.id)
+    .eq("status", "paid")
+    .limit(1);
+  if (paidLookupError) throw paidLookupError;
+  if ((paidCommissionRows ?? []).length) {
+    throw new Error(`${label} already has paid commission rows. It cannot be changed.`);
+  }
+}
+
+async function existingMarineBill(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  openCoverId: string,
+  billingMonth: string,
+) {
+  const { data, error } = await supabase
+    .from("marine_monthly_billings")
+    .select("id, payment_status, commission_status")
+    .eq("open_cover_id", openCoverId)
+    .eq("billing_month", billingMonth)
+    .maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function refreshOrRemoveMarineMonth(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  openCoverId: string,
+  billingMonth: string,
+) {
+  const bill = await existingMarineBill(supabase, openCoverId, billingMonth);
+  await assertMarineBillCanChange(supabase, bill);
+
+  const { data: declarations, error: declarationError } = await supabase
+    .from("marine_declarations")
+    .select("id")
+    .eq("open_cover_id", openCoverId)
+    .eq("billing_month", billingMonth)
+    .limit(1);
+  if (declarationError) throw declarationError;
+
+  if ((declarations ?? []).length) {
+    await refreshMarineMonthlyBill(supabase, openCoverId, billingMonth);
+    return;
+  }
+
+  if (bill?.id) {
+    const { error: deleteBillError } = await supabase
+      .from("marine_monthly_billings")
+      .delete()
+      .eq("id", bill.id);
+    if (deleteBillError) throw deleteBillError;
+  }
+}
+
 async function refreshMarineMonthlyBill(
   supabase: Awaited<ReturnType<typeof createClient>>,
   openCoverId: string,
@@ -183,12 +260,7 @@ async function refreshMarineMonthlyBill(
     .eq("billing_month", billingMonth)
     .maybeSingle();
   if (existingBillError) throw existingBillError;
-  if (existingBill?.payment_status === "paid") {
-    throw new Error("This monthly bill is already paid. It cannot be refreshed.");
-  }
-  if (existingBill?.commission_status === "paid") {
-    throw new Error("This monthly bill already has paid commission. It cannot be refreshed.");
-  }
+  await assertMarineBillCanChange(supabase, existingBill);
 
   const { data: bill, error: billError } = await supabase
     .from("marine_monthly_billings")
@@ -205,16 +277,9 @@ async function refreshMarineMonthlyBill(
     .single();
   if (billError) throw billError;
 
-  const { data: paidCommissionRows, error: paidLookupError } = await supabase
-    .from("marine_billing_commissions")
-    .select("id")
-    .eq("billing_id", bill.id)
-    .eq("status", "paid")
-    .limit(1);
-  if (paidLookupError) throw paidLookupError;
-  if ((paidCommissionRows ?? []).length) {
-    throw new Error("This bill already has paid commission rows. It cannot be refreshed.");
-  }
+  await assertMarineBillCanChange(supabase, {
+    id: bill.id,
+  });
 
   const { error: linkError } = await supabase
     .from("marine_declarations")
@@ -303,24 +368,7 @@ export async function saveMarineDeclaration(
       .eq("billing_month", billingMonth)
       .maybeSingle();
     if (existingBillError) throw existingBillError;
-    if (existingBill?.payment_status === "paid") {
-      throw new Error("This monthly bill is already paid. It cannot be changed.");
-    }
-    if (existingBill?.commission_status === "paid") {
-      throw new Error("This monthly commission is already paid. It cannot be recalculated.");
-    }
-    if (existingBill?.id) {
-      const { data: paidCommissionRows, error: paidLookupError } = await supabase
-        .from("marine_billing_commissions")
-        .select("id")
-        .eq("billing_id", existingBill.id)
-        .eq("status", "paid")
-        .limit(1);
-      if (paidLookupError) throw paidLookupError;
-      if ((paidCommissionRows ?? []).length) {
-        throw new Error("This monthly commission is already paid. It cannot be recalculated.");
-      }
-    }
+    await assertMarineBillCanChange(supabase, existingBill);
 
     const { data: existingDeclarations, error: existingError } = await supabase
       .from("marine_declarations")
@@ -355,6 +403,117 @@ export async function saveMarineDeclaration(
 
     return "Marine declaration saved and monthly bill updated.";
   }, "Marine declaration could not be saved.");
+}
+
+export async function updateMarineDeclaration(
+  _previousState: MarineActionState,
+  formData: FormData,
+): Promise<MarineActionState> {
+  return finishMarineAction(async () => {
+    const supabase = await requireSupabase();
+    const declarationId = textValue(formData, "declaration_id");
+    const billingMonth = monthStart(textValue(formData, "billing_month"));
+    const certificateCount = integerValue(formData, "certificate_count");
+    const grossPremium = moneyValue(formData, "gross_premium");
+    const totalPremium = moneyValue(formData, "total_premium") ?? grossPremium;
+    if (!declarationId) throw new Error("Declaration row is required.");
+    if (certificateCount === null || certificateCount < 1) {
+      throw new Error("No. of certificates is required.");
+    }
+    if (grossPremium === null) throw new Error("Gross premium is required.");
+    if (totalPremium === null) throw new Error("Total premium is required.");
+
+    const { data: current, error: currentError } = await supabase
+      .from("marine_declarations")
+      .select("id, open_cover_id, billing_month")
+      .eq("id", declarationId)
+      .single();
+    if (currentError) throw currentError;
+
+    const oldOpenCoverId = current.open_cover_id;
+    const oldBillingMonth = current.billing_month;
+    const oldBill = await existingMarineBill(supabase, oldOpenCoverId, oldBillingMonth);
+    await assertMarineBillCanChange(supabase, oldBill);
+
+    const monthChanged = oldBillingMonth !== billingMonth;
+    if (monthChanged) {
+      const newBill = await existingMarineBill(supabase, oldOpenCoverId, billingMonth);
+      await assertMarineBillCanChange(supabase, newBill, "The new monthly bill");
+
+      const { data: duplicateDeclarations, error: duplicateError } = await supabase
+        .from("marine_declarations")
+        .select("id")
+        .eq("open_cover_id", oldOpenCoverId)
+        .eq("billing_month", billingMonth)
+        .neq("id", declarationId)
+        .limit(1);
+      if (duplicateError) throw duplicateError;
+      if ((duplicateDeclarations ?? []).length) {
+        throw new Error("That open cover already has a declaration for this month.");
+      }
+    }
+
+    const { error: updateError } = await supabase
+      .from("marine_declarations")
+      .update({
+        billing_month: billingMonth,
+        billing_status: "unbilled",
+        certificate_count: certificateCount,
+        gross_premium: grossPremium,
+        monthly_billing_id: null,
+        notes: optionalText(formData, "notes"),
+        sum_insured: moneyValue(formData, "sum_insured"),
+        total_premium: totalPremium,
+      })
+      .eq("id", declarationId);
+    if (updateError) throw updateError;
+
+    await refreshMarineMonthlyBill(supabase, oldOpenCoverId, billingMonth);
+    if (monthChanged) {
+      await refreshOrRemoveMarineMonth(supabase, oldOpenCoverId, oldBillingMonth);
+    }
+
+    return "Declaration updated and monthly bill recalculated.";
+  }, "Declaration could not be updated.");
+}
+
+export async function deleteMarineDeclaration(
+  _previousState: MarineActionState,
+  formData: FormData,
+): Promise<MarineActionState> {
+  return finishMarineAction(async () => {
+    const supabase = await requireSupabase();
+    const declarationId = textValue(formData, "declaration_id");
+    if (!declarationId) throw new Error("Declaration row is required.");
+
+    const { data: declaration, error: declarationError } = await supabase
+      .from("marine_declarations")
+      .select("id, open_cover_id, billing_month")
+      .eq("id", declarationId)
+      .single();
+    if (declarationError) throw declarationError;
+
+    const bill = await existingMarineBill(
+      supabase,
+      declaration.open_cover_id,
+      declaration.billing_month,
+    );
+    await assertMarineBillCanChange(supabase, bill);
+
+    const { error: deleteError } = await supabase
+      .from("marine_declarations")
+      .delete()
+      .eq("id", declarationId);
+    if (deleteError) throw deleteError;
+
+    await refreshOrRemoveMarineMonth(
+      supabase,
+      declaration.open_cover_id,
+      declaration.billing_month,
+    );
+
+    return "Declaration deleted and monthly bill recalculated.";
+  }, "Declaration could not be deleted.");
 }
 
 export async function setMarineBillingPaymentStatus(

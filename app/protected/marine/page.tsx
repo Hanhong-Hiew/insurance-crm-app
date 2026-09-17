@@ -86,7 +86,7 @@ async function MarineContent() {
     ? await supabase
         .from("marine_declarations")
         .select(
-          "id, open_cover_id, certificate_count, sum_insured, gross_premium, total_premium, billing_month, billing_status",
+          "id, open_cover_id, certificate_count, sum_insured, gross_premium, total_premium, billing_month, billing_status, notes",
         )
         .in("open_cover_id", openCoverIds)
         .order("billing_month", { ascending: false })
