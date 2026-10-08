@@ -4,10 +4,12 @@ import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
 import { roundMoney } from "@/lib/commission";
+import { changedPolicyValues, differentPolicyValues } from "@/lib/policy-field-changes";
 
 export type UpdatePolicyState = {
   error?: string;
   success?: string;
+  resultId?: string;
 };
 
 type SplitRule = {
@@ -134,15 +136,20 @@ async function upsertPolicyDetail(
 ) {
   const { data: existing, error: lookupError } = await supabase
     .from(table)
-    .select("id")
+    .select("*")
     .eq("policy_term_id", policyTermId)
     .maybeSingle();
   if (lookupError) throw lookupError;
 
   if (existing?.id) {
-    const { error } = await supabase.from(table).update(values).eq("id", existing.id);
+    if (values.details_json && typeof values.details_json === "object") {
+      values = { ...values, details_json: { ...(existing.details_json ?? {}), ...values.details_json } };
+    }
+    const changes = changedPolicyValues(existing, values);
+    if (!Object.keys(changes).length) return false;
+    const { error } = await supabase.from(table).update(changes).eq("id", existing.id);
     if (error) throw error;
-    return;
+    return true;
   }
 
   const { error } = await supabase.from(table).insert({
@@ -150,6 +157,7 @@ async function upsertPolicyDetail(
     ...values,
   });
   if (error) throw error;
+  return true;
 }
 
 function readableError(error: unknown, fallback: string) {
@@ -204,90 +212,110 @@ export async function updatePolicy(
     if (!insuranceTypeId) return { error: "Risk is required." };
     if (!insurerId) return { error: "Insurer is required." };
 
-    const { data: selectedInsuranceType, error: insuranceTypeError } = await supabase
-      .from("insurance_types")
-      .select("id, code, name")
-      .eq("id", insuranceTypeId)
-      .single();
-    if (insuranceTypeError) throw insuranceTypeError;
-    const insuranceCode = String(selectedInsuranceType?.code ?? "").trim().toLowerCase();
+    const rawChangedFields = formData.get("_changed_fields");
+    let changedFields: Set<string> | null = null;
+    if (typeof rawChangedFields === "string") {
+      const parsed: unknown = JSON.parse(rawChangedFields);
+      if (!Array.isArray(parsed) || !parsed.every((key) => typeof key === "string")) {
+        return { error: "Invalid change list. Reload the form and try again." };
+      }
+      changedFields = new Set(parsed);
+    }
+    const requested = (...keys: string[]) => !changedFields || keys.some((key) => changedFields.has(key));
+    const pickRequested = (values: Record<string, unknown>, aliases: Record<string, string[]> = {}) =>
+      Object.fromEntries(Object.entries(values).filter(([key]) => requested(...(aliases[key] ?? [key]))));
 
-    const { data: rateSetting, error: rateSettingError } = await supabase
-      .from("commission_rate_settings")
-      .select("gross_commission_percent, net_commission_percent")
-      .eq("insurance_type_id", insuranceTypeId)
-      .eq("active", true)
-      .is("effective_to", null)
-      .maybeSingle();
-    if (rateSettingError) throw rateSettingError;
-
-    const { error: updateError } = await supabase
+    const { data: currentTerm, error: termLookupError } = await supabase
       .from("policy_terms")
-      .update({
-        insurance_type_id: insuranceTypeId,
-        insurer_id: insurerId,
-        split_pattern_id: splitPatternId,
-        policy_number: optionalText(formData, "policy_number"),
-        effective_date: effectiveDate,
-        expiry_date: expiryDate,
-        primary_sum_assured: primarySumAssured,
-        gross_premium: grossPremium,
-        gross_commission_percent: rateSetting?.gross_commission_percent ?? null,
-        total_premium: totalPremium,
-        net_commission_percent: rateSetting?.net_commission_percent ?? null,
-        premium_status: textValue(formData, "premium_status"),
-        term_stage: termStage,
-        quotation_status: termStage === "quotation" ? textValue(formData, "quotation_status") : null,
-        policy_status: termStage === "policy" ? textValue(formData, "policy_status") : null,
-        renewal_status: textValue(formData, "renewal_status"),
-        insured_name_snapshot: clientName,
-        notes: optionalText(formData, "notes"),
-      })
-      .eq("id", policyTermId);
-    if (updateError) throw updateError;
-
-    const { data: termWithType, error: termLookupError } = await supabase
-      .from("policy_terms")
-      .select("client_id, policy_series_id")
+      .select("*, clients(*), insurance_types(code, name), policy_series(primary_risk_label)")
       .eq("id", policyTermId)
       .single();
     if (termLookupError) throw termLookupError;
-
-    if (termWithType.client_id) {
-      const { error: clientUpdateError } = await supabase
-        .from("clients")
-        .update({
-          business_registration_no: businessRegistrationNo,
-          client_name: clientName,
-          client_type: clientType,
-          email: clientEmail,
-          phone: clientPhone,
-          referral: clientReferral,
-        })
-        .eq("id", termWithType.client_id);
-      if (clientUpdateError) throw clientUpdateError;
+    const first = <T,>(value: T | T[] | null): T | null => Array.isArray(value) ? value[0] ?? null : value;
+    const currentClient = first(currentTerm.clients) as Record<string, unknown> | null;
+    const currentSeries = first(currentTerm.policy_series) as Record<string, unknown> | null;
+    let selectedInsuranceType = first(currentTerm.insurance_types) as { code: string | null; name: string | null } | null;
+    const riskChanged = requested("insurance_type_id") && currentTerm.insurance_type_id !== insuranceTypeId;
+    if (riskChanged) {
+      const { data, error } = await supabase.from("insurance_types").select("id, code, name").eq("id", insuranceTypeId).single();
+      if (error) throw error;
+      selectedInsuranceType = data;
     }
+    const insuranceCode = String(selectedInsuranceType?.code ?? "").trim().toLowerCase();
+    if (insuranceCode === "motor" && !textValue(formData, "vehicle_no")) {
+      return { error: "Vehicle number is required for motor policies." };
+    }
+    const commissionInputsChanged = riskChanged ||
+      (requested("gross_premium") && differentPolicyValues(currentTerm.gross_premium, grossPremium)) ||
+      (requested("split_pattern_id") && differentPolicyValues(currentTerm.split_pattern_id, splitPatternId));
+    const customRequested = textValue(formData, "custom_commission_enabled") === "yes" && requested(
+      "custom_commission_enabled", "custom_commission_payee_id", "custom_commission_amount",
+      "custom_commission_percent", "custom_commission_reason", "custom_total_commission_amount",
+    );
+    // Preserve saved rate snapshots for unrelated edits.
+    let rateSetting = {
+      gross_commission_percent: currentTerm.gross_commission_percent,
+      net_commission_percent: currentTerm.net_commission_percent,
+    };
+    if (commissionInputsChanged) {
+      const { data, error } = await supabase.from("commission_rate_settings")
+        .select("gross_commission_percent, net_commission_percent")
+        .eq("insurance_type_id", riskChanged ? insuranceTypeId : currentTerm.insurance_type_id)
+        .eq("active", true).is("effective_to", null).maybeSingle();
+      if (error) throw error;
+      rateSetting = { gross_commission_percent: data?.gross_commission_percent ?? null, net_commission_percent: data?.net_commission_percent ?? null };
+    }
+    const effectiveTermStage = requested("term_stage") ? termStage : currentTerm.term_stage;
+    const termValues = pickRequested({
+      insurance_type_id: insuranceTypeId,
+      insurer_id: insurerId,
+      split_pattern_id: splitPatternId,
+      policy_number: optionalText(formData, "policy_number"),
+      effective_date: effectiveDate, expiry_date: expiryDate,
+      primary_sum_assured: primarySumAssured,
+      gross_premium: grossPremium, total_premium: totalPremium,
+      premium_status: textValue(formData, "premium_status"), term_stage: termStage,
+      quotation_status: effectiveTermStage === "quotation" ? textValue(formData, "quotation_status") : null,
+      policy_status: effectiveTermStage === "policy" ? textValue(formData, "policy_status") : null,
+      renewal_status: textValue(formData, "renewal_status"),
+      insured_name_snapshot: clientName, notes: optionalText(formData, "notes"),
+    }, {
+      insured_name_snapshot: ["client_name"],
+      quotation_status: ["term_stage", "quotation_status"], policy_status: ["term_stage", "policy_status"],
+    });
+    if (commissionInputsChanged) Object.assign(termValues, rateSetting);
+    const termChanges = changedPolicyValues(currentTerm, termValues);
+    let didChange = false;
+    const termWithType = currentTerm;
+    const writeUpdate = async (table: string, id: string, values: Record<string, unknown>) => {
+      if (!Object.keys(values).length) return;
+      const { error } = await supabase.from(table).update(values).eq("id", id);
+      if (error) throw error;
+      didChange = true;
+    };
+    const clientChanges = changedPolicyValues(currentClient, pickRequested({
+      business_registration_no: businessRegistrationNo, client_name: clientName,
+      client_type: clientType, email: clientEmail, phone: clientPhone, referral: clientReferral,
+    }, { email: ["client_email"], phone: ["client_phone"], referral: ["client_referral"] }));
+    if (termWithType.client_id) await writeUpdate("clients", termWithType.client_id, clientChanges);
 
     let clientAddressId: string | null = null;
-    if (termWithType.client_id && clientAddress) {
+    if (termWithType.client_id && clientAddress && requested("client_address", "client_address_label", "selected_client_address_id")) {
       if (selectedClientAddressId) {
         const { data: existingAddress, error: addressLookupError } = await supabase
           .from("client_addresses")
-          .select("id")
+          .select("id, address, address_label")
           .eq("id", selectedClientAddressId)
           .eq("client_id", termWithType.client_id)
           .maybeSingle();
         if (addressLookupError) throw addressLookupError;
+        if (!existingAddress) throw new Error("Selected address is not available for this client. Reload the form.");
 
         if (existingAddress?.id) {
-          const { error: addressUpdateError } = await supabase
-            .from("client_addresses")
-            .update({
-              address: clientAddress,
-              address_label: clientAddressLabel,
-            })
-            .eq("id", existingAddress.id);
-          if (addressUpdateError) throw addressUpdateError;
+          await writeUpdate("client_addresses", existingAddress.id, changedPolicyValues(existingAddress,
+            pickRequested({ address: clientAddress, address_label: clientAddressLabel }, {
+              address: ["client_address"], address_label: ["client_address_label"],
+            })));
           clientAddressId = existingAddress.id as string;
         }
       }
@@ -304,17 +332,30 @@ export async function updatePolicy(
           .select("id")
           .single();
         if (addressCreateError) throw addressCreateError;
+        didChange = true;
         clientAddressId = createdAddress.id as string;
       }
 
-      const { error: termAddressUpdateError } = await supabase
-        .from("policy_terms")
-        .update({ client_address_id: clientAddressId })
-        .eq("id", policyTermId);
-      if (termAddressUpdateError) throw termAddressUpdateError;
+      if (clientAddressId !== currentTerm.client_address_id) termChanges.client_address_id = clientAddressId;
     }
+    await writeUpdate("policy_terms", policyTermId, termChanges);
 
-    if (insuranceCode === "motor") {
+    const detailRequested = (...keys: string[]) => riskChanged || requested(...keys);
+    const detailValues = (values: Record<string, unknown>, aliases: Record<string, string[]> = {}) =>
+      riskChanged ? values : pickRequested(values, aliases);
+    const saveDetail = async (table: string, values: Record<string, unknown>) => {
+      if (!Object.keys(values).length) return;
+      if (await upsertPolicyDetail(supabase, table, policyTermId, values)) didChange = true;
+    };
+    const saveRiskLabel = async (label: string | null) => {
+      if (currentTerm.policy_series_id) await writeUpdate("policy_series", currentTerm.policy_series_id,
+        changedPolicyValues(currentSeries, { primary_risk_label: label }));
+    };
+
+    if (insuranceCode === "motor" && detailRequested(
+      "vehicle_no", "make_model", "year_of_manufacture", "engine_cc", "engine_no", "chassis_no",
+      "motor_type", "type_of_cover", "ncd", "extra_coverage", "bdm", "btm", "motor_description",
+    )) {
       const vehicleNo = textValue(formData, "vehicle_no");
       if (!vehicleNo) return { error: "Vehicle number is required for motor policies." };
 
@@ -326,14 +367,16 @@ export async function updatePolicy(
         engine_no: optionalText(formData, "engine_no"),
         chassis_no: optionalText(formData, "chassis_no"),
       };
+      let vehicleId: string | undefined;
+      if (detailRequested("vehicle_no", "make_model", "year_of_manufacture", "engine_cc", "engine_no", "chassis_no")) {
       const { data: existingVehicle, error: vehicleLookupError } = await supabase
         .from("vehicles")
-        .select("id")
+        .select("*")
         .eq("vehicle_no_normalized", normalized)
         .maybeSingle();
       if (vehicleLookupError) throw vehicleLookupError;
 
-      let vehicleId = existingVehicle?.id as string | undefined;
+      vehicleId = existingVehicle?.id as string | undefined;
       if (!vehicleId) {
         const { data: createdVehicle, error: vehicleError } = await supabase
           .from("vehicles")
@@ -345,21 +388,17 @@ export async function updatePolicy(
           .select("id")
           .single();
         if (vehicleError) throw vehicleError;
+        didChange = true;
         vehicleId = createdVehicle.id as string;
       } else {
-        const vehicleUpdate = Object.fromEntries(
+        const vehicleUpdate = changedPolicyValues(existingVehicle, detailValues(Object.fromEntries(
           Object.entries(stableVehicleFields).filter(([, value]) => value !== null),
-        );
-        if (Object.keys(vehicleUpdate).length) {
-          const { error: vehicleUpdateError } = await supabase
-            .from("vehicles")
-            .update(vehicleUpdate)
-            .eq("id", vehicleId);
-          if (vehicleUpdateError) throw vehicleUpdateError;
-        }
+        )));
+        await writeUpdate("vehicles", vehicleId, vehicleUpdate);
+      }
       }
 
-      const motorDetails = {
+      const motorDetails = detailValues({
         vehicle_id: vehicleId,
         motor_type: optionalText(formData, "motor_type"),
         type_of_cover: optionalText(formData, "type_of_cover"),
@@ -369,9 +408,9 @@ export async function updatePolicy(
         bdm: moneyValue(formData, "bdm"),
         btm: moneyValue(formData, "btm"),
         motor_description: optionalText(formData, "motor_description"),
-      };
+      }, { vehicle_id: ["vehicle_no"], vehicle_no_snapshot: ["vehicle_no"] });
       try {
-        await upsertPolicyDetail(supabase, "motor_policy_details", policyTermId, motorDetails);
+        await saveDetail("motor_policy_details", motorDetails);
       } catch (error) {
         const message = readableError(error, "");
         if (
@@ -380,10 +419,8 @@ export async function updatePolicy(
         ) {
           const motorDetailsWithoutCover: Record<string, unknown> = { ...motorDetails };
           delete motorDetailsWithoutCover.type_of_cover;
-          await upsertPolicyDetail(
-            supabase,
+          await saveDetail(
             "motor_policy_details",
-            policyTermId,
             motorDetailsWithoutCover,
           );
         } else {
@@ -391,31 +428,28 @@ export async function updatePolicy(
         }
       }
 
-      await supabase
-        .from("policy_series")
-        .update({ primary_risk_label: vehicleNo.toUpperCase() })
-        .eq("id", termWithType.policy_series_id);
+      if (detailRequested("vehicle_no")) await saveRiskLabel(vehicleNo.toUpperCase());
     } else if (isFireLikeInsurance(insuranceCode)) {
       const propertyAddress = optionalText(formData, "property_address") || clientAddress;
-      await upsertPolicyDetail(supabase, "fire_policy_details", policyTermId, {
+      if (detailRequested("property_address", "client_address", "occupation", "construction_type")) await saveDetail("fire_policy_details", detailValues({
         property_address: propertyAddress,
         risk_location: propertyAddress,
         occupation: optionalText(formData, "occupation"),
         construction_type: optionalText(formData, "construction_type"),
-      });
+      }, { property_address: ["property_address", "client_address"], risk_location: ["property_address", "client_address"] }));
     } else if (insuranceCode === "marine_insurance") {
-      await upsertPolicyDetail(supabase, "marine_policy_details", policyTermId, {
+      if (detailRequested("marine_type", "voyage_from", "voyage_to", "goods_description")) await saveDetail("marine_policy_details", detailValues({
         marine_type: optionalText(formData, "marine_type"),
         voyage_from: optionalText(formData, "voyage_from"),
         voyage_to: optionalText(formData, "voyage_to"),
         goods_description: optionalText(formData, "goods_description"),
-      });
+      }));
     } else if (insuranceCode === "travel") {
-      await upsertPolicyDetail(supabase, "travel_policy_details", policyTermId, {
+      if (detailRequested("destination", "pax", "plan_name")) await saveDetail("travel_policy_details", detailValues({
         destination: optionalText(formData, "destination"),
         pax: integerValue(formData, "pax"),
         plan_name: optionalText(formData, "plan_name"),
-      });
+      }));
     } else if (isEquipmentLikeInsurance(insuranceCode)) {
       const equipmentVehicleNo = optionalText(formData, "equipment_vehicle_no");
       const equipmentDescription = optionalText(formData, "equipment_description");
@@ -427,28 +461,28 @@ export async function updatePolicy(
         chassis_no: optionalText(formData, "equipment_chassis_no"),
       };
 
-      await upsertPolicyDetail(supabase, "generic_policy_details", policyTermId, {
+      await saveDetail("generic_policy_details", detailValues({
         detail_type: selectedInsuranceType?.name ?? "Equipment Insurance",
         description: equipmentDescription,
         sum_insured: null,
-        details_json: detailsJson,
-      });
+        details_json: riskChanged ? detailsJson : Object.fromEntries(Object.entries(detailsJson).filter(([key]) =>
+          requested(key === "year" ? "equipment_year" : `equipment_${key}`),
+        )),
+      }, { description: ["equipment_description"], detail_type: ["insurance_type_id"],
+        sum_insured: ["insurance_type_id"], details_json: ["equipment_vehicle_no", "equipment_make_model", "equipment_year", "equipment_engine_no", "equipment_chassis_no"] }));
 
-      if (equipmentVehicleNo) {
-        await supabase
-          .from("policy_series")
-          .update({ primary_risk_label: equipmentVehicleNo.toUpperCase() })
-          .eq("id", termWithType.policy_series_id);
-      }
-    } else {
-      await upsertPolicyDetail(supabase, "generic_policy_details", policyTermId, {
+      if (equipmentVehicleNo && detailRequested("equipment_vehicle_no")) await saveRiskLabel(equipmentVehicleNo.toUpperCase());
+    } else if (insuranceCode !== "motor") {
+      await saveDetail("generic_policy_details", detailValues({
         detail_type: optionalText(formData, "generic_detail_type"),
         description: optionalText(formData, "generic_description"),
         sum_insured: null,
-      });
+      }, { description: ["generic_description"], detail_type: ["generic_detail_type"], sum_insured: ["insurance_type_id"] }));
     }
 
-    if (insuranceCode !== "motor" && !isEquipmentLikeInsurance(insuranceCode)) {
+    if (insuranceCode !== "motor" && !isEquipmentLikeInsurance(insuranceCode) && detailRequested(
+      "risk_label", "property_address", "voyage_from", "voyage_to", "goods_description", "destination", "policy_number", "generic_description",
+    )) {
       const riskLabel =
         optionalText(formData, "risk_label") ||
         optionalText(formData, "property_address") ||
@@ -458,34 +492,29 @@ export async function updatePolicy(
         optionalText(formData, "destination") ||
         optionalText(formData, "policy_number") ||
         optionalText(formData, "generic_description");
-      await supabase
-        .from("policy_series")
-        .update({ primary_risk_label: riskLabel })
-        .eq("id", termWithType.policy_series_id);
+      await saveRiskLabel(riskLabel);
     }
 
-    await supabase
-      .from("policy_term_values")
-      .delete()
-      .eq("policy_term_id", policyTermId)
-      .eq("value_type", "sum_assured");
-    if (primarySumAssured !== null) {
-      const { error: valueError } = await supabase.from("policy_term_values").insert({
-        policy_term_id: policyTermId,
-        value_type: "sum_assured",
-        amount: primarySumAssured,
-        currency: "MYR",
-      });
-      if (valueError) throw valueError;
+    if (requested("primary_sum_assured") && differentPolicyValues(currentTerm.primary_sum_assured, primarySumAssured)) {
+      const { error } = await supabase.from("policy_term_values").delete()
+        .eq("policy_term_id", policyTermId).eq("value_type", "sum_assured");
+      if (error) throw error;
+      if (primarySumAssured !== null) {
+        const { error: valueError } = await supabase.from("policy_term_values").insert({
+          policy_term_id: policyTermId, value_type: "sum_assured", amount: primarySumAssured, currency: "MYR",
+        });
+        if (valueError) throw valueError;
+      }
+      didChange = true;
     }
-
-    await recalculateCommissions(
-      supabase,
-      policyTermId,
-      splitPatternId,
-      grossPremium,
-      formData,
-    );
+    if (commissionInputsChanged || customRequested) {
+      await recalculateCommissions(supabase, policyTermId,
+        requested("split_pattern_id") ? splitPatternId : currentTerm.split_pattern_id,
+        requested("gross_premium") ? grossPremium : currentTerm.gross_premium === null ? null : Number(currentTerm.gross_premium),
+        formData, rateSetting);
+      didChange = true;
+    }
+    if (!didChange) return { success: "No changes to save.", resultId: crypto.randomUUID() };
 
     await supabase.from("activity_logs").insert({
       record_type: "policy_term",
@@ -499,10 +528,11 @@ export async function updatePolicy(
     revalidatePath(`/protected/policies/${policyTermId}`);
     revalidatePath(`/protected/policies/${policyTermId}/edit`);
 
-    return { success: "Policy saved." };
+    return { success: "Policy saved.", resultId: crypto.randomUUID() };
   } catch (error) {
     return {
       error: readableError(error, "Policy was not saved."),
+      resultId: crypto.randomUUID(),
     };
   }
 }
@@ -513,17 +543,17 @@ async function recalculateCommissions(
   splitPatternId: string | null,
   grossPremium: number | null,
   formData: FormData,
+  rates: { gross_commission_percent: string | number | null; net_commission_percent: string | number | null },
 ) {
-  if (!splitPatternId || grossPremium === null) return;
+  if (!splitPatternId || grossPremium === null) {
+    const { error } = await supabase.from("commissions").delete()
+      .eq("policy_term_id", policyTermId).neq("status", "paid").eq("is_custom", false);
+    if (error) throw error;
+    return;
+  }
 
-  const { data: term, error: termError } = await supabase
-    .from("policy_terms")
-    .select("gross_commission_percent, net_commission_percent")
-    .eq("id", policyTermId)
-    .single();
-  if (termError) throw termError;
-  const grossPercent = percentNumber(term.gross_commission_percent as string | number | null);
-  const netPercent = percentNumber(term.net_commission_percent as string | number | null);
+  const grossPercent = percentNumber(rates.gross_commission_percent);
+  const netPercent = percentNumber(rates.net_commission_percent);
   if (!grossPercent && !netPercent) return;
 
   const { data: rules, error: rulesError } = await supabase
@@ -556,23 +586,25 @@ async function recalculateCommissions(
     .from("commissions")
     .select("payee_id")
     .eq("policy_term_id", policyTermId)
-    .or("status.eq.paid,is_custom.eq.true");
+    .or(customCommissionEnabled ? "status.eq.paid" : "status.eq.paid,is_custom.eq.true");
   if (lockedError) throw lockedError;
   const lockedPayeeIds = new Set((lockedRows ?? []).map((row) => row.payee_id as string));
 
   if (customCommissionEnabled) {
-    await supabase
+    const { error } = await supabase
       .from("commissions")
       .delete()
       .eq("policy_term_id", policyTermId)
       .neq("status", "paid");
+    if (error) throw error;
   } else {
-    await supabase
+    const { error } = await supabase
       .from("commissions")
       .delete()
       .eq("policy_term_id", policyTermId)
       .neq("status", "paid")
       .eq("is_custom", false);
+    if (error) throw error;
   }
 
   const equalRuleCount =

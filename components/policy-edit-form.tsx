@@ -13,7 +13,7 @@ import {
   Ship,
   Wrench,
 } from "lucide-react";
-import { useActionState, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -28,6 +28,7 @@ import {
   type CommissionRule,
 } from "@/lib/commission";
 import { formatPercent } from "@/lib/format";
+import { snapshotPolicyForm, changedPolicyFields } from "@/lib/policy-field-changes";
 
 type OptionRow = {
   id: string;
@@ -311,8 +312,21 @@ export function PolicyEditForm({
   term,
   travelDetail,
 }: PolicyEditFormProps) {
+  const formRef = useRef<HTMLFormElement>(null);
+  const originalForm = useRef<Record<string, string[]> | null>(null);
+  useEffect(() => {
+    if (formRef.current) originalForm.current = snapshotPolicyForm(new FormData(formRef.current));
+  }, [policyTermId]);
   const [state, formAction] = useActionState<UpdatePolicyState, FormData>(
-    updatePolicy,
+    async (previousState, data) => {
+      const submitted = snapshotPolicyForm(data);
+      if (originalForm.current) {
+        data.set("_changed_fields", JSON.stringify(changedPolicyFields(originalForm.current, submitted)));
+      }
+      const result = await updatePolicy(previousState, data);
+      if (result.success) originalForm.current = submitted;
+      return result;
+    },
     {},
   );
   const [effectiveDate, setEffectiveDate] = useState(toDdMmYyyy(term.effective_date));
@@ -418,9 +432,9 @@ export function PolicyEditForm({
   }
 
   return (
-    <form action={formAction} className="space-y-4">
-      <ActionMessage message={state.error} tone="error" />
-      <ActionMessage message={state.success} tone="success" />
+    <form ref={formRef} action={formAction} className="space-y-4">
+      <ActionMessage message={state.error} messageKey={state.resultId} tone="error" />
+      <ActionMessage message={state.success} messageKey={state.resultId} tone="success" />
 
       <input name="policy_term_id" type="hidden" value={policyTermId} />
       <section className="crm-card">
