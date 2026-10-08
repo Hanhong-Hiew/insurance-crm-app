@@ -173,7 +173,7 @@ export async function updatePolicy(
     const clientName = textValue(formData, "client_name");
     if (!clientName) return { error: "Client name is required." };
 
-    const supabase = await createClient();
+    const supabase = await createClient("policy.edit");
     const { data: userData, error: userError } = await supabase.auth.getClaims();
     if (userError || !userData?.claims) {
       return { error: "You must be logged in." };

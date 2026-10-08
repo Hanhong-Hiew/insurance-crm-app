@@ -158,7 +158,7 @@ export async function savePolicy(
   _previousState: SavePolicyState,
   formData: FormData,
 ): Promise<SavePolicyState> {
-  const supabase = await createClient();
+  const supabase = await createClient("policy.create");
   const { data: userData, error: userError } = await supabase.auth.getClaims();
 
   if (userError || !userData?.claims) {
