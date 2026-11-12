@@ -3,26 +3,16 @@
 import { revalidatePath } from "next/cache";
 
 import { createClient } from "@/lib/supabase/server";
-import { roundMoney } from "@/lib/commission";
+import { checkPolicyAccuracy, readPolicyAccuracy, resolvedTotal } from "@/lib/policy-accuracy-server";
 import { changedPolicyValues, differentPolicyValues } from "@/lib/policy-field-changes";
 
 export type UpdatePolicyState = {
   error?: string;
   success?: string;
   resultId?: string;
-};
-
-type SplitRule = {
-  payee_id: string;
-  rule_type:
-    | "gross_commission_share"
-    | "net_commission_share"
-    | "fixed_percent_of_gross"
-    | "remaining_net_after_fixed_percent"
-    | "equal_net_share";
-  share_percent: string | number | null;
-  fixed_percent: string | number | null;
-  subtract_percent: string | number | null;
+  warning?: string;
+  warningToken?: string;
+  needsAcknowledgement?: boolean;
 };
 
 function textValue(formData: FormData, key: string) {
@@ -33,13 +23,6 @@ function textValue(formData: FormData, key: string) {
 function optionalText(formData: FormData, key: string) {
   const value = textValue(formData, key);
   return value || null;
-}
-
-function allTextValues(formData: FormData, key: string) {
-  return formData
-    .getAll(key)
-    .map((value) => (typeof value === "string" ? value.trim() : ""))
-    .filter(Boolean);
 }
 
 function moneyValue(formData: FormData, key: string) {
@@ -76,7 +59,7 @@ function ncdValue(formData: FormData, key: string) {
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`${key.replaceAll("_", " ")} must be a valid percentage.`);
   }
-  const normalized = value > 1 ? value / 100 : value;
+  const normalized = value / 100;
   if (normalized > 1) {
     throw new Error(`${key.replaceAll("_", " ")} cannot be more than 100%.`);
   }
@@ -113,11 +96,6 @@ function parseDate(formData: FormData, key: string) {
     throw new Error(`${key.replaceAll("_", " ")} is not a valid date.`);
   }
   return `${year}-${month}-${day}`;
-}
-
-function percentNumber(value: string | number | null | undefined) {
-  const parsed = Number(value ?? 0);
-  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function isEquipmentLikeInsurance(code: string | null | undefined) {
@@ -196,7 +174,8 @@ export async function updatePolicy(
 
     const splitPatternId = optionalText(formData, "split_pattern_id");
     const grossPremium = moneyValue(formData, "gross_premium");
-    const totalPremium = moneyValue(formData, "total_premium");
+    const accuracy = readPolicyAccuracy(formData);
+    const totalPremium = resolvedTotal(formData, grossPremium, accuracy);
     const primarySumAssured = moneyValue(formData, "primary_sum_assured");
     const businessRegistrationNo = optionalText(formData, "business_registration_no");
     const clientType = cleanClientType(textValue(formData, "client_type"));
@@ -246,18 +225,14 @@ export async function updatePolicy(
       return { error: "Vehicle number is required for motor policies." };
     }
     const commissionInputsChanged = riskChanged ||
-      (requested("gross_premium") && differentPolicyValues(currentTerm.gross_premium, grossPremium)) ||
+      (requested("gross_premium") && differentPolicyValues(currentTerm.original_gross_premium ?? currentTerm.gross_premium, grossPremium)) ||
       (requested("split_pattern_id") && differentPolicyValues(currentTerm.split_pattern_id, splitPatternId));
-    const customRequested = textValue(formData, "custom_commission_enabled") === "yes" && requested(
-      "custom_commission_enabled", "custom_commission_payee_id", "custom_commission_amount",
-      "custom_commission_percent", "custom_commission_reason", "custom_total_commission_amount",
-    );
-    // Preserve saved rate snapshots for unrelated edits.
+    // Preserve saved rate snapshots when only the premium changes.
     let rateSetting = {
       gross_commission_percent: currentTerm.gross_commission_percent,
       net_commission_percent: currentTerm.net_commission_percent,
     };
-    if (commissionInputsChanged) {
+    if (riskChanged) {
       const { data, error } = await supabase.from("commission_rate_settings")
         .select("gross_commission_percent, net_commission_percent")
         .eq("insurance_type_id", riskChanged ? insuranceTypeId : currentTerm.insurance_type_id)
@@ -267,6 +242,7 @@ export async function updatePolicy(
     }
     const effectiveTermStage = requested("term_stage") ? termStage : currentTerm.term_stage;
     const termValues = pickRequested({
+      ...accuracy,
       insurance_type_id: insuranceTypeId,
       insurer_id: insurerId,
       split_pattern_id: splitPatternId,
@@ -284,7 +260,26 @@ export async function updatePolicy(
       quotation_status: ["term_stage", "quotation_status"], policy_status: ["term_stage", "policy_status"],
     });
     if (commissionInputsChanged) Object.assign(termValues, rateSetting);
-    const termChanges = changedPolicyValues(currentTerm, termValues);
+    const termChanges = changedPolicyValues({
+      ...currentTerm,
+      gross_premium: currentTerm.original_gross_premium ?? currentTerm.gross_premium,
+      total_premium: currentTerm.original_total_premium ?? currentTerm.total_premium,
+    }, termValues);
+    const accuracyWarning = await checkPolicyAccuracy(supabase, formData, {
+      id: policyTermId, gross: grossPremium, total: totalPremium, sumInsured: primarySumAssured,
+      start: effectiveDate ?? currentTerm.effective_date, end: expiryDate ?? currentTerm.expiry_date,
+      motor: insuranceCode === "motor",
+    }, accuracy);
+    if (accuracyWarning) return accuracyWarning;
+    const commissionDecision = textValue(formData, "commission_decision");
+    if (commissionInputsChanged && !["update","keep"].includes(commissionDecision)) {
+      const { count, error } = await supabase.from("commissions").select("id", { count: "exact", head: true }).eq("policy_term_id",policyTermId);
+      if (error) throw error;
+      if (count) return { error: "Premium changed. Choose whether to update or keep existing commissions.", resultId: crypto.randomUUID() };
+    }
+    if (effectiveTermStage === "policy" && textValue(formData,"policy_status") === "cancelled" && !accuracy.cancellation_date) {
+      return { error: "Cancellation Date is required.", resultId: crypto.randomUUID() };
+    }
     let didChange = false;
     const termWithType = currentTerm;
     const writeUpdate = async (table: string, id: string, values: Record<string, unknown>) => {
@@ -338,7 +333,23 @@ export async function updatePolicy(
 
       if (clientAddressId !== currentTerm.client_address_id) termChanges.client_address_id = clientAddressId;
     }
-    await writeUpdate("policy_terms", policyTermId, termChanges);
+    const financialKeys = new Set([
+      "gross_premium","total_premium","basic_premium","ncd_amount","service_tax","stamp_duty",
+      "total_payable_override","typical_premium_rate","cover_note_number","issue_date","financial_interest",
+      "seating_capacity","product_name","cancellation_date","refund_amount","gross_refund_amount",
+      "transferred_from_policy_term_id","split_pattern_id","gross_commission_percent","net_commission_percent",
+      "policy_status","quotation_status","term_stage",
+    ]);
+    const financialChanges = Object.fromEntries(Object.entries(termChanges).filter(([key]) => financialKeys.has(key)));
+    if (Object.keys(financialChanges).length) {
+      const { error } = await supabase.rpc("kover_save_policy_financials", {
+        p_term_id: policyTermId, p_changes: financialChanges,
+        p_commission_decision: commissionInputsChanged ? commissionDecision || "update" : null,
+      });
+      if (error) throw error;
+      didChange = true;
+    }
+    await writeUpdate("policy_terms", policyTermId, Object.fromEntries(Object.entries(termChanges).filter(([key]) => !financialKeys.has(key))));
 
     const detailRequested = (...keys: string[]) => riskChanged || requested(...keys);
     const detailValues = (values: Record<string, unknown>, aliases: Record<string, string[]> = {}) =>
@@ -507,13 +518,6 @@ export async function updatePolicy(
       }
       didChange = true;
     }
-    if (commissionInputsChanged || customRequested) {
-      await recalculateCommissions(supabase, policyTermId,
-        requested("split_pattern_id") ? splitPatternId : currentTerm.split_pattern_id,
-        requested("gross_premium") ? grossPremium : currentTerm.gross_premium === null ? null : Number(currentTerm.gross_premium),
-        formData, rateSetting);
-      didChange = true;
-    }
     if (!didChange) return { success: "No changes to save.", resultId: crypto.randomUUID() };
 
     await supabase.from("activity_logs").insert({
@@ -525,6 +529,8 @@ export async function updatePolicy(
     });
 
     revalidatePath("/protected");
+    revalidatePath("/protected/records");
+    revalidatePath("/protected/commission-payments");
     revalidatePath(`/protected/policies/${policyTermId}`);
     revalidatePath(`/protected/policies/${policyTermId}/edit`);
 
@@ -534,138 +540,5 @@ export async function updatePolicy(
       error: readableError(error, "Policy was not saved."),
       resultId: crypto.randomUUID(),
     };
-  }
-}
-
-async function recalculateCommissions(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  policyTermId: string,
-  splitPatternId: string | null,
-  grossPremium: number | null,
-  formData: FormData,
-  rates: { gross_commission_percent: string | number | null; net_commission_percent: string | number | null },
-) {
-  if (!splitPatternId || grossPremium === null) {
-    const { error } = await supabase.from("commissions").delete()
-      .eq("policy_term_id", policyTermId).neq("status", "paid").eq("is_custom", false);
-    if (error) throw error;
-    return;
-  }
-
-  const grossPercent = percentNumber(rates.gross_commission_percent);
-  const netPercent = percentNumber(rates.net_commission_percent);
-  if (!grossPercent && !netPercent) return;
-
-  const { data: rules, error: rulesError } = await supabase
-    .from("commission_split_rules")
-    .select("payee_id, rule_type, share_percent, fixed_percent, subtract_percent")
-    .eq("split_pattern_id", splitPatternId)
-    .order("sort_order", { ascending: true });
-  if (rulesError) throw rulesError;
-
-  const splitRules = (rules ?? []) as SplitRule[];
-
-  const customCommissionEnabled = textValue(formData, "custom_commission_enabled") === "yes";
-  const customReason = optionalText(formData, "custom_commission_reason");
-  const customReasonSnapshot = customReason ?? "Manual commission override";
-
-  const customPayeeIds = allTextValues(formData, "custom_commission_payee_id");
-  const customAmounts = allTextValues(formData, "custom_commission_amount");
-  const customPercents = allTextValues(formData, "custom_commission_percent");
-  const customByPayee = new Map(
-    customPayeeIds.map((payeeId, index) => [
-      payeeId,
-      {
-        amount: moneyValueFromText(customAmounts[index] ?? ""),
-        percent: Number(customPercents[index] ?? 0),
-      },
-    ]),
-  );
-
-  const { data: lockedRows, error: lockedError } = await supabase
-    .from("commissions")
-    .select("payee_id")
-    .eq("policy_term_id", policyTermId)
-    .or(customCommissionEnabled ? "status.eq.paid" : "status.eq.paid,is_custom.eq.true");
-  if (lockedError) throw lockedError;
-  const lockedPayeeIds = new Set((lockedRows ?? []).map((row) => row.payee_id as string));
-
-  if (customCommissionEnabled) {
-    const { error } = await supabase
-      .from("commissions")
-      .delete()
-      .eq("policy_term_id", policyTermId)
-      .neq("status", "paid");
-    if (error) throw error;
-  } else {
-    const { error } = await supabase
-      .from("commissions")
-      .delete()
-      .eq("policy_term_id", policyTermId)
-      .neq("status", "paid")
-      .eq("is_custom", false);
-    if (error) throw error;
-  }
-
-  const equalRuleCount =
-    splitRules.filter((rule) => rule.rule_type === "equal_net_share").length || 1;
-  const totalNetCommissionAmount = grossPremium * netPercent;
-  const fixedGrossPremiumAmount = splitRules
-    .filter((rule) => rule.rule_type === "fixed_percent_of_gross")
-    .reduce(
-      (total, rule) => total + grossPremium * percentNumber(rule.fixed_percent),
-      0,
-    );
-
-  const commissions = splitRules.flatMap((rule) => {
-    if (lockedPayeeIds.has(rule.payee_id)) return [];
-    let calculationPercent = 0;
-    let amount = 0;
-
-    if (rule.rule_type === "gross_commission_share") {
-      calculationPercent = grossPercent * percentNumber(rule.share_percent);
-      amount = grossPremium * calculationPercent;
-    } else if (rule.rule_type === "net_commission_share") {
-      calculationPercent = netPercent * percentNumber(rule.share_percent);
-      amount = grossPremium * calculationPercent;
-    } else if (rule.rule_type === "fixed_percent_of_gross") {
-      calculationPercent = percentNumber(rule.fixed_percent);
-      amount = grossPremium * calculationPercent;
-    } else if (rule.rule_type === "remaining_net_after_fixed_percent") {
-      amount = Math.max(totalNetCommissionAmount - fixedGrossPremiumAmount, 0);
-      calculationPercent = grossPremium ? amount / grossPremium : 0;
-    } else if (rule.rule_type === "equal_net_share") {
-      calculationPercent = netPercent / equalRuleCount;
-      amount = grossPremium * calculationPercent;
-    }
-
-    const roundedAmount = roundMoney(amount);
-    const custom = customByPayee.get(rule.payee_id);
-    const finalAmount =
-      customCommissionEnabled && custom ? roundMoney(custom.amount ?? 0) : roundedAmount;
-    const finalPercent =
-      customCommissionEnabled && custom
-        ? custom.percent || (grossPremium ? finalAmount / grossPremium : calculationPercent)
-        : calculationPercent;
-
-    return [{
-      policy_term_id: policyTermId,
-      payee_id: rule.payee_id,
-      split_pattern_id: splitPatternId,
-      auto_calculation_percent: calculationPercent,
-      auto_amount: roundedAmount,
-      calculation_percent: finalPercent,
-      amount: finalAmount,
-      unpaid_amount: finalAmount,
-      is_custom: customCommissionEnabled,
-      custom_reason: customCommissionEnabled ? customReasonSnapshot : null,
-      customized_at: customCommissionEnabled ? new Date().toISOString() : null,
-      status: "unpaid",
-    }];
-  });
-
-  if (commissions.length) {
-    const { error } = await supabase.from("commissions").insert(commissions);
-    if (error) throw error;
   }
 }

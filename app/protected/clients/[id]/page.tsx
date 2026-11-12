@@ -19,7 +19,7 @@ function clean(value: unknown) {
 
 function money(value: unknown) {
   const amount = Number(value ?? 0);
-  if (!Number.isFinite(amount) || amount === 0) return "-";
+  if (value === null || value === undefined || value === "" || !Number.isFinite(amount)) return "-";
   return new Intl.NumberFormat("en-MY", {
     style: "currency",
     currency: "MYR",

@@ -47,6 +47,7 @@ export function CurrencyInput({
       <input
         className={inputClass}
         defaultValue={value === undefined ? formatMoneyText(defaultValue) : undefined}
+        id={name}
         inputMode="decimal"
         name={name}
         onBlur={(event) => {

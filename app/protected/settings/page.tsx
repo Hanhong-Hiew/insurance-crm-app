@@ -16,6 +16,7 @@ import {
 } from "./actions";
 
 type InsuranceType = {
+  typical_premium_rate?: number | string | null;
   id: string;
   code: string | null;
   name: string | null;
@@ -101,7 +102,7 @@ async function SettingsContent() {
     await Promise.all([
       supabase
         .from("insurance_types")
-        .select("id, code, name, active, notes")
+        .select("id, code, name, active, notes, typical_premium_rate")
         .order("name", { ascending: true }),
       supabase
         .from("insurers")
@@ -160,20 +161,22 @@ async function SettingsContent() {
           title="Insurance Types"
         >
           <SettingsHeader
-            className="md:grid-cols-[1fr_1fr_auto_auto]"
-            labels={["Name", "Code", "Status", "Save"]}
+            className="md:grid-cols-[1fr_1fr_150px_auto_auto]"
+            labels={["Name", "Code", "Typical Premium %", "Status", "Save"]}
           />
           {insuranceTypes.map((type) => (
-            <SettingsRowForm action={saveInsuranceType} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_1fr_auto_auto]" key={type.id}>
+            <SettingsRowForm action={saveInsuranceType} className="grid gap-2 border-t border-slate-100 p-3 md:grid-cols-[1fr_1fr_150px_auto_auto]" key={type.id}>
               <input name="id" type="hidden" value={type.id} />
               <TextInput defaultValue={clean(type.name)} name="name" placeholder="Name" />
               <TextInput defaultValue={clean(type.code)} name="code" placeholder="code" />
+              <input className={fieldClass} name="typical_premium_rate" type="number" min="0" max="100" step="0.0001" aria-label="Typical premium rate %" defaultValue={type.typical_premium_rate == null ? "" : Number(type.typical_premium_rate)*100} />
               <ActiveCheckbox defaultChecked={Boolean(type.active)} />
             </SettingsRowForm>
           ))}
-          <SettingsRowForm action={saveInsuranceType} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1fr_1fr_auto_auto]" submitLabel="Add">
+          <SettingsRowForm action={saveInsuranceType} className="grid gap-2 border-t border-sky-100 bg-sky-50/40 p-3 md:grid-cols-[1fr_1fr_150px_auto_auto]" submitLabel="Add">
             <TextInput name="name" placeholder="New insurance type" />
             <TextInput name="code" placeholder="new_code" />
+            <input className={fieldClass} name="typical_premium_rate" type="number" min="0" max="100" step="0.0001" placeholder="Typical rate %" aria-label="Typical premium rate %" />
             <ActiveCheckbox defaultChecked />
           </SettingsRowForm>
         </SettingsCard>

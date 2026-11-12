@@ -1,6 +1,7 @@
 export function formatPercent(value: number | string | null | undefined) {
-  const amount = Number(String(value ?? 0).replace(/,/g, ""));
-  if (!Number.isFinite(amount) || amount === 0) return "-";
+  if (value === null || value === undefined || value === "") return "-";
+  const amount = Number(String(value).replace(/,/g, ""));
+  if (!Number.isFinite(amount)) return "-";
 
   return `${new Intl.NumberFormat("en-MY", {
     maximumFractionDigits: 2,

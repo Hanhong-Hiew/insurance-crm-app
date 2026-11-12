@@ -78,6 +78,7 @@ export async function saveInsuranceType(
       code: textValue(formData, "code").toLowerCase().replace(/\s+/g, "_"),
       name: textValue(formData, "name"),
       notes: optionalText(formData, "notes"),
+      typical_premium_rate: textValue(formData, "typical_premium_rate") ? percentValue(formData, "typical_premium_rate") : null,
     };
     if (!values.code || !values.name) throw new Error("Insurance type code and name are required.");
 

@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  BadgeDollarSign,
   CalendarDays,
   Car,
   FileText,
@@ -24,7 +23,11 @@ import {
   toNumber,
   type CommissionRule,
 } from "@/lib/commission";
-import { formatPercent } from "@/lib/format";
+import { PremiumBreakdownFields, PolicyExtraFields } from "@/components/policy-accuracy-fields";
+import { PolicyCommissionPreview } from "@/components/policy-commission-preview";
+import { PolicySaveWarnings } from "@/components/policy-save-warnings";
+import { OwnershipTransferFields } from "@/components/ownership-transfer-fields";
+import type { PremiumBreakdown } from "@/lib/policy-accuracy";
 
 type OptionRow = {
   id: string;
@@ -38,6 +41,7 @@ type OptionRow = {
   email?: string | null;
   insurer_name?: string | null;
   code?: string | null;
+  typical_premium_rate?: number | string | null;
 };
 
 type ClientAddressRow = {
@@ -71,7 +75,7 @@ type NewPolicyFormProps = {
 
 export type RiskDefaults = Record<string, number | string | null | undefined>;
 
-export type DuplicatePolicySource = {
+export type DuplicatePolicySource = PremiumBreakdown & {
   business_registration_no?: string | null;
   client_address?: string | null;
   client_address_id?: string | null;
@@ -301,10 +305,8 @@ export function NewPolicyForm({
   const [expiryTouched, setExpiryTouched] = useState(false);
   const [grossPremium, setGrossPremium] = useState(defaultText(initialDuplicate?.gross_premium));
   const [totalPremium, setTotalPremium] = useState(defaultText(initialDuplicate?.total_premium));
-  const [customCommission, setCustomCommission] = useState(false);
-  const [customTotalAmount, setCustomTotalAmount] = useState("");
-  const [customReason, setCustomReason] = useState("");
-  const [customAmounts, setCustomAmounts] = useState<Record<string, string>>({});
+  const [plate, setPlate] = useState(defaultText(initialDuplicate?.motor?.vehicle_no));
+  const [sumAssured, setSumAssured] = useState(defaultText(initialDuplicate?.primary_sum_assured));
 
   function applyDuplicateSource(source: DuplicatePolicySource | null) {
     setUseDuplicateSource(Boolean(source));
@@ -328,10 +330,8 @@ export function NewPolicyForm({
     setExpiryTouched(Boolean(source?.expiry_date));
     setGrossPremium(defaultText(source?.gross_premium));
     setTotalPremium(defaultText(source?.total_premium));
-    setCustomCommission(false);
-    setCustomTotalAmount("");
-    setCustomReason("");
-    setCustomAmounts({});
+    setSumAssured(defaultText(source?.primary_sum_assured));
+    setPlate(defaultText(source?.motor?.vehicle_no));
   }
 
   function resetForm() {
@@ -367,34 +367,8 @@ export function NewPolicyForm({
         netCommissionPercent: toNumber(selectedRate?.net_commission_percent),
         rules: selectedRules,
       }),
-    [grossPremium, selectedRate?.net_commission_percent, selectedRules],
+    [grossPremium, selectedRate?.gross_commission_percent, selectedRate?.net_commission_percent, selectedRules],
   );
-  const totalCommission = commissionPreview.reduce((sum, row) => {
-    const amount = customCommission
-      ? toNumber(customAmounts[row.payee_id] ?? row.amount)
-      : row.amount;
-    return sum + amount;
-  }, 0);
-  function distributeCustomTotal(value: string) {
-    setCustomTotalAmount(value);
-    const total = toNumber(value);
-    if (!commissionPreview.length || !total) {
-      setCustomAmounts({});
-      return;
-    }
-
-    const autoTotal = commissionPreview.reduce((sum, row) => sum + row.amount, 0);
-    const nextAmounts: Record<string, string> = {};
-    let runningTotal = 0;
-    commissionPreview.forEach((row, index) => {
-      const isLast = index === commissionPreview.length - 1;
-      const share = autoTotal ? row.amount / autoTotal : 1 / commissionPreview.length;
-      const amount = isLast ? total - runningTotal : Math.round(total * share * 100) / 100;
-      runningTotal += amount;
-      nextAmounts[row.payee_id] = amount.toFixed(2);
-    });
-    setCustomAmounts(nextAmounts);
-  }
   const selectedCode = typeCode(selectedType?.code);
   const isMotor = selectedCode === "motor";
   const isFire = isFireLike(selectedCode);
@@ -450,7 +424,11 @@ export function NewPolicyForm({
   }, [clientReferral, referralOptions]);
 
   return (
-    <form action={formAction} className="space-y-4" key={formResetKey} ref={formRef}>
+    <form action={formAction} className="space-y-4" key={formResetKey} ref={formRef} onChange={event => {
+      const target = event.target;
+      if (!(target instanceof HTMLInputElement)) return;
+      if (target.name === "vehicle_no") setPlate(target.value);
+    }}>
       <ActionMessage message={state.error} messageKey={state.resultId} tone="error" />
       <ActionMessage message={state.success} messageKey={state.resultId} tone="success" />
       <ActionMessage message={state.warning} messageKey={state.resultId} tone="warning" />
@@ -683,6 +661,7 @@ export function NewPolicyForm({
           </select>
         </Field>
 
+        <PolicyExtraFields initial={activeDuplicate ?? undefined} motor={isMotor} />
         <Field label="Policy Number">
           <input className={fieldClass} name="policy_number" placeholder="Optional" />
         </Field>
@@ -731,11 +710,12 @@ export function NewPolicyForm({
           <CurrencyInput
             defaultValue={activeDuplicate?.primary_sum_assured}
             name="primary_sum_assured"
+            onValueChange={setSumAssured}
           />
         </Field>
       </FormSection>
 
-      {isMotor ? <MotorRiskSection defaults={activeDuplicate?.motor} /> : null}
+      {isMotor ? <><MotorRiskSection defaults={activeDuplicate?.motor} /><OwnershipTransferFields plate={plate} /></> : null}
       {isFire ? (
         <FireRiskSection
           defaults={activeDuplicate?.fire}
@@ -751,22 +731,9 @@ export function NewPolicyForm({
         description="Commission is calculated from settings after selecting the split pattern."
         title="Premium & Commission"
       >
-        <Field label="Gross Premium" required>
-          <CurrencyInput
-            name="gross_premium"
-            onValueChange={setGrossPremium}
-            required
-            value={grossPremium}
-          />
-        </Field>
-
-        <Field label="Total Premium">
-          <CurrencyInput
-            name="total_premium"
-            onValueChange={setTotalPremium}
-            value={totalPremium}
-          />
-        </Field>
+        <PremiumBreakdownFields required key={`${formResetKey}-${selectedTypeId}`} gross={grossPremium} total={totalPremium} onGrossChange={setGrossPremium} onTotalChange={setTotalPremium}
+          sumInsured={sumAssured} initial={activeDuplicate ?? undefined} ncd={activeDuplicate?.motor?.ncd} motor={isMotor}
+          typicalRate={selectedType?.typical_premium_rate} />
 
         <Field label="Split Pattern">
           <select
@@ -774,9 +741,7 @@ export function NewPolicyForm({
             name="split_pattern_id"
             onChange={(event) => {
               setSelectedSplitId(event.target.value);
-              setCustomTotalAmount("");
-              setCustomAmounts({});
-            }}
+                                }}
             value={selectedSplitId}
           >
             <option value="">Select split pattern</option>
@@ -801,133 +766,8 @@ export function NewPolicyForm({
         </Field>
       </FormSection>
 
-      <FormSection
-        description="Auto-calculated from settings. Tick customize to override the RM amount for each payee."
-        icon={<BadgeDollarSign className="h-5 w-5" />}
-        title="Commission Preview"
-      >
-        <input
-          name="custom_commission_enabled"
-          type="hidden"
-          value={customCommission ? "yes" : "no"}
-        />
-        <div className="rounded-lg border border-sky-100 bg-sky-50/60 px-3 py-2">
-          <p className="text-xs font-semibold uppercase text-sky-700">Gross Rate</p>
-          <p className="mt-1 text-sm font-semibold text-slate-950">
-            {formatPercent(selectedRate?.gross_commission_percent)}
-          </p>
-        </div>
-        <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2">
-          <p className="text-xs font-semibold uppercase text-emerald-700">Net Rate</p>
-          <p className="mt-1 text-sm font-semibold text-slate-950">
-            {formatPercent(selectedRate?.net_commission_percent)}
-          </p>
-        </div>
-        <div className="rounded-lg border border-orange-100 bg-orange-50/60 px-3 py-2">
-          <p className="text-xs font-semibold uppercase text-orange-700">Total</p>
-          <p className="mt-1 text-sm font-semibold text-slate-950">
-            {moneyText(totalCommission)}
-          </p>
-        </div>
-        <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700">
-          <input
-            checked={customCommission}
-            className="h-4 w-4 rounded border-slate-300"
-            onChange={(event) => setCustomCommission(event.target.checked)}
-            type="checkbox"
-          />
-          Customize commission
-        </label>
-        {customCommission ? (
-          <div className="rounded-lg border border-violet-100 bg-violet-50/70 px-3 py-2 md:col-span-2 xl:col-span-3">
-            <Field label="Custom Total Commission Amount">
-              <CurrencyInput
-                name="custom_total_commission_amount"
-                onValueChange={distributeCustomTotal}
-                placeholder="Override total commission"
-                value={customTotalAmount}
-              />
-            </Field>
-            <p className="mt-2 text-xs text-slate-500">
-              This distributes the total across payees based on the selected split. You can still edit each payee amount below.
-            </p>
-          </div>
-        ) : null}
-        {commissionPreview.length ? (
-          <div className="md:col-span-2 xl:col-span-3">
-            <div className="overflow-hidden rounded-xl border border-slate-200">
-              <table className="crm-table">
-                <thead>
-                  <tr>
-                    <th className="px-3 py-2 font-semibold">Payee</th>
-                    <th className="px-3 py-2 font-semibold">Auto Rate</th>
-                    <th className="px-3 py-2 font-semibold">
-                      {customCommission ? "Custom Amount" : "Auto Amount"}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {commissionPreview.map((row) => (
-                    <tr key={row.payee_id}>
-                      <td className="px-3 py-2">
-                        <input name="custom_commission_payee_id" type="hidden" value={row.payee_id} />
-                        <input
-                          name="custom_commission_percent"
-                          type="hidden"
-                          value={String(row.calculation_percent)}
-                        />
-                        {row.payee_name}
-                      </td>
-                      <td className="px-3 py-2">{formatPercent(row.calculation_percent)}</td>
-                      <td className="px-3 py-2">
-                        {customCommission ? (
-                          <div className="grid gap-1">
-                            <CurrencyInput
-                              name="custom_commission_amount"
-                              onValueChange={(value) =>
-                                setCustomAmounts((current) => ({
-                                  ...current,
-                                  [row.payee_id]: value,
-                                }))
-                              }
-                              value={customAmounts[row.payee_id] ?? String(row.amount)}
-                            />
-                            <span className="text-xs text-slate-500">
-                              Auto: {moneyText(row.amount)}
-                            </span>
-                          </div>
-                        ) : (
-                          <>
-                            <input name="custom_commission_amount" type="hidden" value={String(row.amount)} />
-                            {moneyText(row.amount)}
-                          </>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        ) : (
-          <p className="text-sm text-slate-500 md:col-span-2 xl:col-span-3">
-            Select insurance type, premium, and split pattern to preview commission.
-          </p>
-        )}
-        {customCommission ? (
-          <div className="md:col-span-2 xl:col-span-3">
-            <Field label="Customization Reason">
-              <textarea
-                className={`${fieldClass} min-h-24 py-2`}
-                name="custom_commission_reason"
-                onChange={(event) => setCustomReason(event.target.value)}
-                placeholder="Optional. Example: special case, rounded by insurer, Chelsea waived"
-                value={customReason}
-              />
-            </Field>
-          </div>
-        ) : null}
-      </FormSection>
+      <PolicyCommissionPreview rows={commissionPreview} grossRate={selectedRate?.gross_commission_percent} netRate={selectedRate?.net_commission_percent} />
+      <PolicySaveWarnings warning={state.warning} token={state.warningToken} required={state.needsAcknowledgement} />
 
       <FormSection
         description="Internal notes for details that do not belong in structured fields yet."
@@ -961,16 +801,6 @@ export function NewPolicyForm({
       </div>
     </form>
   );
-}
-
-function moneyText(value: number | string | null | undefined) {
-  const amount = toNumber(value);
-  if (!amount) return "-";
-  return new Intl.NumberFormat("en-MY", {
-    style: "currency",
-    currency: "MYR",
-    maximumFractionDigits: 2,
-  }).format(amount);
 }
 
 function MotorRiskSection({ defaults }: { defaults?: RiskDefaults }) {
@@ -1009,9 +839,6 @@ function MotorRiskSection({ defaults }: { defaults?: RiskDefaults }) {
           <option value="3rd Party, Fire and Theft">3rd Party, Fire and Theft</option>
           <option value="Third Party">Third Party</option>
         </select>
-      </Field>
-      <Field label="NCD">
-        <input className={fieldClass} defaultValue={defaultText(defaults?.ncd)} inputMode="decimal" name="ncd" placeholder="55%" />
       </Field>
       <Field label="Make / Model">
         <input className={fieldClass} defaultValue={defaultText(defaults?.make_model)} name="make_model" placeholder="Toyota Hilux" />

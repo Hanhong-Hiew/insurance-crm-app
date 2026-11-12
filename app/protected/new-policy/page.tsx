@@ -98,7 +98,7 @@ async function NewPolicyContent({ searchParams }: PageProps) {
         .limit(CRM_LIST_LIMIT),
       supabase
         .from("insurance_types")
-        .select("id, code, name")
+        .select("id, code, name, typical_premium_rate")
         .eq("active", true)
         .order("name", { ascending: true }),
       supabase
@@ -246,12 +246,21 @@ async function getDuplicatePolicySource(
     client_type: textFrom(client?.client_type) || "individual",
     effective_date: toDisplayDate(textFrom(term.effective_date)),
     expiry_date: toDisplayDate(textFrom(term.expiry_date)),
-    gross_premium: numberLike(term.gross_premium),
+    basic_premium: numberLike(term.basic_premium),
+    ncd_amount: numberLike(term.ncd_amount),
+    service_tax: numberLike(term.service_tax),
+    stamp_duty: numberLike(term.stamp_duty),
+    total_payable_override: typeof term.total_payable_override === "boolean" ? term.total_payable_override : true,
+    typical_premium_rate: numberLike(term.typical_premium_rate),
+    financial_interest: textFrom(term.financial_interest),
+    seating_capacity: numberLike(term.seating_capacity),
+    product_name: textFrom(term.product_name),
+    gross_premium: numberLike(term.original_gross_premium ?? term.gross_premium),
     insurance_type_id: textFrom(term.insurance_type_id),
     insurer_id: textFrom(term.insurer_id),
     notes: textFrom(term.notes),
     premium_status: textFrom(term.premium_status) || "unpaid",
-    total_premium: numberLike(term.total_premium),
+    total_premium: numberLike(term.original_total_premium ?? term.total_premium),
     primary_risk_label: textFrom(policySeries?.primary_risk_label),
     primary_sum_assured: numberLike(term.primary_sum_assured),
     split_pattern_id: textFrom(term.split_pattern_id),

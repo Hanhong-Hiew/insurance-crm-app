@@ -155,7 +155,7 @@ function toNumber(value: number | string | null | undefined) {
 
 function money(value: number | string | null | undefined) {
   const amount = toNumber(value);
-  if (!amount) return "-";
+  if (value === null || value === undefined || value === "") return "-";
   return new Intl.NumberFormat("en-MY", {
     style: "currency",
     currency: "MYR",

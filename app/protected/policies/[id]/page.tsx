@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { AppMenu } from "@/components/app-menu";
+import { PolicyEndorsements } from "@/components/policy-endorsements";
 import { PolicyActionsCard } from "@/components/policy-actions-card";
 import { InsurerBadge } from "@/components/insurer-badge";
 import { PremiumStatusSelect } from "@/components/premium-status-select";
@@ -18,7 +19,7 @@ type DetailRow = Record<string, unknown> | null;
 
 function money(value: unknown) {
   const amount = Number(value ?? 0);
-  if (!Number.isFinite(amount) || amount === 0) return "-";
+  if (value === null || value === undefined || value === "" || !Number.isFinite(amount)) return "-";
   return new Intl.NumberFormat("en-MY", {
     style: "currency",
     currency: "MYR",
@@ -84,6 +85,9 @@ async function PolicyRecordContent({ params }: PageProps) {
     documentsResult,
     tasksResult,
     termNotesResult,
+    endorsementsResult,
+    historyResult,
+    clawbacksResult,
   ] = await Promise.all([
     supabase.from("main_policy_view").select("*").eq("policy_term_id", id).maybeSingle(),
     supabase
@@ -110,14 +114,28 @@ async function PolicyRecordContent({ params }: PageProps) {
       .select("id, task_type, title, due_date, status")
       .eq("policy_term_id", id)
       .order("due_date", { ascending: true }),
-    supabase.from("policy_terms").select("notes").eq("id", id).maybeSingle(),
+    supabase.from("policy_terms").select("*").eq("id", id).maybeSingle(),
+    supabase.from("policy_endorsements").select("*").eq("policy_term_id",id).order("effective_date",{ascending:true}),
+    supabase.from("policy_change_history").select("*").eq("policy_term_id",id).order("changed_at",{ascending:false}),
+    supabase.from("policy_commission_clawbacks").select("*, commission_payees(name)").eq("policy_term_id",id),
   ]);
 
   if (recordResult.error) throw recordResult.error;
   if (!recordResult.data) notFound();
 
-  const record = recordResult.data as Record<string, unknown>;
+  const loadErrors = [motorResult.error, fireResult.error, marineResult.error, travelResult.error, genericResult.error,
+    commissionsResult.error, documentsResult.error, tasksResult.error, termNotesResult.error, endorsementsResult.error, historyResult.error, clawbacksResult.error].filter(Boolean);
+  if (loadErrors.length) throw loadErrors[0];
+  const record = { ...recordResult.data, ...termNotesResult.data } as Record<string, unknown>;
+  const transferId = termNotesResult.data?.transferred_from_policy_term_id;
+  const transferResult = transferId ? await supabase.from("policy_terms").select("id, policy_number, clients(id, client_name)").eq("id",transferId).maybeSingle() : null;
+  if (transferResult?.error) throw transferResult.error;
+  const previousClient = Array.isArray(transferResult?.data?.clients) ? transferResult?.data?.clients[0] : transferResult?.data?.clients;
   const commissions = commissionsResult.data ?? [];
+  const rulesResult = record.split_pattern_id ? await supabase.from("commission_split_rules")
+    .select("payee_id, rule_type, share_percent, fixed_percent, subtract_percent")
+    .eq("split_pattern_id",String(record.split_pattern_id)) : null;
+  if (rulesResult?.error) throw rulesResult.error;
   const hasCommissions = commissions.length > 0;
   const allCommissionsPaid =
     hasCommissions &&
@@ -165,6 +183,12 @@ async function PolicyRecordContent({ params }: PageProps) {
           <InfoCard
             rows={[
               ["Policy No", clean(record.policy_number)],
+              ["Cover Note No", clean(record.cover_note_number)],
+              ["Date of Issue", formatDate(record.issue_date)],
+              ["Product / Plan", clean(record.product_name)],
+              ["Financial Interest", clean(record.financial_interest)],
+              ["Seating Capacity", clean(record.seating_capacity)],
+              ...(transferId ? [["Transferred from", <span key="transfer" className="space-x-2"><Link className="text-sky-700 underline" href={`/protected/policies/${transferId}`}>{clean(transferResult?.data?.policy_number || "Previous policy")}</Link>{previousClient && <Link className="text-sky-700 underline" href={`/protected/clients/${previousClient.id}`}>{clean(previousClient.client_name)}</Link>}</span>] as [string, React.ReactNode]] : []),
               ["Insurer", <InsurerBadge key="insurer" name={String(record.insurer_name ?? "")} />],
               ["Effective", formatDate(record.effective_date)],
               ["Expiry", formatDate(record.expiry_date)],
@@ -180,14 +204,42 @@ async function PolicyRecordContent({ params }: PageProps) {
                 />,
               ],
               ["Sum Assured", money(record.primary_sum_assured)],
-              ["Gross Premium", money(record.gross_premium)],
-              ["Total Premium", money(record.total_premium)],
+              ["Basic Premium", money(record.basic_premium)],
+              ["NCD Amount", money(record.ncd_amount)],
+              ["Original Gross Premium", money(record.original_gross_premium ?? record.gross_premium)],
+              ["Current Gross Premium", money(record.gross_premium)],
+              ["Service Tax (Original)", money(record.service_tax)],
+              ["Stamp Duty", money(record.stamp_duty)],
+              ["Original Total Payable", money(record.original_total_premium ?? record.total_premium)],
+              ["Current Total Payable", money(record.total_premium)],
+              ...(record.policy_status === "cancelled" ? [
+                ["Cancellation Date", formatDate(record.cancellation_date)], ["Refund Amount", money(record.refund_amount)],
+                ["Gross Premium Refunded", money(record.gross_refund_amount)],
+              ] as Array<[string, React.ReactNode]> : []),
               ["Notes", clean(termNotesResult.data?.notes)],
             ]}
             title="Policy Term"
           />
 
           <InfoCard rows={detailRows} title="Risk Details" />
+          <PolicyEndorsements key={String(record.updated_at)} policyTermId={id} rows={endorsementsResult.data ?? []} currentGross={Number(record.gross_premium ?? 0)} commissions={commissions}
+            rules={rulesResult?.data ?? []} grossRate={Number(record.gross_commission_percent ?? 0)} netRate={Number(record.net_commission_percent ?? 0)} />
+          {record.policy_status === "cancelled" && <InfoCard title="Commission clawbacks" rows={
+            clawbacksResult.data?.length ? clawbacksResult.data.map(row => [
+              payeeName(row.commission_payees), `−${money(row.amount)} · ${clean(row.settlement_status)}`,
+            ] as [string,React.ReactNode]) : [["Clawback", "Enter Gross Premium Refunded to calculate the commission clawback."]]
+          } />}
+          <section className="crm-card">
+            <div className="crm-card-header"><h2 className="font-semibold text-slate-800">Change history</h2></div>
+            <div className="max-h-80 overflow-auto p-4">
+              {(historyResult.data ?? []).map(entry => <div key={entry.id} className="border-b border-slate-100 py-2 text-sm">
+                <p className="font-medium text-slate-800">{clean(entry.field_name)}</p>
+                <p className="break-words text-slate-600">{historyValue(entry.field_name,entry.old_value)} → {historyValue(entry.field_name,entry.new_value)}</p>
+                <time className="text-xs text-slate-500">{new Intl.DateTimeFormat("en-GB",{dateStyle:"short",timeStyle:"short",timeZone:"Asia/Kuching"}).format(new Date(entry.changed_at))}</time>
+              </div>)}
+              {!historyResult.data?.length && <p className="text-sm text-slate-500">No changes recorded since change tracking was enabled.</p>}
+            </div>
+          </section>
 
           <section className="crm-card">
             <div className="crm-card-header">
@@ -263,6 +315,15 @@ async function PolicyRecordContent({ params }: PageProps) {
       </div>
     </PageShell>
   );
+}
+
+function historyValue(field: string, value: unknown) {
+  if (value === null || value === undefined) return "-";
+  if (field === "ncd") return percent(value);
+  if (field === "endorsement") return JSON.stringify(value);
+  if (field.includes("premium") || field.includes("amount") || field === "service_tax" || field === "stamp_duty") return money(value);
+  if (field.includes("date")) return formatDate(value);
+  return clean(value);
 }
 
 function buildDetailRows(detail: DetailRow): Array<[string, React.ReactNode]> {

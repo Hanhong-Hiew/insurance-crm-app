@@ -67,7 +67,7 @@ function toNumber(value: number | string | null | undefined) {
 
 function money(value: number | string | null | undefined) {
   const amount = toNumber(value);
-  if (!amount) return "-";
+  if (value === null || value === undefined || value === "") return "-";
   return `RM ${new Intl.NumberFormat("en-MY", {
     maximumFractionDigits: 2,
     minimumFractionDigits: 2,

@@ -2,6 +2,8 @@ const numericFields = new Set([
   "primary_sum_assured", "gross_premium", "total_premium", "bdm", "btm",
   "engine_cc", "year_of_manufacture", "pax", "custom_commission_amount",
   "custom_commission_percent", "custom_total_commission_amount",
+  "basic_premium", "ncd_amount", "service_tax", "stamp_duty", "typical_premium_rate",
+  "seating_capacity", "refund_amount", "gross_refund_amount",
 ]);
 
 function normalizedField(key: string, value: string) {
@@ -11,9 +13,9 @@ function normalizedField(key: string, value: string) {
     if (!cleaned) return "";
     const number = Number(cleaned);
     if (!Number.isFinite(number)) return text;
-    return String(key === "ncd" && number > 1 ? number / 100 : number);
+    return String(key === "ncd" ? number / 100 : number);
   }
-  if (key === "effective_date" || key === "expiry_date") {
+  if (key === "effective_date" || key === "expiry_date" || key === "issue_date" || key === "cancellation_date") {
     const match = text.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2}|\d{4})$/);
     if (match) {
       const year = match[3].length === 2

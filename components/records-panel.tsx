@@ -41,6 +41,9 @@ export type PolicyRecord = {
   primary_risk_label: string | null;
   policy_number: string | null;
   insurer_name: string | null;
+  issue_date?: string | null;
+  cover_note_number?: string | null;
+  product_name?: string | null;
   effective_date: string | null;
   expiry_date: string | null;
   primary_sum_assured: number | string | null;
@@ -75,12 +78,13 @@ type CommissionSummary = {
 };
 
 type SortDirection = "asc" | "desc";
-type DateBasis = "expiry_date" | "effective_date";
-type PeriodFilter = "all" | "this_month" | "next_30" | "next_60" | "this_year" | "expired";
+type DateBasis = "expiry_date" | "effective_date" | "issue_date";
+type PeriodFilter = "all" | "selected_month" | "this_month" | "next_30" | "next_60" | "this_year" | "expired";
 type GroupBy =
   | "none"
   | "expiry_month"
   | "effective_month"
+  | "issue_month"
   | "risk_type"
   | "insurer"
   | "premium_status";
@@ -88,6 +92,7 @@ type SortBy =
   | "created_at"
   | "expiry_date"
   | "effective_date"
+  | "issue_date"
   | "client"
   | "risk_type"
   | "gross_premium"
@@ -96,6 +101,7 @@ type SortBy =
 const periodOptions: Array<{ value: PeriodFilter; label: string }> = [
   { value: "all", label: "All Dates" },
   { value: "this_month", label: "This Month" },
+  { value: "selected_month", label: "Choose Month / Year" },
   { value: "next_30", label: "Next 30 Days" },
   { value: "next_60", label: "Next 60 Days" },
   { value: "this_year", label: "This Year" },
@@ -106,6 +112,7 @@ const groupOptions: Array<{ value: GroupBy; label: string }> = [
   { value: "none", label: "No Group" },
   { value: "expiry_month", label: "Expiry Month" },
   { value: "effective_month", label: "Effective Month" },
+  { value: "issue_month", label: "Issue Month (Filing)" },
   { value: "risk_type", label: "Risk" },
   { value: "insurer", label: "Insurer" },
   { value: "premium_status", label: "Premium Status" },
@@ -113,6 +120,7 @@ const groupOptions: Array<{ value: GroupBy; label: string }> = [
 
 const sortOptions: Array<{ value: SortBy; label: string }> = [
   { value: "effective_date", label: "Effective Date" },
+  { value: "issue_date", label: "Date of Issue" },
   { value: "expiry_date", label: "Expiry Date" },
   { value: "created_at", label: "Newest" },
   { value: "client", label: "Client" },
@@ -129,7 +137,7 @@ function toNumber(value: number | string | null | undefined) {
 
 function money(value: number | string | null | undefined) {
   const amount = toNumber(value);
-  if (!amount) return "-";
+  if (value === null || value === undefined || value === "") return "-";
   return new Intl.NumberFormat("en-MY", {
     style: "currency",
     currency: "MYR",
@@ -412,6 +420,7 @@ function sortValue(record: PolicyRecord, sortBy: SortBy) {
   if (sortBy === "created_at") return dateSortValue(record.created_at);
   if (sortBy === "expiry_date") return dateSortValue(record.expiry_date);
   if (sortBy === "effective_date") return dateSortValue(record.effective_date);
+  if (sortBy === "issue_date") return dateSortValue(record.issue_date);
   if (sortBy === "client") return clean(record.client_name);
   if (sortBy === "risk_type") return clean(record.insurance_type);
   if (sortBy === "gross_premium") return toNumber(record.gross_premium);
@@ -434,6 +443,7 @@ function compareSortValues(
 function groupKey(record: PolicyRecord, groupBy: GroupBy) {
   if (groupBy === "expiry_month") return formatMonth(monthKey(record.expiry_date));
   if (groupBy === "effective_month") return formatMonth(monthKey(record.effective_date));
+  if (groupBy === "issue_month") return formatMonth(monthKey(record.issue_date));
   if (groupBy === "risk_type") return clean(record.insurance_type);
   if (groupBy === "insurer") return clean(record.insurer_name);
   if (groupBy === "premium_status") return clean(record.premium_status);
@@ -456,6 +466,8 @@ export function RecordsPanel({
   const [recordPage, setRecordPage] = useState(1);
   const [dateBasis, setDateBasis] = useState<DateBasis>("effective_date");
   const [period, setPeriod] = useState<PeriodFilter>("all");
+  const [filingMonth, setFilingMonth] = useState(String(new Date().getMonth()+1));
+  const [filingYear, setFilingYear] = useState(String(new Date().getFullYear()));
   const [riskFilter, setRiskFilter] = useState("all");
   const [insurerFilter, setInsurerFilter] = useState("all");
   const [premiumFilter, setPremiumFilter] = useState("all");
@@ -506,7 +518,9 @@ export function RecordsPanel({
 
     return policies.filter((record) => {
       const date = parseDate(record[dateBasis]);
-      if (!dateMatchesPeriod(date, period)) return false;
+      if (period === "selected_month") {
+        if (!date || date.getMonth()+1 !== Number(filingMonth) || date.getFullYear() !== Number(filingYear)) return false;
+      } else if (!dateMatchesPeriod(date, period)) return false;
       if (riskFilter !== "all" && clean(record.insurance_type) !== riskFilter) return false;
       if (insurerFilter !== "all" && clean(record.insurer_name) !== insurerFilter) {
         return false;
@@ -519,6 +533,8 @@ export function RecordsPanel({
       return [
         record.client_name,
         record.policy_number,
+        record.cover_note_number,
+        record.product_name,
         record.insurer_name,
         record.insurance_type,
         record.split_pattern_code,
@@ -534,6 +550,8 @@ export function RecordsPanel({
     });
   }, [
     dateBasis,
+    filingMonth,
+    filingYear,
     insurerFilter,
     period,
     policies,
@@ -657,6 +675,7 @@ export function RecordsPanel({
             onChange={(value) => updateDateBasis(value as DateBasis)}
             options={[
               { value: "effective_date", label: "Effective Date" },
+              { value: "issue_date", label: "Date of Issue" },
               { value: "expiry_date", label: "Expiry Date" },
             ]}
             value={dateBasis}
@@ -667,6 +686,10 @@ export function RecordsPanel({
             options={periodOptions}
             value={period}
           />
+          {period === "selected_month" && <>
+            <SelectField label="Month" value={filingMonth} onChange={setFilingMonth} options={Array.from({length:12},(_,index)=>({value:String(index+1),label:new Intl.DateTimeFormat("en-GB",{month:"long"}).format(new Date(2026,index,1))}))} />
+            <SelectField label="Year" value={filingYear} onChange={setFilingYear} options={Array.from(new Set([Number(filingYear),new Date().getFullYear(),...policies.map(record => parseDate(record[dateBasis])?.getFullYear()).filter((year):year is number=>year !== undefined)])).sort((a,b)=>b-a).map(year=>({value:String(year),label:String(year)}))} />
+          </>}
           <SelectField
             label="Risk"
             onChange={setRiskFilter}
@@ -936,6 +959,9 @@ function RecordPreviewModal({
           <PreviewGrid
             rows={[
               ["Policy No", clean(record.policy_number)],
+              ["Cover Note No", clean(record.cover_note_number)],
+              ["Date of Issue", formatDate(record.issue_date)],
+              ["Product / Plan", clean(record.product_name)],
               ["Insurer", <InsurerBadge key="insurer" name={record.insurer_name} />],
               ["Risk", clean(record.insurance_type)],
               ["Split", splitCode(record)],

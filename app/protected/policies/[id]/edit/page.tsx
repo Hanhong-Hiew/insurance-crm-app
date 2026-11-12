@@ -42,6 +42,7 @@ async function EditPolicyContent({ params }: PageProps) {
     marineResult,
     travelResult,
     genericResult,
+    commissionsResult,
   ] = await Promise.all([
     supabase
       .from("policy_terms")
@@ -56,7 +57,7 @@ async function EditPolicyContent({ params }: PageProps) {
       .limit(CRM_LIST_LIMIT),
     supabase
       .from("insurance_types")
-      .select("id, code, name")
+      .select("id, code, name, typical_premium_rate")
       .order("name", { ascending: true }),
     supabase
       .from("insurers")
@@ -86,6 +87,7 @@ async function EditPolicyContent({ params }: PageProps) {
     supabase.from("marine_policy_details").select("*").eq("policy_term_id", id).maybeSingle(),
     supabase.from("travel_policy_details").select("*").eq("policy_term_id", id).maybeSingle(),
     supabase.from("generic_policy_details").select("*").eq("policy_term_id", id).maybeSingle(),
+    supabase.from("commissions").select("payee_id, calculation_percent, amount, status, commission_payees(name)").eq("policy_term_id", id),
   ]);
 
   if (termResult.error) throw termResult.error;
@@ -102,6 +104,7 @@ async function EditPolicyContent({ params }: PageProps) {
     marineResult.error,
     travelResult.error,
     genericResult.error,
+    commissionsResult.error,
   ].filter(Boolean);
   if (setupErrors.length) throw setupErrors[0];
 
@@ -130,6 +133,11 @@ async function EditPolicyContent({ params }: PageProps) {
   return (
     <PageShell policyTermId={id}>
       <PolicyEditForm
+        key={`${id}-${term.updated_at}`}
+        commissions={(commissionsResult.data ?? []).map(row => {
+          const payees = row.commission_payees as {name?:string|null} | Array<{name?:string|null}> | null;
+          return {...row, payee_name: Array.isArray(payees) ? payees[0]?.name : payees?.name};
+        })}
         client={client ?? null}
         clientAddresses={clientAddressesResult.data ?? []}
         commissionRates={ratesResult.data ?? []}

@@ -40,14 +40,13 @@ export function calculateCommissionRows({
   netCommissionPercent: number;
   rules: CommissionRule[];
 }): CommissionPreviewRow[] {
-  if (!grossPremium || !rules.length) return [];
+  if (!rules.length) return [];
 
   const equalRuleCount =
     rules.filter((rule) => rule.rule_type === "equal_net_share").length || 1;
-  const totalNetCommissionAmount = grossPremium * netCommissionPercent;
-  const fixedGrossPremiumAmount = rules
+  const fixedGrossPremiumRate = rules
     .filter((rule) => rule.rule_type === "fixed_percent_of_gross")
-    .reduce((total, rule) => total + grossPremium * toNumber(rule.fixed_percent), 0);
+    .reduce((total, rule) => total + toNumber(rule.fixed_percent), 0);
 
   return rules.map((rule) => {
     let calculationPercent = 0;
@@ -63,8 +62,8 @@ export function calculateCommissionRows({
       calculationPercent = toNumber(rule.fixed_percent);
       amount = grossPremium * calculationPercent;
     } else if (rule.rule_type === "remaining_net_after_fixed_percent") {
-      amount = Math.max(totalNetCommissionAmount - fixedGrossPremiumAmount, 0);
-      calculationPercent = grossPremium ? amount / grossPremium : 0;
+      calculationPercent = Math.max(netCommissionPercent - fixedGrossPremiumRate, 0);
+      amount = grossPremium * calculationPercent;
     } else if (rule.rule_type === "equal_net_share") {
       calculationPercent = netCommissionPercent / equalRuleCount;
       amount = grossPremium * calculationPercent;
