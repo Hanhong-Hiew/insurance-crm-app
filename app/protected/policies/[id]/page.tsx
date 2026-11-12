@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { AppMenu } from "@/components/app-menu";
+import { PolicyCommissions } from "@/components/policy-commissions";
 import { PolicyEndorsements } from "@/components/policy-endorsements";
 import { PolicyActionsCard } from "@/components/policy-actions-card";
 import { InsurerBadge } from "@/components/insurer-badge";
@@ -88,6 +89,7 @@ async function PolicyRecordContent({ params }: PageProps) {
     endorsementsResult,
     historyResult,
     clawbacksResult,
+    payeesResult,
   ] = await Promise.all([
     supabase.from("main_policy_view").select("*").eq("policy_term_id", id).maybeSingle(),
     supabase
@@ -101,7 +103,7 @@ async function PolicyRecordContent({ params }: PageProps) {
     supabase.from("generic_policy_details").select("*").eq("policy_term_id", id).maybeSingle(),
     supabase
       .from("commissions")
-      .select("id, calculation_percent, amount, unpaid_amount, status, paid_date, commission_payees(name), commission_payment_batches(statement_no)")
+      .select("id, payee_id, calculation_percent, amount, unpaid_amount, status, paid_date, entry_kind, adjustment_note, commission_payees(name), commission_payment_batches(statement_no)")
       .eq("policy_term_id", id)
       .order("created_at", { ascending: true }),
     supabase
@@ -118,13 +120,14 @@ async function PolicyRecordContent({ params }: PageProps) {
     supabase.from("policy_endorsements").select("*").eq("policy_term_id",id).order("effective_date",{ascending:true}),
     supabase.from("policy_change_history").select("*").eq("policy_term_id",id).order("changed_at",{ascending:false}),
     supabase.from("policy_commission_clawbacks").select("*, commission_payees(name)").eq("policy_term_id",id),
+    supabase.from("commission_payees").select("id, name").order("name"),
   ]);
 
   if (recordResult.error) throw recordResult.error;
   if (!recordResult.data) notFound();
 
   const loadErrors = [motorResult.error, fireResult.error, marineResult.error, travelResult.error, genericResult.error,
-    commissionsResult.error, documentsResult.error, tasksResult.error, termNotesResult.error, endorsementsResult.error, historyResult.error, clawbacksResult.error].filter(Boolean);
+    commissionsResult.error, documentsResult.error, tasksResult.error, termNotesResult.error, endorsementsResult.error, historyResult.error, clawbacksResult.error, payeesResult.error].filter(Boolean);
   if (loadErrors.length) throw loadErrors[0];
   const record = { ...recordResult.data, ...termNotesResult.data } as Record<string, unknown>;
   const transferId = termNotesResult.data?.transferred_from_policy_term_id;
@@ -136,6 +139,7 @@ async function PolicyRecordContent({ params }: PageProps) {
     .select("payee_id, rule_type, share_percent, fixed_percent, subtract_percent")
     .eq("split_pattern_id",String(record.split_pattern_id)) : null;
   if (rulesResult?.error) throw rulesResult.error;
+  const calculatedCommissions = commissions.filter(row => row.entry_kind !== "adjustment");
   const hasCommissions = commissions.length > 0;
   const allCommissionsPaid =
     hasCommissions &&
@@ -222,7 +226,7 @@ async function PolicyRecordContent({ params }: PageProps) {
           />
 
           <InfoCard rows={detailRows} title="Risk Details" />
-          <PolicyEndorsements key={String(record.updated_at)} policyTermId={id} rows={endorsementsResult.data ?? []} currentGross={Number(record.gross_premium ?? 0)} commissions={commissions}
+          <PolicyEndorsements key={String(record.updated_at)} policyTermId={id} rows={endorsementsResult.data ?? []} currentGross={Number(record.gross_premium ?? 0)} commissions={calculatedCommissions}
             rules={rulesResult?.data ?? []} grossRate={Number(record.gross_commission_percent ?? 0)} netRate={Number(record.net_commission_percent ?? 0)} />
           {record.policy_status === "cancelled" && <InfoCard title="Commission clawbacks" rows={
             clawbacksResult.data?.length ? clawbacksResult.data.map(row => [
@@ -241,51 +245,9 @@ async function PolicyRecordContent({ params }: PageProps) {
             </div>
           </section>
 
-          <section className="crm-card">
-            <div className="crm-card-header">
-              <h2 className="font-semibold text-slate-800">Commissions</h2>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="crm-table min-w-[680px]">
-                <thead>
-                  <tr>
-                    <th className="px-3 py-3 font-medium">Payee</th>
-                    <th className="px-3 py-3 font-medium">Rate</th>
-                    <th className="px-3 py-3 font-medium">Amount</th>
-                    <th className="px-3 py-3 font-medium">Unpaid</th>
-                    <th className="px-3 py-3 font-medium">Status</th>
-                    <th className="px-3 py-3 font-medium">Paid Date</th>
-                    <th className="px-3 py-3 font-medium">Statement</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {commissions.length ? (
-                    commissions.map((commission) => (
-                      <tr className="border-b border-slate-100" key={commission.id}>
-                        <td className="px-3 py-3 font-medium">
-                          {payeeName(commission.commission_payees)}
-                        </td>
-                        <td className="px-3 py-3">{percent(commission.calculation_percent)}</td>
-                        <td className="px-3 py-3">{money(commission.amount)}</td>
-                        <td className="px-3 py-3">{money(commission.unpaid_amount)}</td>
-                        <td className="px-3 py-3">{clean(commission.status)}</td>
-                        <td className="px-3 py-3">{formatDate(commission.paid_date)}</td>
-                        <td className="px-3 py-3">
-                          {statementNo(commission.commission_payment_batches)}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td className="px-3 py-8 text-center text-slate-500" colSpan={7}>
-                        No commission rows.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+          <PolicyCommissions policyTermId={id} payees={payeesResult.data ?? []} rows={commissions.map(row => ({
+            ...row, payee_name:payeeName(row.commission_payees), statement:statementNo(row.commission_payment_batches),
+          }))} />
         </section>
 
         <aside className="space-y-4">
@@ -319,11 +281,20 @@ async function PolicyRecordContent({ params }: PageProps) {
 
 function historyValue(field: string, value: unknown) {
   if (value === null || value === undefined) return "-";
+  if (field.startsWith("commission") && typeof value === "object") {
+    const row=value as Record<string,unknown>;
+    if ("value" in row) {
+      if(field.endsWith("paid_date")) return formatDate(row.value);
+      if(field.endsWith("amount")) return money(row.value);
+      return clean(row.value);
+    }
+    return `${money(row.amount)} · ${clean(row.adjustment_note)}`;
+  }
   if (field === "ncd") return percent(value);
   if (field === "endorsement") return JSON.stringify(value);
   if (field.includes("premium") || field.includes("amount") || field === "service_tax" || field === "stamp_duty") return money(value);
   if (field.includes("date")) return formatDate(value);
-  return clean(value);
+  return typeof value === "object" ? JSON.stringify(value) : clean(value);
 }
 
 function buildDetailRows(detail: DetailRow): Array<[string, React.ReactNode]> {

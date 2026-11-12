@@ -1,6 +1,8 @@
 import { formatPercent } from "@/lib/format";
 
 export type CommissionStatementPdfRow = {
+  entry_kind?: string | null;
+  adjustment_note?: string | null;
   amount: number | string | null;
   calculation_percent: number | string | null;
   client_name: string | null;
@@ -257,6 +259,7 @@ function rowCells(row: CommissionStatementPdfRow, index: number) {
     [
       cleanText(row.client_name),
       cleanText(row.policy_number),
+      ...(row.entry_kind === "adjustment" ? [`Adjustment: ${cleanText(row.adjustment_note)}`] : []),
     ],
     [row.vehicle_no ? cleanText(row.vehicle_no) : "-"],
     [cleanText(row.insurance_type)],
@@ -266,7 +269,7 @@ function rowCells(row: CommissionStatementPdfRow, index: number) {
     ],
     [
       money(row.gross_premium),
-      percent(row.calculation_percent),
+      row.entry_kind === "adjustment" ? "Fixed adjustment" : percent(row.calculation_percent),
     ],
     [money(row.amount)],
   ];
@@ -516,7 +519,7 @@ function buildStatementPages(input: CommissionStatementPdfInput, statementIndex:
   });
 }
 
-function buildPdf(inputs: CommissionStatementPdfInput[]) {
+export function buildCommissionStatementPdf(inputs: CommissionStatementPdfInput[]) {
   const pages = inputs.flatMap((input, index) => buildStatementPages(input, index + 1));
   const objects: string[] = [];
   const pageObjectIds: number[] = [];
@@ -567,14 +570,14 @@ function downloadPdf(pdf: string, fileName: string) {
 
 export function downloadCommissionStatementPdf(input: CommissionStatementPdfInput) {
   downloadPdf(
-    buildPdf([input]),
+    buildCommissionStatementPdf([input]),
     `${fileNameDate(input.paidDate)}_${fileNamePart(input.payeeName)}_commission statement.pdf`,
   );
 }
 
 export function downloadCommissionStatementsPdf(inputs: CommissionStatementPdfInput[]) {
   downloadPdf(
-    buildPdf(inputs),
+    buildCommissionStatementPdf(inputs),
     `${fileNameDate(inputs[0]?.paidDate)}_all-payees_commission statement.pdf`,
   );
 }

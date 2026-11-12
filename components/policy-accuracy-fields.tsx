@@ -24,7 +24,7 @@ export function PremiumBreakdownFields({ gross, total, onGrossChange, onTotalCha
   const warnings = premiumWarnings({ gross, total, serviceTax, stampDuty, sumInsured, typicalRatePercent: rate });
   return <>
     <Field label="Basic Premium"><CurrencyInput defaultValue={initial?.basic_premium} name="basic_premium" /></Field>
-    {motor && <Field label="NCD %"><input className={inputClass} name="ncd" inputMode="decimal" defaultValue={ncd == null || ncd === "" ? "" : String(Number(ncd) * 100)} placeholder="0" min="0" max="100" step="0.01" type="number" /></Field>}
+    {motor && <Field label="NCD %"><input className={inputClass} name="ncd" inputMode="decimal" defaultValue={ncd == null || ncd === "" ? "" : String(Math.round(Number(ncd) * 10000) / 100)} placeholder="0" min="0" max="100" step="0.01" type="number" /></Field>}
     <Field label="NCD Amount"><CurrencyInput defaultValue={initial?.ncd_amount} name="ncd_amount" /></Field>
     <Field label="Gross Premium" required={required}><CurrencyInput required={required} name="gross_premium" value={gross} onValueChange={onGrossChange} /></Field>
     <Field label="Service Tax"><CurrencyInput name="service_tax" value={serviceTax} onValueChange={setServiceTax} /></Field>

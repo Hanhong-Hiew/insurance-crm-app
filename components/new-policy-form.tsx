@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   Wrench,
 } from "lucide-react";
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { savePolicy, type SavePolicyState } from "@/app/protected/new-policy/actions";
@@ -247,8 +247,9 @@ function DateInput({
   );
 }
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
+function SubmitButton({ isSaving = false }: { isSaving?: boolean }) {
+  const { pending: formPending } = useFormStatus();
+  const pending = isSaving || formPending;
 
   return (
     <button
@@ -271,8 +272,11 @@ export function NewPolicyForm({
   splitRules,
   splitPatterns,
 }: NewPolicyFormProps) {
-  const [state, formAction] = useActionState<SavePolicyState, FormData>(
-    savePolicy,
+  const [state, formAction, isSaving] = useActionState<SavePolicyState, FormData>(
+    async (previous, data) => {
+      const result = await savePolicy(previous, data);
+      return { ...result, resultId: result.resultId ?? crypto.randomUUID() };
+    },
     {},
   );
   const initialDuplicate = duplicateSource;
@@ -424,7 +428,7 @@ export function NewPolicyForm({
   }, [clientReferral, referralOptions]);
 
   return (
-    <form action={formAction} className="space-y-4" key={formResetKey} ref={formRef} onChange={event => {
+    <form method="post" onSubmit={event => { event.preventDefault(); const data = new FormData(event.currentTarget); startTransition(() => formAction(data)); }} className="space-y-4" key={formResetKey} ref={formRef} onChange={event => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement)) return;
       if (target.name === "vehicle_no") setPlate(target.value);
@@ -786,7 +790,7 @@ export function NewPolicyForm({
       </FormSection>
 
       <div className="crm-panel flex flex-wrap items-center gap-3">
-        <SubmitButton />
+        <SubmitButton isSaving={isSaving} />
         <button
           className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-sky-200 bg-white px-4 text-sm font-semibold text-sky-700 shadow-sm shadow-sky-900/5 transition hover:bg-sky-50"
           onClick={resetForm}

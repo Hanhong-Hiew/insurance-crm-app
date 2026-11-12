@@ -9,10 +9,11 @@ import {
   type CommissionPaymentRow,
   type PaidCommissionStatement,
 } from "@/components/commission-payments-panel";
-import { CRM_LIST_LIMIT } from "@/lib/query-limits";
 import { createClient } from "@/lib/supabase/server";
 
 type RawCommissionRow = {
+  entry_kind?: string | null;
+  adjustment_note?: string | null;
   amount: number | string | null;
   calculation_percent: number | string | null;
   commission_payees: { id?: string | null; name?: string | null } | Array<{ id?: string | null; name?: string | null }> | null;
@@ -39,6 +40,8 @@ type PolicyViewRow = {
 };
 
 type PaidStatementViewRow = {
+  entry_kind_snapshot?: string | null;
+  adjustment_note_snapshot?: string | null;
   amount_payable: number | string | null;
   batch_id: string | null;
   client_name_snapshot: string | null;
@@ -69,6 +72,17 @@ function firstValue<T>(value: T | T[] | null | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+async function readCommissionPages<T>(page: (from:number,to:number)=>PromiseLike<{data:T[]|null;error:{message:string}|null}>) {
+  const data:T[]=[];
+  for(let from=0;;) {
+    const result=await page(from,from+499);
+    if(result.error) return {data:null,error:result.error};
+    if(!result.data?.length) return {data,error:null};
+    data.push(...result.data);
+    from+=result.data.length;
+  }
+}
+
 export default function CommissionPaymentsPage() {
   return (
     <Suspense fallback={<PageShell>Loading commission payments...</PageShell>}>
@@ -86,21 +100,20 @@ async function CommissionPaymentsContent() {
   }
 
   const [unpaidResult, paidStatementResult] = await Promise.all([
-    supabase
+    readCommissionPages((from,to) => supabase
       .from("commissions")
       .select(
-        "id, payee_id, calculation_percent, amount, unpaid_amount, status, commission_payees(id, name), policy_terms!inner(id, policy_number, effective_date, expiry_date, gross_premium, premium_status, clients(client_name), insurers(insurer_name), insurance_types(name))",
+        "id, payee_id, calculation_percent, amount, unpaid_amount, status, entry_kind, adjustment_note, commission_payees(id, name), policy_terms!inner(id, policy_number, effective_date, expiry_date, gross_premium, premium_status, clients(client_name), insurers(insurer_name), insurance_types(name))",
       )
       .neq("status", "paid")
-      .eq("policy_terms.premium_status", "paid")
-      .order("created_at", { ascending: false })
-      .limit(CRM_LIST_LIMIT),
-    supabase
+      .order("created_at", { ascending: false }).order("id")
+      .range(from,to)),
+    readCommissionPages((from,to) => supabase
       .from("commission_payment_statement_view")
       .select("*")
       .eq("statement_status", "paid")
-      .order("paid_date", { ascending: false, nullsFirst: false })
-      .limit(CRM_LIST_LIMIT * 5),
+      .order("paid_date", { ascending: false, nullsFirst: false }).order("batch_id").order("item_id")
+      .range(from,to)),
   ]);
 
   const policyTermIds = Array.from(
@@ -162,7 +175,7 @@ async function CommissionPaymentsContent() {
     ]),
   );
 
-  const rows = ((unpaidResult.data ?? []) as RawCommissionRow[]).map((row): CommissionPaymentRow => {
+  const rows = ((unpaidResult.data ?? []) as RawCommissionRow[]).filter(row => row.entry_kind === "adjustment" || row.policy_terms?.premium_status === "paid").map((row): CommissionPaymentRow => {
     const payee = firstValue(row.commission_payees);
     const term = row.policy_terms;
     const client = firstValue(term?.clients);
@@ -170,6 +183,8 @@ async function CommissionPaymentsContent() {
     const insuranceType = firstValue(term?.insurance_types);
 
     return {
+      entry_kind: row.entry_kind,
+      adjustment_note: row.adjustment_note,
       amount: row.amount,
       calculation_percent: row.calculation_percent,
       client_name: client?.client_name ?? null,
@@ -206,6 +221,8 @@ async function CommissionPaymentsContent() {
         ? paidPolicyTermByCommissionId.get(row.commission_id) ?? null
         : null;
       statement.rows.push({
+        entry_kind: row.entry_kind_snapshot,
+        adjustment_note: row.adjustment_note_snapshot,
         amount: row.amount_payable,
         calculation_percent: row.commission_percent_snapshot,
         client_name: row.client_name_snapshot,

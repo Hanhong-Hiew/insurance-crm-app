@@ -146,59 +146,17 @@ export async function setTermStage(formData: FormData) {
   revalidatePath(`/protected/policies/${policyTermId}`);
 }
 
-export async function markCommissionsPaid(formData: FormData) {
+export async function markCommissionsPaid(_previous: {error?:string;success?:string;resultId?:string}, formData: FormData): Promise<{error?:string;success?:string;resultId?:string}> {
   const policyTermId = textValue(formData, "policy_term_id");
-  const { supabase, userId } = await requireUser();
-
-  const { data: commissionRows, error: lookupError } = await supabase
-    .from("commissions")
-    .select("id, amount, status")
-    .eq("policy_term_id", policyTermId);
-  if (lookupError) throw lookupError;
-
-  const allPaid =
-    (commissionRows ?? []).length > 0 &&
-    (commissionRows ?? []).every((commission) => commission.status === "paid");
-  const nextStatus = allPaid ? "unpaid" : "paid";
-  const paidDate = nextStatus === "paid" ? new Date().toISOString().slice(0, 10) : null;
-
-  if (nextStatus === "paid") {
-    const { error } = await supabase
-      .from("commissions")
-      .update({
-        status: "paid",
-        unpaid_amount: 0,
-        paid_date: paidDate,
-      })
-      .eq("policy_term_id", policyTermId);
-    if (error) throw error;
-  } else {
-    const updates = await Promise.all(
-      (commissionRows ?? []).map((commission) =>
-        supabase
-          .from("commissions")
-          .update({
-            status: "unpaid",
-            unpaid_amount: commission.amount,
-            paid_date: null,
-          })
-          .eq("id", commission.id),
-      ),
-    );
-    const updateError = updates.find((result) => result.error)?.error;
-    if (updateError) throw updateError;
+  try {
+    const { supabase } = await requireUser();
+    const {data,error}=await supabase.rpc("kover_toggle_policy_commissions",{p_term_id:policyTermId});
+    if(error) throw error;
+    for(const path of ["/protected","/protected/records","/protected/commission-payments",`/protected/policies/${policyTermId}`]) revalidatePath(path);
+    return {success:String(data),resultId:crypto.randomUUID()};
+  } catch(error) {
+    return {error:error instanceof Error?error.message:typeof error==="object"&&error&&"message" in error?String(error.message):"Commission status was not saved.",resultId:crypto.randomUUID()};
   }
-
-  await logActivity(
-    supabase,
-    userId,
-    policyTermId,
-    "commission_status_toggle",
-    `Marked commissions as ${nextStatus}.`,
-  );
-  revalidatePath("/protected");
-  revalidatePath("/protected/records");
-  revalidatePath(`/protected/policies/${policyTermId}`);
 }
 
 export async function deletePolicy(

@@ -273,7 +273,7 @@ export async function updatePolicy(
     if (accuracyWarning) return accuracyWarning;
     const commissionDecision = textValue(formData, "commission_decision");
     if (commissionInputsChanged && !["update","keep"].includes(commissionDecision)) {
-      const { count, error } = await supabase.from("commissions").select("id", { count: "exact", head: true }).eq("policy_term_id",policyTermId);
+      const { count, error } = await supabase.from("commissions").select("id", { count: "exact", head: true }).eq("policy_term_id",policyTermId).or("entry_kind.is.null,entry_kind.neq.adjustment");
       if (error) throw error;
       if (count) return { error: "Premium changed. Choose whether to update or keep existing commissions.", resultId: crypto.randomUUID() };
     }

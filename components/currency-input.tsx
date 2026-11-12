@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { formatMoneyText, normalizeMoneyText } from "@/lib/currency-text";
+
 type CurrencyInputProps = {
   defaultValue?: number | string | null;
   name: string;
@@ -12,23 +15,6 @@ type CurrencyInputProps = {
 const inputClass =
   "min-w-0 flex-1 bg-white px-3 text-sm text-slate-700 outline-none placeholder:text-slate-400";
 
-function normalizeMoneyText(value: string) {
-  const cleaned = value.replace(/rm/gi, "").replace(/[^\d.]/g, "");
-  const [whole = "", ...decimalParts] = cleaned.split(".");
-  const decimal = decimalParts.join("").slice(0, 2);
-  return decimalParts.length ? `${whole}.${decimal}` : whole;
-}
-
-function formatMoneyText(value: number | string | null | undefined) {
-  if (value === null || value === undefined || value === "") return "";
-  const normalized = normalizeMoneyText(String(value));
-  if (!normalized) return "";
-
-  const [whole, decimal] = normalized.split(".");
-  const formattedWhole = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-  return decimal !== undefined ? `${formattedWhole}.${decimal}` : formattedWhole;
-}
-
 export function CurrencyInput({
   defaultValue,
   name,
@@ -37,7 +23,8 @@ export function CurrencyInput({
   required = false,
   value,
 }: CurrencyInputProps) {
-  const inputValue = value === undefined ? undefined : formatMoneyText(value);
+  const [focused, setFocused] = useState(false);
+  const inputValue = value === undefined ? undefined : focused ? normalizeMoneyText(value) : formatMoneyText(value);
 
   return (
     <div className="flex h-10 overflow-hidden rounded-lg border border-slate-200 bg-white transition focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-100">
@@ -51,6 +38,7 @@ export function CurrencyInput({
         inputMode="decimal"
         name={name}
         onBlur={(event) => {
+          setFocused(false);
           event.currentTarget.value = formatMoneyText(event.currentTarget.value);
           onValueChange?.(event.currentTarget.value);
         }}
@@ -59,6 +47,7 @@ export function CurrencyInput({
           onValueChange?.(event.currentTarget.value);
         }}
         onFocus={(event) => {
+          setFocused(true);
           event.currentTarget.value = normalizeMoneyText(event.currentTarget.value);
           onValueChange?.(event.currentTarget.value);
         }}

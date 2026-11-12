@@ -1,7 +1,8 @@
 "use client";
 
 import { CalendarPlus, CheckCircle2, Trash2 } from "lucide-react";
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -28,6 +29,9 @@ export function PolicyActionsCard({
     deletePolicy,
     {},
   );
+  const [commissionState, commissionAction] = useActionState(markCommissionsPaid, {});
+  const router = useRouter();
+  useEffect(()=>{if(commissionState.success) router.refresh();},[commissionState.resultId,commissionState.success,router]);
   const premiumPaid = premiumStatus === "paid";
 
   return (
@@ -51,7 +55,7 @@ export function PolicyActionsCard({
             unpaidLabel="Mark Premium Paid"
           />
         </form>
-        <form action={markCommissionsPaid}>
+        <form action={commissionAction}>
           <input name="policy_term_id" type="hidden" value={policyTermId} />
           <PaymentActionButton
             disabled={!hasCommissions}
@@ -68,6 +72,8 @@ export function PolicyActionsCard({
             unpaidLabel="Mark Commission Paid"
           />
         </form>
+        <ActionMessage message={commissionState.success} messageKey={commissionState.resultId} tone="success" />
+        <ActionMessage message={commissionState.error} messageKey={commissionState.resultId} tone="error" />
         <form action={deleteAction} className="rounded-lg border border-red-200 bg-red-50 p-3">
           <input name="policy_term_id" type="hidden" value={policyTermId} />
           <div className="mb-2">

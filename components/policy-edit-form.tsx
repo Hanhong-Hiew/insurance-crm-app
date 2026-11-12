@@ -12,7 +12,7 @@ import {
   Ship,
   Wrench,
 } from "lucide-react";
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -328,15 +328,15 @@ export function PolicyEditForm({
   useEffect(() => {
     if (formRef.current) originalForm.current = snapshotPolicyForm(new FormData(formRef.current));
   }, [policyTermId]);
-  const [state, formAction] = useActionState<UpdatePolicyState, FormData>(
+  const [state, formAction, isSaving] = useActionState<UpdatePolicyState, FormData>(
     async (previousState, data) => {
       const submitted = snapshotPolicyForm(data);
       if (originalForm.current) {
         data.set("_changed_fields", JSON.stringify(changedPolicyFields(originalForm.current, submitted)));
       }
       const result = await updatePolicy(previousState, data);
-      if (result.success) { originalForm.current = submitted; router.refresh(); }
-      return result;
+      if (result.success) { originalForm.current = submitted; router.push(`/protected/policies/${policyTermId}`); }
+      return { ...result, resultId: result.resultId ?? crypto.randomUUID() };
     },
     {},
   );
@@ -423,7 +423,7 @@ export function PolicyEditForm({
   const proposedCommission = commissionPreview.reduce((sum,row) => sum+row.amount,0);
 
   return (
-    <form ref={formRef} action={formAction} className="space-y-4" onChange={event => {
+    <form method="post" ref={formRef} onSubmit={event => { event.preventDefault(); const data = new FormData(event.currentTarget); startTransition(() => formAction(data)); }} className="space-y-4" onChange={event => {
       const target = event.target;
       if (!(target instanceof HTMLInputElement)) return;
       if (target.name === "vehicle_no") setPlate(target.value);
@@ -722,7 +722,7 @@ export function PolicyEditForm({
 
 
       <div className="crm-panel flex flex-wrap items-center gap-3">
-        <SubmitButton />
+        <SubmitButton isSaving={isSaving} />
       </div>
     </form>
   );
@@ -1002,8 +1002,9 @@ function FormSectionBlock({
   );
 }
 
-function SubmitButton() {
-  const { pending } = useFormStatus();
+function SubmitButton({ isSaving = false }: { isSaving?: boolean }) {
+  const { pending: formPending } = useFormStatus();
+  const pending = isSaving || formPending;
 
   return (
     <button

@@ -19,9 +19,12 @@ import {
   downloadCommissionStatementPdf,
   downloadCommissionStatementsPdf,
 } from "@/lib/commission-statement-pdf";
+import { payableCommission } from "@/lib/commission-adjustments";
 import { formatPercent } from "@/lib/format";
 
 export type CommissionPaymentRow = {
+  entry_kind?: string | null;
+  adjustment_note?: string | null;
   amount: number | string | null;
   calculation_percent: number | string | null;
   client_name: string | null;
@@ -172,6 +175,7 @@ function ClientCell({ row }: { row: CommissionPaymentRow }) {
   return (
     <span className="block max-w-[180px] whitespace-normal break-words leading-tight">
       {clean(row.client_name)}
+      {row.entry_kind === "adjustment" && <span className="mt-1 block text-xs text-amber-800">Adjustment: {row.adjustment_note}</span>}
     </span>
   );
 }
@@ -197,14 +201,16 @@ function GrossRateCell({ row }: { row: CommissionPaymentRow }) {
   return (
     <div className="grid gap-0.5 leading-tight">
       <span>{money(row.gross_premium)}</span>
-      <span className="text-xs text-slate-500">{percent(row.calculation_percent)}</span>
+      <span className="text-xs text-slate-500">{row.entry_kind === "adjustment" ? "Fixed adjustment" : percent(row.calculation_percent)}</span>
     </div>
   );
 }
 
 function toStatementPdfRows(rows: CommissionPaymentRow[]) {
   return rows.map((row) => ({
-    amount: row.unpaid_amount || row.amount,
+    entry_kind: row.entry_kind,
+    adjustment_note: row.adjustment_note,
+    amount: payableCommission(row),
     calculation_percent: row.calculation_percent,
     client_name: row.client_name,
     effective_date: row.effective_date,
@@ -598,7 +604,7 @@ export function CommissionPaymentsPanel({
                       <StackedTermDateCell row={row} />
                     </td>
                     <td className="px-3 py-3 text-right font-semibold">
-                      {money(row.unpaid_amount || row.amount)}
+                      {money(payableCommission(row))}
                     </td>
                   </tr>
                 ))}
@@ -809,7 +815,7 @@ function StatementPreview({
         const sortedRows = sortRowsByDate(rows, "effective_asc");
         const payeeName = clean(rows[0]?.payee_name);
         const total = rows.reduce(
-          (sum, row) => sum + toNumber(row.unpaid_amount || row.amount),
+          (sum, row) => sum + toNumber(payableCommission(row)),
           0,
         );
         return (
@@ -870,6 +876,7 @@ function StatementPreview({
                           <span className="text-xs text-slate-500">
                             {clean(row.policy_number)}
                           </span>
+                          {row.entry_kind === "adjustment" && <span className="whitespace-normal break-words text-xs text-amber-800">Adjustment: {row.adjustment_note}</span>}
                         </div>
                       </td>
                       <td className="px-2 py-2">{clean(row.vehicle_no)}</td>
@@ -884,7 +891,7 @@ function StatementPreview({
                         <GrossRateCell row={row} />
                       </td>
                       <td className="whitespace-nowrap px-2 py-2 font-semibold">
-                        {money(row.unpaid_amount || row.amount)}
+                        {money(payableCommission(row))}
                       </td>
                     </tr>
                   ))}

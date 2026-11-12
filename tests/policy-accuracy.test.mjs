@@ -4,6 +4,7 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import vm from "node:vm";
+import {runCommissionAdjustmentTests} from "./commission-adjustments.test.mjs";
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 const require=createRequire(import.meta.url);
@@ -16,7 +17,7 @@ function loadTs(relative) {
   const source=readFileSync(path.join(root,relative),"utf8");
   const result=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}});
   const module={exports:{}};
-  const localRequire=(id)=>id.startsWith(".")?loadTs(path.posix.normalize(path.posix.join(path.posix.dirname(relative),id+".ts"))):require(id);
+  const localRequire=(id)=>id.startsWith("@/")?loadTs(id.slice(2)+".ts"):id.startsWith(".")?loadTs(path.posix.normalize(path.posix.join(path.posix.dirname(relative),id+".ts"))):require(id);
   new Function("require","module","exports",result.outputText)(localRequire,module,module.exports);
   modules.set(relative,module.exports); return module.exports;
 }
@@ -33,12 +34,39 @@ assert.equal(formatPercent(0),"0%");
 assert.equal(formatPercent("0"),"0%");
 assert.equal(formatPercent(null),"-");
 assert.equal(formatPercent(0.055),"5.5%");
+assert.equal(formatPercent(0.5500000000000001),"55%");
+const {formatMoneyText}=loadTs("lib/currency-text.ts");
+assert.equal(formatMoneyText(10),"10.00");
+assert.equal(formatMoneyText(0),"0.00");
+assert.equal(formatMoneyText("1,234.5"),"1,234.50");
+assert.equal(formatMoneyText(null),"");
 assert.equal(nullableNumber("0"),0);
 assert.equal(totalPayable("350.55","28.04","8"),386.59);
 assert.equal(totalPayable(null,0,0),null);
 assert.equal(premiumWarnings({gross:350.55,total:386.60,serviceTax:28.04,stampDuty:8,sumInsured:null,typicalRatePercent:null}).length,0);
 assert.equal(premiumWarnings({gross:100,total:200,serviceTax:0,stampDuty:0,sumInsured:100000,typicalRatePercent:1}).length,2);
-console.log("PASS: zero percentages, currency precision, rounding overrides and missing-digit warnings");
+const {signedCommissionAmount,payableCommission}=loadTs("lib/commission-adjustments.ts");
+assert.equal(signedCommissionAmount("-1,234.56"),-1234.56);
+assert.throws(()=>signedCommissionAmount("1.005"),/2 decimal/);
+assert.equal(payableCommission({entry_kind:"adjustment",amount:-12.34,unpaid_amount:0}),-12.34);
+assert.equal(payableCommission({amount:100,unpaid_amount:0}),0);
+const {buildCommissionStatementPdf}=loadTs("lib/commission-statement-pdf.ts");
+const pdf=buildCommissionStatementPdf([{paidDate:"2026-11-12",payeeName:"Fixture Payee",rows:[{
+ amount:-12.34,calculation_percent:null,client_name:"Fixture Company With A Longer Name Sdn Bhd",effective_date:"2026-01-01",expiry_date:"2026-12-31",
+ gross_premium:1000,insurer_name:"Etiqa General",insurance_type:"Motor",policy_number:"POL-001",vehicle_no:"ABC123",entry_kind:"adjustment",
+ adjustment_note:"Insurer cancellation correction for previous cover."
+}]}]);
+assert.match(pdf,/Adjustment:/);assert.match(pdf,/cancellation/);assert.match(pdf,/RM -12.34/);
+if(process.env.KOVER_TEST_PDF) {
+ const {writeFileSync}=await import("node:fs");
+ writeFileSync(process.env.KOVER_TEST_PDF,pdf);
+}
+for(const file of ["components/new-policy-form.tsx","components/policy-edit-form.tsx"]) {
+ const source=readFileSync(path.join(root,file),"utf8");
+ assert(!source.includes("action={formAction}"));
+ assert(source.includes("event.preventDefault()")&&source.includes("startTransition(() => formAction(data))"));
+}
+console.log("PASS: zero percentages, currency precision, exact signed adjustments, rounding overrides, retained-form submission and PDF notes");
 
 if(!process.env.KOVER_PGLITE_MODULE) {
   console.log("Set KOVER_PGLITE_MODULE to run the isolated PostgreSQL migration tests.");
@@ -148,6 +176,7 @@ await db.exec("insert into policy_terms(id,client_id,policy_number,effective_dat
 assert.equal((await db.query("select * from kover_policy_duplicate_warnings(null,'DEF456','2026-06-01','2026-07-01',null,null)")).rows.length,1);
 assert.equal((await db.query("select * from kover_motor_transfer_candidates('DEF456',null)")).rows.length,1);
 console.log("PASS: normalized plate overlap, snapshot-only plates, self-exclusion, cross policy/cover-note duplicates and transfer lookup");
+await runCommissionAdjustmentTests(db,root,id);
 await db.exec("select set_config('request.jwt.claim.sub','',false)");
 await assert.rejects(save({gross_premium:3000},"update"),/logged in/);
 console.log("PASS: financial mutations reject signed-out requests");

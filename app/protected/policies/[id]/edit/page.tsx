@@ -87,7 +87,7 @@ async function EditPolicyContent({ params }: PageProps) {
     supabase.from("marine_policy_details").select("*").eq("policy_term_id", id).maybeSingle(),
     supabase.from("travel_policy_details").select("*").eq("policy_term_id", id).maybeSingle(),
     supabase.from("generic_policy_details").select("*").eq("policy_term_id", id).maybeSingle(),
-    supabase.from("commissions").select("payee_id, calculation_percent, amount, status, commission_payees(name)").eq("policy_term_id", id),
+    supabase.from("commissions").select("payee_id, calculation_percent, amount, status, commission_payees(name)").eq("policy_term_id", id).or("entry_kind.is.null,entry_kind.neq.adjustment"),
   ]);
 
   if (termResult.error) throw termResult.error;
